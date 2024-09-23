@@ -8,7 +8,7 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 Quokka is inspired by the wonderful [`elixir-styler`](https://github.com/adobe/elixir-styler) :heart:
 
 It maintains the same directive that consistent coding standards can help teams
-iterate quickly, but allows a few more affordances 
+iterate quickly, but allows a few more affordances
 [via `.credo.exs` configuration](https://hexdocs.pm/credo/config_file.html).
 This allows users with an already fine-tuned `.credo.exs` config to enjoy
 the automatic rewrites and strong opinions of Quokka

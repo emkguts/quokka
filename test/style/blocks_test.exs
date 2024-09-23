@@ -623,10 +623,6 @@ defmodule Quokka.Style.BlocksTest do
     test "in" do
       assert_style "unless a in b, do: x", "if a not in b, do: x"
     end
-
-    test "in" do
-      assert_style "unless a in b, do: x", "if a not in b, do: x"
-    end
   end
 
   describe "if" do
