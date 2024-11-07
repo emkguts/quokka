@@ -135,6 +135,48 @@ defmodule Quokka.Style.Pipes do
     end
   end
 
+  # a(b |> c[, ...args])
+  # The first argument to a function-looking node is a pipe.
+  # Maybe pipe the whole thing?
+  def run({{function_name, metadata, [{:|>, _, _} = pipe | args]}, _} = zipper, ctx) do
+    parent =
+      case Zipper.up(zipper) do
+        {{parent, _, _}, _} -> parent
+        _ -> nil
+      end
+
+    stringified = is_atom(function_name) && to_string(function_name)
+
+    cond do
+      # this is likely a macro
+      # assert a |> b() |> c()
+      !metadata[:closing] ->
+        {:cont, zipper, ctx}
+
+      # leave bools alone as they often read better coming first, like when prepended with `not`
+      # [not ]is_nil(a |> b() |> c())
+      stringified && (String.starts_with?(stringified, "is_") or String.ends_with?(stringified, "?")) ->
+        {:cont, zipper, ctx}
+
+      # string interpolation, module attribute assignment, or prettier bools with not
+      parent in [:"::", :@, :not, :|>] ->
+        {:cont, zipper, ctx}
+
+      # double down on being good to exunit macros, and any other special ops
+      # ..., do: assert(a |> b |> c)
+      # not (a |> b() |> c())
+      function_name in [:assert, :refute | @special_ops] ->
+        {:cont, zipper, ctx}
+
+      # if a |> b() |> c(), do: ...
+      Enum.any?(args, &Style.do_block?/1) ->
+        {:cont, zipper, ctx}
+
+      true ->
+        {:cont, Zipper.replace(zipper, {:|>, metadata, [pipe, {function_name, metadata, args}]}), ctx}
+    end
+  end
+
   def run(zipper, ctx), do: {:cont, zipper, ctx}
 
   defp fix_pipe_start({pipe, zmeta} = zipper) do
