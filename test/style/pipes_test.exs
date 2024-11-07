@@ -637,6 +637,18 @@ defmodule Quokka.Style.PipesTest do
 
       Quokka.Config.set_for_test!(:block_pipe_flag, false)
     end
+
+    test "onelines assignments" do
+      assert_style(
+        """
+        x =
+          y
+          |> Enum.map(&f/1)
+          |> Enum.join()
+        """,
+        "x = Enum.map_join(y, &f/1)"
+      )
+    end
   end
 
   describe "single pipe when credo check disabled" do
@@ -959,16 +971,24 @@ defmodule Quokka.Style.PipesTest do
 
         assert_style(
           """
+          # a
+          # b
           a_multiline_mapper
           |> #{enum}.map(fn %{gets: shrunk, down: to_a_more_reasonable} ->
+            # c
             IO.puts "woo!"
+            # d
             {shrunk, to_a_more_reasonable}
           end)
           |> Enum.into(size)
           """,
           """
+          # a
+          # b
           Enum.into(a_multiline_mapper, size, fn %{gets: shrunk, down: to_a_more_reasonable} ->
+            # c
             IO.puts("woo!")
+            # d
             {shrunk, to_a_more_reasonable}
           end)
           """
@@ -1033,16 +1053,16 @@ defmodule Quokka.Style.PipesTest do
     test "unpiping doesn't move comment in anonymous function" do
       assert_style(
         """
-          aliased =
-            aliases
-            |> MapSet.new(fn
-              {:alias, _, [{:__aliases__, _, aliases}]} -> List.last(aliases)
-              {:alias, _, [{:__aliases__, _, _}, [{_as, {:__aliases__, _, [as]}}]]} -> as
-              # alias __MODULE__ or other oddities
-              {:alias, _, _} -> nil
-            end)
+        aliased =
+          aliases
+          |> MapSet.new(fn
+            {:alias, _, [{:__aliases__, _, aliases}]} -> List.last(aliases)
+            {:alias, _, [{:__aliases__, _, _}, [{_as, {:__aliases__, _, [as]}}]]} -> as
+            # alias __MODULE__ or other oddities
+            {:alias, _, _} -> nil
+          end)
 
-          excluded_first = MapSet.union(aliased, @excluded_namespaces)
+        excluded_first = MapSet.union(aliased, @excluded_namespaces)
         """,
         """
         aliased =
@@ -1054,6 +1074,61 @@ defmodule Quokka.Style.PipesTest do
           end)
 
         excluded_first = MapSet.union(aliased, @excluded_namespaces)
+        """
+      )
+
+      assert_style(
+        """
+        foo =
+          # bar
+          bar
+          # baz
+          |> baz(fn ->
+            # a
+            a
+            # b
+            b
+          end)
+        """,
+        """
+        # bar
+        # baz
+        foo =
+          baz(bar, fn ->
+            # a
+            a
+            # b
+            b
+          end)
+        """
+      )
+
+      assert_style(
+        """
+        foo =
+          # bar
+          bar
+          # baz
+
+
+
+          |> baz(fn ->
+            # a
+            a
+            # b
+            b
+          end)
+        """,
+        """
+        # bar
+        # baz
+        foo =
+          baz(bar, fn ->
+            # a
+            a
+            # b
+            b
+          end)
         """
       )
     end
