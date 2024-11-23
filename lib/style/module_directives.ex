@@ -485,7 +485,6 @@ defmodule Quokka.Style.ModuleDirectives do
       if Quokka.Config.sort_order() == :ascii do
         Enum.map(directives, &{&1, Macro.to_string(&1)})
       else
-        # sorting is done with `downcase` to match Credo
         Enum.map(directives, &{&1, &1 |> Macro.to_string() |> String.downcase()})
       end
 
