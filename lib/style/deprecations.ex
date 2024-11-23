@@ -118,7 +118,7 @@ defmodule Quokka.Style.Deprecations do
          {:ok, stop} <- extract_value_from_range(last),
          true <- start > stop do
       step = {:__block__, [token: "1", line: lm[:line]], [1]}
-      {:..//, rm, [first, last, step]}
+      {:"..//", rm, [first, last, step]}
     else
       _ -> range
     end

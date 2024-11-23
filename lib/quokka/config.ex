@@ -23,6 +23,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.StrictModuleLayout
   alias Credo.Check.Refactor.PipeChainStart
   alias Quokka.Style.Blocks
+  alias Quokka.Style.CommentDirectives
   alias Quokka.Style.Configs
   alias Quokka.Style.Defs
   alias Quokka.Style.Deprecations
@@ -39,7 +40,8 @@ defmodule Quokka.Config do
     Defs,
     Blocks,
     Deprecations,
-    Configs
+    Configs,
+    CommentDirectives
   ]
 
   @stdlib ~w(

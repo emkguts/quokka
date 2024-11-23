@@ -44,7 +44,8 @@ defmodule Quokka.Style.DeprecationsTest do
     assert_style "def foo(a, x..y = z), do: :ok", "def foo(a, x..y//_ = z), do: :ok"
     assert_style "def foo(%{a: x..y = z}), do: :ok", "def foo(%{a: x..y//_ = z}), do: :ok"
 
-    assert_style "with a..b = c <- :ok, d..e <- :better, do: :ok", "with a..b//_ = c <- :ok, d..e//_ <- :better, do: :ok"
+    assert_style "with a..b = c <- :ok, d..e <- :better, do: :ok",
+                 "with a..b//_ = c <- :ok, d..e//_ <- :better, do: :ok"
 
     assert_style(
       """
