@@ -8,7 +8,7 @@
 # OF ANY KIND, either express or implied. See the License for the specific language
 # governing permissions and limitations under the License.
 
-defmodule Styler.Style.CommentDirectives do
+defmodule Quokka.Style.CommentDirectives do
   @moduledoc """
   Leave a comment for Styler asking it to maintain code in a certain way.
 

@@ -28,7 +28,7 @@ defmodule Quokka.Style.ConfigsTest do
   end
 
   test "only runs on exs files in config folders" do
-    {ast, _} = Quokka.string_to_quoted_with_comments("import Config\n\nconfig :bar, boop: :baz")
+    {ast, _} = Quokka.string_to_ast("import Config\n\nconfig :bar, boop: :baz")
     zipper = Quokka.Zipper.zip(ast)
 
     for file <- ~w(dev.exs my_app.exs config.exs) do

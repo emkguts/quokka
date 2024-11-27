@@ -48,11 +48,11 @@ defmodule Quokka.StyleCase do
       if styled != expected and ExUnit.configuration()[:trace] do
         IO.puts("\n======Given=============\n")
         IO.puts(before)
-        {before_ast, before_comments} = Quokka.string_to_quoted_with_comments(before)
+        {before_ast, before_comments} = Quokka.string_to_ast(before)
         dbg(before_ast)
         dbg(before_comments)
         IO.puts("======Expected AST==========\n")
-        {expected_ast, expected_comments} = Quokka.string_to_quoted_with_comments(expected)
+        {expected_ast, expected_comments} = Quokka.string_to_ast(expected)
         dbg(expected_ast)
         dbg(expected_comments)
         IO.puts("======Got AST===============\n")
@@ -119,7 +119,7 @@ defmodule Quokka.StyleCase do
             dbg(styled_ast)
 
             IO.puts("expected:")
-            dbg(elem(Quokka.string_to_quoted_with_comments(expected), 0))
+            dbg(elem(Quokka.string_to_ast(expected), 0))
 
             IO.puts("code:\n#{styled}")
             flunk("")
@@ -149,11 +149,11 @@ defmodule Quokka.StyleCase do
   end
 
   def style(code, filename \\ "testfile") do
-    {ast, comments} = Quokka.string_to_quoted_with_comments(code)
+    {ast, comments} = Quokka.string_to_ast(code)
     {styled_ast, comments} = Quokka.style({ast, comments}, filename, on_error: :raise)
 
     try do
-      styled_code = styled_ast |> Quokka.quoted_to_string(comments) |> String.trim_trailing("\n")
+      styled_code = styled_ast |> Quokka.ast_to_string(comments) |> String.trim_trailing("\n")
       {styled_ast, styled_code, comments}
     rescue
       exception ->
