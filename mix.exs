@@ -48,7 +48,6 @@ defmodule Quokka.MixProject do
 
   defp package() do
     [
-      maintainers: ["Matt Enlow", "Greg Mefford"],
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @url}
     ]
