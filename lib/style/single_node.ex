@@ -81,31 +81,35 @@ defmodule Quokka.Style.SingleNode do
   # but doesn't rewrite typos like `100_000_0`, so it's worthwhile to have Quokka do this
   #
   # `?-` isn't part of the number node - it's its parent - so all numbers are positive at this point
-  defp style({:__block__, meta, [number]}) when is_number(number) and number >= 10_000 do
-    # Checking here rather than in the anonymous function due to compiler bug https://github.com/elixir-lang/elixir/issues/10485
-    integer? = is_integer(number)
+  defp style({:__block__, meta, [number]}) when is_number(number) do
+    if number > Quokka.Config.large_numbers_gt() do
+      # Checking here rather than in the anonymous function due to compiler bug https://github.com/elixir-lang/elixir/issues/10485
+      integer? = is_integer(number)
 
-    meta =
-      Keyword.update!(meta, :token, fn
-        "0x" <> _ = token ->
-          token
+      meta =
+        Keyword.update!(meta, :token, fn
+          "0x" <> _ = token ->
+            token
 
-        "0b" <> _ = token ->
-          token
+          "0b" <> _ = token ->
+            token
 
-        "0o" <> _ = token ->
-          token
+          "0o" <> _ = token ->
+            token
 
-        token when integer? ->
-          delimit(token)
+          token when integer? ->
+            delimit(token)
 
-        # is float
-        token ->
-          [int_token, decimals] = String.split(token, ".")
-          "#{delimit(int_token)}.#{decimals}"
-      end)
+          # is float
+          token ->
+            [int_token, decimals] = String.split(token, ".")
+            "#{delimit(int_token)}.#{decimals}"
+        end)
 
-    {:__block__, meta, [number]}
+      {:__block__, meta, [number]}
+    else
+      {:__block__, meta, [number]}
+    end
   end
 
   ## INEFFICIENT FUNCTION REWRITES

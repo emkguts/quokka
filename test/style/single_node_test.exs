@@ -351,6 +351,21 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("0b1111_1111_1111_1111")
       assert_style("0o777_7777")
     end
+
+    test "respects credo config :only_greater_than" do
+      Quokka.Config.set_for_test!(:large_numbers_gt, 20_000)
+      assert_style("20000", "20000")
+      assert_style("20001", "20_001")
+      Quokka.Config.set_for_test!(:large_numbers_gt, 9999)
+      assert_style("20000", "20_000")
+    end
+
+    test "respects credo config LargeNumbers false" do
+      Quokka.Config.set_for_test!(:large_numbers_gt, :infinity)
+      assert_style("10000", "10000")
+      Quokka.Config.set_for_test!(:large_numbers_gt, 9999)
+      assert_style("10000", "10_000")
+    end
   end
 
   describe "Enum.into and $collectable.new" do

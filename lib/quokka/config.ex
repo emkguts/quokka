@@ -14,6 +14,7 @@ defmodule Quokka.Config do
 
   alias Credo.Check.Readability.AliasOrder
   alias Credo.Check.Readability.BlockPipe
+  alias Credo.Check.Readability.LargeNumbers
   alias Credo.Check.Readability.MaxLineLength
   alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
   alias Credo.Check.Readability.SinglePipe
@@ -73,6 +74,7 @@ defmodule Quokka.Config do
     :persistent_term.put(@key, %{
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
+      large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
       lifting_excludes: excludes,
       line_length: credo_opts[:line_length] || 98,
       pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
@@ -116,6 +118,10 @@ defmodule Quokka.Config do
     get(:block_pipe_exclude)
   end
 
+  def large_numbers_gt() do
+    get(:large_numbers_gt)
+  end
+
   def line_length() do
     get(:line_length)
   end
@@ -156,6 +162,10 @@ defmodule Quokka.Config do
         acc
         |> Map.put(:block_pipe_flag, true)
         |> Map.put(:block_pipe_exclude, opts[:exclude])
+
+      {LargeNumbers, opts}, acc when is_list(opts) ->
+        acc
+        |> Map.put(:large_numbers_gt, opts[:only_greater_than] || 9999)
 
       {MaxLineLength, opts}, acc when is_list(opts) ->
         Map.put(acc, :line_length, opts[:max_length])
