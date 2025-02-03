@@ -16,6 +16,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.BlockPipe
   alias Credo.Check.Readability.LargeNumbers
   alias Credo.Check.Readability.MaxLineLength
+  alias Credo.Check.Readability.MultiAlias
   alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
   alias Credo.Check.Readability.SinglePipe
   alias Credo.Check.Refactor.PipeChainStart
@@ -81,6 +82,7 @@ defmodule Quokka.Config do
       pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
       pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
       reorder_configs: reorder_configs,
+      rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
       sort_order: credo_opts[:sort_order] || :alpha,
       zero_arity_parens: credo_opts[:zero_arity_parens] || true
@@ -138,6 +140,10 @@ defmodule Quokka.Config do
     get(:pipe_chain_start_flag)
   end
 
+  def rewrite_multi_alias?() do
+    get(:rewrite_multi_alias)
+  end
+
   def single_pipe_flag?() do
     get(:single_pipe_flag)
   end
@@ -169,6 +175,9 @@ defmodule Quokka.Config do
 
       {MaxLineLength, opts}, acc when is_list(opts) ->
         Map.put(acc, :line_length, opts[:max_length])
+
+      {MultiAlias, opts}, acc when is_list(opts) ->
+        Map.put(acc, :rewrite_multi_alias, true)
 
       {ParenthesesOnZeroArityDefs, opts}, acc when is_list(opts) ->
         Map.put(acc, :zero_arity_parens, opts[:parens])

@@ -13,6 +13,14 @@ defmodule Quokka.Style.ModuleDirectivesTest do
   @moduledoc false
   use Quokka.StyleCase, async: true
 
+  setup_all do
+    Quokka.Config.set_for_test!(:rewrite_multi_alias, true)
+    on_exit(fn ->
+      Quokka.Config.set_for_test!(:rewrite_multi_alias, false)
+    end)
+    :ok
+  end
+
   describe "skip comment" do
     test "skips module reordering" do
       assert_style("""
@@ -412,6 +420,21 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       alias Foo.ProjectDevice.Loaders, as: ProjectDeviceLoaders
       alias Foo.User.Loaders
       """)
+    end
+
+    test "respects rewrite_multi_alias false" do
+      Quokka.Config.set_for_test!(:rewrite_multi_alias, false)
+
+      assert_style("""
+      alias A.{B, C}
+      """)
+
+      assert_style("""
+      alias A.D
+      alias A.{B, E, C}
+      """)
+
+      Quokka.Config.set_for_test!(:rewrite_multi_alias, true)
     end
   end
 

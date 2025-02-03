@@ -217,7 +217,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
         {directive, _, _} = ast, acc when directive in @directives ->
           {ast, acc} = lift_module_attrs(ast, acc)
-          ast = expand(ast)
+          ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [ast]
           # import and used get hoisted above aliases, so need to dealias
           ast =
             if directive in ~w(import use)a, do: AliasEnv.expand(acc.dealiases, ast), else: ast
