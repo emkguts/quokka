@@ -333,7 +333,14 @@ defmodule Quokka.Style.SingleNodeTest do
   end
 
   describe "numbers" do
+    setup do
+      on_exit(fn ->
+        Quokka.Config.set_for_test!(:large_numbers_gt, :infinity)
+      end)
+    end
+
     test "styles floats and integers with >4 digits" do
+      Quokka.Config.set_for_test!(:large_numbers_gt, 9999)
       assert_style("10000", "10_000")
       assert_style("1_0_0_0_0", "10_000")
       assert_style("-543213", "-543_213")

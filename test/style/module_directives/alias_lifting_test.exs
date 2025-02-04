@@ -11,7 +11,7 @@
 
 defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
   @moduledoc false
-  use Quokka.StyleCase, async: true
+  use Quokka.StyleCase, async: false
 
   test "lifts aliases repeated >=2 times from 3 deep" do
     assert_style(
