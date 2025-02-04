@@ -13,6 +13,17 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
   @moduledoc false
   use Quokka.StyleCase, async: false
 
+  setup do
+    Quokka.Config.set_for_test!(:lift_alias, true)
+    Quokka.Config.set_for_test!(:lift_alias_depth, 2)
+    Quokka.Config.set_for_test!(:lift_alias_frequency, 1)
+
+    on_exit(fn ->
+      Quokka.Config.set!([])
+    end)
+    :ok
+  end
+
   test "lifts aliases repeated >=2 times from 3 deep" do
     assert_style(
       """
@@ -300,8 +311,69 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
   end
 
   describe "it doesn't lift" do
+    test "when flag is off" do
+      Quokka.Config.set_for_test!(:lift_alias, false)
+
+      assert_style(
+        """
+        defmodule MyModule do
+          @moduledoc false
+
+          @spec foo :: A.B.C.t()
+          def foo do
+            A.B.C.f()
+            A.B.C.g()
+          end
+
+          def bar do
+            X.Y.Z.foo()
+            X.Y.Z.bar()
+            X.Y.Z.baz()
+          end
+
+          defmodule Nested do
+            @moduledoc false
+
+            def baz do
+              P.Q.R.one()
+              P.Q.R.two()
+              P.Q.R.three()
+            end
+          end
+        end
+        """,
+        """
+        defmodule MyModule do
+          @moduledoc false
+
+          @spec foo :: A.B.C.t()
+          def foo() do
+            A.B.C.f()
+            A.B.C.g()
+          end
+
+          def bar() do
+            X.Y.Z.foo()
+            X.Y.Z.bar()
+            X.Y.Z.baz()
+          end
+
+          defmodule Nested do
+            @moduledoc false
+
+            def baz() do
+              P.Q.R.one()
+              P.Q.R.two()
+              P.Q.R.three()
+            end
+          end
+        end
+        """
+      )
+    end
+
     test "collisions with configured modules" do
-      Quokka.Config.set!(alias_lifting_exclude: ~w(C)a)
+      Quokka.Config.set!(alias_lifting_exclude: ~w(C)a, alias_lift: true)
 
       assert_style """
       alias Foo.Bar
@@ -315,6 +387,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
 
     test "collisions with configured regexes" do
       Quokka.Config.set!(alias_lifting_exclude: [~r/A.B/])
+      Quokka.Config.set_for_test!(:lift_alias, true)
 
       assert_style(
         """
@@ -526,6 +599,105 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         |> boop()
       end
       """
+    end
+  end
+
+  test "lifts all aliases when lift_alias_depth is 0" do
+    Quokka.Config.set_for_test!(:lift_alias_depth, 0)
+
+    assert_style(
+      """
+      defmodule MyModule do
+        @moduledoc false
+
+        B.C.f()
+        B.C.g()
+        Y.Z.foo()
+        Y.Z.bar()
+        S.T.bar()
+        S.T.baz()
+      end
+      """,
+      """
+      defmodule MyModule do
+        @moduledoc false
+
+        alias B.C
+        alias S.T
+        alias Y.Z
+
+        C.f()
+        C.g()
+        Z.foo()
+        Z.bar()
+        T.bar()
+        T.baz()
+      end
+      """
+    )
+  end
+
+  describe "lift_alias_frequency configuration" do
+    test "only lifts aliases that meet frequency threshold" do
+      Quokka.Config.set_for_test!(:lift_alias_frequency, 2)
+
+      assert_style(
+        """
+        defmodule MyModule do
+          @moduledoc false
+
+          A.B.C.foo()
+          A.B.C.bar()
+          X.Y.Z.one()
+          X.Y.Z.two()
+          X.Y.Z.three()
+          P.Q.R.single()
+        end
+        """,
+        """
+        defmodule MyModule do
+          @moduledoc false
+
+          alias X.Y.Z
+
+          A.B.C.foo()
+          A.B.C.bar()
+          Z.one()
+          Z.two()
+          Z.three()
+          P.Q.R.single()
+        end
+        """
+      )
+    end
+
+    test "lifts all aliases when frequency is 0" do
+      Quokka.Config.set_for_test!(:lift_alias_frequency, 0)
+
+      assert_style(
+        """
+        defmodule MyModule do
+          @moduledoc false
+
+          A.B.C.foo()
+          X.Y.Z.one()
+          P.Q.R.single()
+        end
+        """,
+        """
+        defmodule MyModule do
+          @moduledoc false
+
+          alias A.B.C
+          alias P.Q.R
+          alias X.Y.Z
+
+          C.foo()
+          Z.one()
+          R.single()
+        end
+        """
+      )
     end
   end
 end

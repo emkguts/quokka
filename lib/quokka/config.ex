@@ -12,6 +12,7 @@
 defmodule Quokka.Config do
   @moduledoc false
 
+  alias Credo.Check.Design.AliasUsage
   alias Credo.Check.Readability.AliasOrder
   alias Credo.Check.Readability.BlockPipe
   alias Credo.Check.Readability.LargeNumbers
@@ -82,6 +83,9 @@ defmodule Quokka.Config do
       pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
       pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
       reorder_configs: reorder_configs,
+      lift_alias: credo_opts[:lift_alias] || false,
+      lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
+      lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
       rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
       sort_order: credo_opts[:sort_order] || :alpha,
@@ -124,6 +128,18 @@ defmodule Quokka.Config do
     get(:large_numbers_gt)
   end
 
+  def lift_alias?() do
+    get(:lift_alias)
+  end
+
+  def lift_alias_depth() do
+    get(:lift_alias_depth)
+  end
+
+  def lift_alias_frequency() do
+    get(:lift_alias_frequency)
+  end
+
   def line_length() do
     get(:line_length)
   end
@@ -163,6 +179,12 @@ defmodule Quokka.Config do
     Enum.reduce(read_credo_config().checks, %{}, fn
       {AliasOrder, opts}, acc when is_list(opts) ->
         Map.put(acc, :sort_order, opts[:sort_method])
+
+      {AliasUsage, opts}, acc when is_list(opts) ->
+        acc
+        |> Map.put(:lift_alias, true)
+        |> Map.put(:lift_alias_depth, opts[:if_nested_deeper_than])
+        |> Map.put(:lift_alias_frequency, opts[:if_called_more_often_than])
 
       {BlockPipe, opts}, acc when is_list(opts) ->
         acc
