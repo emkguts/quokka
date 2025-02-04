@@ -35,12 +35,12 @@ defmodule Quokka.Config do
     Configs
   ]
 
-  @stdlib MapSet.new(~w(
+  @stdlib ~w(
     Access Agent Application Atom Base Behaviour Bitwise Code Date DateTime Dict Ecto Enum Exception
     File Float GenEvent GenServer HashDict HashSet Integer IO Kernel Keyword List
     Macro Map MapSet Module NaiveDateTime Node Oban OptionParser Path Port Process Protocol
     Range Record Regex Registry Set Stream String StringIO Supervisor System Task Time Tuple URI Version
-  )a)
+  )a
 
   def set(config) do
     :persistent_term.get(@key)
@@ -52,23 +52,8 @@ defmodule Quokka.Config do
   def set!(config) do
     credo_opts = extract_configs_from_credo()
 
-    excludes =
-      config[:alias_lifting_exclude]
-      |> List.wrap()
-      |> MapSet.new(fn
-        atom when is_atom(atom) ->
-          case to_string(atom) do
-            "Elixir." <> rest -> String.to_atom(rest)
-            _ -> atom
-          end
-
-        regex when is_struct(regex, Regex) ->
-          regex
-
-        other ->
-          raise "Expected an atom or regex for `alias_lifting_exclude`, got: #{inspect(other)}"
-      end)
-      |> MapSet.union(@stdlib)
+    lift_alias_excluded_namespaces = (credo_opts[:lift_alias_excluded_namespaces] || []) |> Enum.map(&Atom.to_string/1)
+    lift_alias_excluded_lastnames = (credo_opts[:lift_alias_excluded_lastnames] || []) |> Enum.map(&Atom.to_string/1)
 
     reorder_configs =
       if is_nil(config[:reorder_configs]), do: true, else: config[:reorder_configs]
@@ -77,7 +62,6 @@ defmodule Quokka.Config do
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
       large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
-      lifting_excludes: excludes,
       line_length: credo_opts[:line_length] || 98,
       pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
       pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
@@ -85,6 +69,8 @@ defmodule Quokka.Config do
       reorder_configs: reorder_configs,
       lift_alias: credo_opts[:lift_alias] || false,
       lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
+      lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
+      lift_alias_excluded_lastnames: MapSet.new(lift_alias_excluded_lastnames ++ @stdlib),
       lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
       rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
@@ -136,6 +122,14 @@ defmodule Quokka.Config do
     get(:lift_alias_depth)
   end
 
+  def lift_alias_excluded_lastnames() do
+    get(:lift_alias_excluded_lastnames)
+  end
+
+  def lift_alias_excluded_namespaces() do
+    get(:lift_alias_excluded_namespaces)
+  end
+
   def lift_alias_frequency() do
     get(:lift_alias_frequency)
   end
@@ -185,6 +179,8 @@ defmodule Quokka.Config do
         |> Map.put(:lift_alias, true)
         |> Map.put(:lift_alias_depth, opts[:if_nested_deeper_than])
         |> Map.put(:lift_alias_frequency, opts[:if_called_more_often_than])
+        |> Map.put(:lift_alias_excluded_namespaces, opts[:excluded_namespaces])
+        |> Map.put(:lift_alias_excluded_lastnames, opts[:excluded_lastnames])
 
       {BlockPipe, opts}, acc when is_list(opts) ->
         acc

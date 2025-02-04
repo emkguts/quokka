@@ -159,13 +159,3 @@ C.bar()
 ### Collisions
 
 Quokka won't lift aliases that will collide with existing aliases, and likewise won't lift any module whose name would collide with a standard library name.
-
-You can specify additional modules to exclude from lifting via the `:alias_lifting_exclude` configuration option. This option accepts both atoms and regexes. For the example above, the following configuration would keep Quokka from creating the `alias A.B.C` node:
-
-```elixir
-# .formatter.exs
-[
-  plugins: [Quokka],
-  quokka: [alias_lifting_exclude: [:C]],
-]
-```

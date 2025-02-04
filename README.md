@@ -64,7 +64,6 @@ Quokka can be configured in your `.formatter.exs` file
 [
   plugins: [Quokka],
   quokka: [
-    alias_lifting_exclude: [...],
     reorder_configs: true | false
   ]
 ]
@@ -72,7 +71,6 @@ Quokka can be configured in your `.formatter.exs` file
 
 Quokka has several configuration options:
 
-- `:alias_lifting_exclude`, which accepts a list of atoms to _not_ lift. See the [Module Directive documentation](docs/module_directives.md#alias-lifting) for more
 - `:reorder_configs`, which controls whether or not the configs in your `config/*.exs` files are alphabetized. This is true by default.
 
 ## WARNING: Quokka can change the behaviour of your program!

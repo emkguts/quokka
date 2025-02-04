@@ -320,7 +320,7 @@ defmodule Quokka.Style.ModuleDirectives do
     # we can't use the dealias map built into state as that's what things look like before sorting
     # now that we've sorted, it could be different!
     dealiases = AliasEnv.define(aliases)
-    excluded = dealiases |> Map.keys() |> Enum.into(Quokka.Config.get(:lifting_excludes))
+    excluded = dealiases |> Map.keys() |> Enum.into(Quokka.Config.lift_alias_excluded_lastnames())
     liftable = if Quokka.Config.lift_alias?(), do: find_liftable_aliases(requires ++ nondirectives, excluded), else: []
 
     if Enum.any?(liftable) do
@@ -371,15 +371,17 @@ defmodule Quokka.Style.ModuleDirectives do
         if Enum.all?(aliases, &is_atom/1) do
           alias_string = Enum.join(aliases, ".")
 
-          excluded_regex_match =
-            excluded
-            |> Stream.filter(&is_struct(&1, Regex))
-            |> Enum.any?(&Regex.match?(&1, alias_string))
+          excluded_namespace_match =
+            Quokka.Config.lift_alias_excluded_namespaces()
+            |> MapSet.filter(fn namespace ->
+              String.starts_with?(alias_string, Atom.to_string(namespace) <> ".")
+            end)
+            |> MapSet.size() > 0
 
           last = List.last(aliases)
 
           lifts =
-            if excluded_regex_match or last in excluded or not Enum.all?(aliases, &is_atom/1) or
+            if excluded_namespace_match or last in excluded or not Enum.all?(aliases, &is_atom/1) or
                length(aliases) <= Quokka.Config.lift_alias_depth() do
               lifts
             else

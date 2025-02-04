@@ -8,6 +8,5 @@
     assert_style: 2
   ],
   plugins: [Quokka],
-  quokka: [alias_lifting_exclude: []],
   line_length: 122
 ]

@@ -373,29 +373,38 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     end
 
     test "collisions with configured modules" do
-      Quokka.Config.set!(alias_lifting_exclude: ~w(C)a, alias_lift: true)
+      Quokka.Config.set_for_test!(:lift_alias_excluded_lastnames, MapSet.new([:C]))
 
       assert_style """
       alias Foo.Bar
 
-      A.B.C
-      A.B.C
+      A.B.C.foo()
+      A.B.C.foo()
+      D.E.F.foo()
+      D.E.F.foo()
+      """,
       """
+      alias D.E.F
+      alias Foo.Bar
 
-      Quokka.Config.set!([])
+      A.B.C.foo()
+      A.B.C.foo()
+      F.foo()
+      F.foo()
+      """
+      Quokka.Config.set_for_test!(:lift_alias_excluded_lastnames, MapSet.new())
     end
 
     test "collisions with configured regexes" do
-      Quokka.Config.set!(alias_lifting_exclude: [~r/A.B/])
-      Quokka.Config.set_for_test!(:lift_alias, true)
+      Quokka.Config.set_for_test!(:lift_alias_excluded_namespaces, MapSet.new([:Name]))
 
       assert_style(
         """
         defmodule MyModule do
           alias Foo.Bar
 
-          X.Y.Z.bar()
-          X.Y.Z.bar()
+          Name.Y.Z.bar()
+          Name.Y.Z.bar()
           A.B.C.foo()
           A.B.C.foo()
           A.B.C.D.foo()
@@ -404,20 +413,20 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         """,
         """
         defmodule MyModule do
+          alias A.B.C
+          alias A.B.C.D
           alias Foo.Bar
-          alias X.Y.Z
 
-          Z.bar()
-          Z.bar()
-          A.B.C.foo()
-          A.B.C.foo()
-          A.B.C.D.foo()
-          A.B.C.D.foo()
+          Name.Y.Z.bar()
+          Name.Y.Z.bar()
+          C.foo()
+          C.foo()
+          D.foo()
+          D.foo()
         end
         """
       )
-
-      Quokka.Config.set!([])
+      Quokka.Config.set_for_test!(:lift_alias_excluded_namespaces, MapSet.new())
     end
 
     test "collisions with std lib" do
