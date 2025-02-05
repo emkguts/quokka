@@ -127,7 +127,7 @@ defmodule Quokka.Style.SingleNode do
   end
 
   for m <- [:Map, :Keyword] do
-    # lhs |> Map.merge(%{key: value}) => lhs |> Map.put(key, value)
+    # lhs |> Map.merge(%{key: value}) => lhs |> Map.put(:key, value)
     defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [{:%{}, _, [{key, value}]}]}]} = node) do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {:|>, pm, [lhs, {{:., dm, [module, :put]}, m, [key, value]}]},
@@ -155,7 +155,7 @@ defmodule Quokka.Style.SingleNode do
         else: node
     end
 
-    # (lhs |>) Map.drop([key]) => Map.delete(key)
+    # lhs |> Map.drop([key]) => lhs |> Map.delete(key)
     defp style({{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [{:__block__, _, [[{op, _, _} = key]]}]} = node)
          when op != :| do
       if Quokka.Config.inefficient_function_rewrites?(),
