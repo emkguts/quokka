@@ -61,6 +61,9 @@ defmodule Quokka.Config do
     inefficient_function_rewrites =
       if is_nil(config[:inefficient_function_rewrites]), do: true, else: config[:inefficient_function_rewrites]
 
+    rewrite_deprecations =
+      if is_nil(config[:rewrite_deprecations]), do: true, else: config[:rewrite_deprecations]
+
     :persistent_term.put(@key, %{
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
@@ -71,6 +74,7 @@ defmodule Quokka.Config do
       pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
       pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
       reorder_configs: reorder_configs,
+      rewrite_deprecations: rewrite_deprecations,
       lift_alias: credo_opts[:lift_alias] || false,
       lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
       lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
@@ -95,11 +99,11 @@ defmodule Quokka.Config do
   end
 
   def get_styles() do
-    if get(:reorder_configs) == true do
-      @styles
-    else
-      @styles -- [Configs]
-    end
+    styles_to_remove =
+      for {module, flag_name} <- [{Configs, :reorder_configs}, {Quokka.Style.Deprecations, :rewrite_deprecations}],
+          do: (if get(flag_name), do: nil, else: module)
+
+    @styles -- styles_to_remove
   end
 
   def sort_order() do
