@@ -71,6 +71,8 @@ defmodule Quokka.Config do
     :persistent_term.put(@key, %{
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
+      directories_included: config[:directories_included] || [],
+      directories_excluded: config[:directories_excluded] || [],
       inefficient_function_rewrites: inefficient_function_rewrites,
       large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
       line_length: credo_opts[:line_length] || 98,
@@ -88,7 +90,7 @@ defmodule Quokka.Config do
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
       sort_order: credo_opts[:sort_order] || :alpha,
       strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
-      zero_arity_parens: credo_opts[:zero_arity_parens]
+      zero_arity_parens: credo_opts[:zero_arity_parens] || false,
     })
   end
 
@@ -181,6 +183,18 @@ defmodule Quokka.Config do
 
   def zero_arity_parens?() do
     get(:zero_arity_parens)
+  end
+
+  def allowed_directory?(file) do
+    file = to_string(file)
+    included_dirs = get(:directories_included)
+    excluded_dirs = get(:directories_excluded)
+
+    cond do
+      Enum.any?(excluded_dirs, &String.starts_with?(file, &1)) -> false
+      Enum.empty?(included_dirs) -> true
+      true -> Enum.any?(included_dirs, &String.starts_with?(file, &1))
+    end
   end
 
   defp read_credo_config() do

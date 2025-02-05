@@ -21,8 +21,17 @@ defmodule Quokka do
 
   @doc false
   def style({ast, comments}, file, opts) do
-    on_error = opts[:on_error] || :log
     Quokka.Config.set(opts)
+
+    if Quokka.Config.allowed_directory?(file) do
+      do_style({ast, comments}, file, opts)
+    else
+      {ast, comments}
+    end
+  end
+
+  defp do_style({ast, comments}, file, opts) do
+    on_error = opts[:on_error] || :log
     zipper = Zipper.zip(ast)
 
     {{ast, _}, comments} =

@@ -73,6 +73,8 @@ Quokka can be configured in your `.formatter.exs` file
 
 Quokka has several configuration options:
 
+- `:directories_included`, which controls which directories Quokka will format. This is `[]` by default. When it is empty, Quokka will format all files.
+- `:directories_excluded`, which controls which directories Quokka will not format. This is `[]` by default.
 - `:inefficient_function_rewrites`, which controls whether or not Quokka will rewrite deprecated functions to their new form. This is true by default.
 - `:reorder_configs`, which controls whether or not the configs in your `config/*.exs` files are alphabetized. This is true by default.
 - `:rewrite_deprecations`, which controls whether or not Quokka will rewrite deprecated functions to their new form. This is true by default.
