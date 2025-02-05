@@ -12,6 +12,10 @@
 defmodule Quokka.Style.BlocksTest do
   use Quokka.StyleCase, async: true
 
+  setup do
+    Quokka.Config.set_for_test!(:zero_arity_parens, true)
+  end
+
   describe "with statements" do
     test "replacement due to no (or all removed) arrows" do
       assert_style(

@@ -75,7 +75,7 @@ defmodule Quokka.Config do
       rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
       sort_order: credo_opts[:sort_order] || :alpha,
-      zero_arity_parens: credo_opts[:zero_arity_parens] || true
+      zero_arity_parens: credo_opts[:zero_arity_parens]
     })
   end
 
@@ -198,7 +198,7 @@ defmodule Quokka.Config do
         Map.put(acc, :rewrite_multi_alias, true)
 
       {ParenthesesOnZeroArityDefs, opts}, acc when is_list(opts) ->
-        Map.put(acc, :zero_arity_parens, opts[:parens])
+        Map.put(acc, :zero_arity_parens, opts[:parens] || false)
 
       {PipeChainStart, opts}, acc when is_list(opts) ->
         acc

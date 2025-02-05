@@ -12,6 +12,10 @@
 defmodule Quokka.Style.SingleNodeTest do
   use Quokka.StyleCase, async: true
 
+  setup do
+    Quokka.Config.set_for_test!(:zero_arity_parens, true)
+  end
+
   test "string sigil rewrites" do
     assert_style ~s|""|
     assert_style ~s|"\\""|
@@ -174,8 +178,6 @@ defmodule Quokka.Style.SingleNodeTest do
 
       # Regression: be wary of invocations with extra parens from metaprogramming
       assert_style("def metaprogramming(foo)(), do: bar")
-
-      Quokka.Config.set_for_test!(:zero_arity_parens, true)
     end
 
     test "prefers implicit try" do

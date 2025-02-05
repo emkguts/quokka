@@ -17,6 +17,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     Quokka.Config.set_for_test!(:lift_alias, true)
     Quokka.Config.set_for_test!(:lift_alias_depth, 2)
     Quokka.Config.set_for_test!(:lift_alias_frequency, 1)
+    Quokka.Config.set_for_test!(:zero_arity_parens, true)
 
     on_exit(fn ->
       Quokka.Config.set!([])

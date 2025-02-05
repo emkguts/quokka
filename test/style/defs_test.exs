@@ -12,6 +12,10 @@
 defmodule Quokka.Style.DefsTest do
   use Quokka.StyleCase, async: true
 
+  setup do
+    Quokka.Config.set_for_test!(:zero_arity_parens, true)
+  end
+
   describe "run" do
     test "comments stay put when we can't shrink the head, even with blocks" do
       assert_style("""

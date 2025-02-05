@@ -15,6 +15,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
 
   setup_all do
     Quokka.Config.set_for_test!(:rewrite_multi_alias, true)
+    Quokka.Config.set_for_test!(:zero_arity_parens, true)
     on_exit(fn ->
       Quokka.Config.set_for_test!(:rewrite_multi_alias, false)
     end)
