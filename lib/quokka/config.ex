@@ -58,9 +58,13 @@ defmodule Quokka.Config do
     reorder_configs =
       if is_nil(config[:reorder_configs]), do: true, else: config[:reorder_configs]
 
+    inefficient_function_rewrites =
+      if is_nil(config[:inefficient_function_rewrites]), do: true, else: config[:inefficient_function_rewrites]
+
     :persistent_term.put(@key, %{
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
+      inefficient_function_rewrites: inefficient_function_rewrites,
       large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
       line_length: credo_opts[:line_length] || 98,
       pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
@@ -108,6 +112,10 @@ defmodule Quokka.Config do
 
   def block_pipe_exclude() do
     get(:block_pipe_exclude)
+  end
+
+  def inefficient_function_rewrites?() do
+    get(:inefficient_function_rewrites)
   end
 
   def large_numbers_gt() do

@@ -128,42 +128,67 @@ defmodule Quokka.Style.SingleNode do
 
   for m <- [:Map, :Keyword] do
     # lhs |> Map.merge(%{key: value}) => lhs |> Map.put(key, value)
-    defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [{:%{}, _, [{key, value}]}]}]}),
-      do: {:|>, pm, [lhs, {{:., dm, [module, :put]}, m, [key, value]}]}
+    defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [{:%{}, _, [{key, value}]}]}]} = node) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {:|>, pm, [lhs, {{:., dm, [module, :put]}, m, [key, value]}]},
+        else: node
+    end
 
     # lhs |> Map.merge(key: value) => lhs |> Map.put(:key, value)
-    defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [[{key, value}]]}]}),
-      do: {:|>, pm, [lhs, {{:., dm, [module, :put]}, m, [key, value]}]}
+    defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [[{key, value}]]}]} = node) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {:|>, pm, [lhs, {{:., dm, [module, :put]}, m, [key, value]}]},
+        else: node
+    end
 
     # Map.merge(foo, %{one_key: :bar}) => Map.put(foo, :one_key, :bar)
-    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [lhs, {:%{}, _, [{key, value}]}]}),
-      do: {{:., dm, [module, :put]}, m, [lhs, key, value]}
+    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [lhs, {:%{}, _, [{key, value}]}]} = node) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {{:., dm, [module, :put]}, m, [lhs, key, value]},
+        else: node
+    end
 
     # Map.merge(foo, one_key: :bar) => Map.put(foo, :one_key, :bar)
-    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [lhs, [{key, value}]]}),
-      do: {{:., dm, [module, :put]}, m, [lhs, key, value]}
+    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [lhs, [{key, value}]]} = node) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {{:., dm, [module, :put]}, m, [lhs, key, value]},
+        else: node
+    end
 
     # (lhs |>) Map.drop([key]) => Map.delete(key)
-    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [{:__block__, _, [[{op, _, _} = key]]}]})
-         when op != :|,
-         do: {{:., dm, [module, :delete]}, m, [key]}
+    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [{:__block__, _, [[{op, _, _} = key]]}]} = node)
+         when op != :| do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {{:., dm, [module, :delete]}, m, [key]},
+        else: node
+    end
 
     # Map.drop(foo, [one_key]) => Map.delete(foo, one_key)
-    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [lhs, {:__block__, _, [[{op, _, _} = key]]}]})
-         when op != :|,
-         do: {{:., dm, [module, :delete]}, m, [lhs, key]}
+    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [lhs, {:__block__, _, [[{op, _, _} = key]]}]} = node)
+         when op != :| do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {{:., dm, [module, :delete]}, m, [lhs, key]},
+        else: node
+    end
   end
 
   # Timex.now() => DateTime.utc_now()
-  defp style({{:., dm, [{:__aliases__, am, [:Timex]}, :now]}, funm, []}),
-    do: {{:., dm, [{:__aliases__, am, [:DateTime]}, :utc_now]}, funm, []}
+  defp style({{:., dm, [{:__aliases__, am, [:Timex]}, :now]}, funm, []} = node) do
+    if Quokka.Config.inefficient_function_rewrites?(),
+      do: {{:., dm, [{:__aliases__, am, [:DateTime]}, :utc_now]}, funm, []},
+      else: node
+  end
 
   # {DateTime,NaiveDateTime,Time,Date}.compare(a, b) == :lt => {DateTime,NaiveDateTime,Time,Date}.before?(a, b)
   # {DateTime,NaiveDateTime,Time,Date}.compare(a, b) == :gt => {DateTime,NaiveDateTime,Time,Date}.after?(a, b)
-  defp style({:==, _, [{{:., dm, [{:__aliases__, am, [mod]}, :compare]}, funm, args}, {:__block__, _, [result]}]})
+  defp style({:==, _, [{{:., dm, [{:__aliases__, am, [mod]}, :compare]}, funm, args}, {:__block__, _, [result]}]} = node)
        when mod in ~w[DateTime NaiveDateTime Time Date]a and result in [:lt, :gt] do
-    fun = if result == :lt, do: :before?, else: :after?
-    {{:., dm, [{:__aliases__, am, [mod]}, fun]}, funm, args}
+    if Quokka.Config.inefficient_function_rewrites?() do
+      fun = if result == :lt, do: :before?, else: :after?
+      {{:., dm, [{:__aliases__, am, [mod]}, fun]}, funm, args}
+    else
+      node
+    end
   end
 
   # `Credo.Check.Readability.PreferImplicitTry`
@@ -204,7 +229,7 @@ defmodule Quokka.Style.SingleNode do
   defp style(node), do: node
 
   defp replace_into({:., dm, [{_, am, _} = enum, _]}, collectable, rest) do
-    case collectable do
+    case Quokka.Config.inefficient_function_rewrites?() and collectable do
       {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in ~w(Map Keyword MapSet)a ->
         {:., dm, [{:__aliases__, am, [mod]}, :new]}
 

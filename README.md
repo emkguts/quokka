@@ -64,6 +64,7 @@ Quokka can be configured in your `.formatter.exs` file
 [
   plugins: [Quokka],
   quokka: [
+    inefficient_function_rewrites: true | false,
     reorder_configs: true | false
   ]
 ]
@@ -72,6 +73,7 @@ Quokka can be configured in your `.formatter.exs` file
 Quokka has several configuration options:
 
 - `:reorder_configs`, which controls whether or not the configs in your `config/*.exs` files are alphabetized. This is true by default.
+- `:inefficient_function_rewrites`, which controls whether or not Quokka will rewrite deprecated functions to their new form. This is true by default.
 
 ## WARNING: Quokka can change the behaviour of your program!
 
