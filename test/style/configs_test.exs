@@ -15,6 +15,10 @@ defmodule Quokka.Style.ConfigsTest do
 
   alias Quokka.Style.Configs
 
+  setup do
+    Quokka.Config.set_for_test!(:strict_module_layout_order, [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require])
+  end
+
   test "only runs on exs files in config folders" do
     {ast, _} = Quokka.string_to_quoted_with_comments("import Config\n\nconfig :bar, boop: :baz")
     zipper = Quokka.Zipper.zip(ast)
@@ -351,5 +355,23 @@ defmodule Quokka.Style.ConfigsTest do
         """
       )
     end
+  end
+
+  test "respects custom strict_module_layout_order" do
+    Quokka.Config.set_for_test!(:strict_module_layout_order, [:alias, :import, :moduledoc])
+    assert_style(
+      """
+      @moduledoc "Some doc"
+      alias Foo.Bar
+      import Enum
+      """,
+      """
+      alias Foo.Bar
+
+      import Enum
+
+      @moduledoc "Some doc"
+      """
+    )
   end
 end

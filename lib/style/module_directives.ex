@@ -291,15 +291,8 @@ defmodule Quokka.Style.ModuleDirectives do
     nondirectives = acc.nondirectives
 
     directives =
-      [
-        acc.shortdoc,
-        acc.moduledoc,
-        acc.behaviour,
-        acc.use,
-        acc.import,
-        acc.alias,
-        acc.require
-      ]
+      Quokka.Config.strict_module_layout_order()
+      |> Enum.map(&acc[&1])
       |> Stream.concat()
       |> Style.fix_line_numbers(List.first(nondirectives))
 

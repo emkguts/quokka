@@ -20,6 +20,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.MultiAlias
   alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
   alias Credo.Check.Readability.SinglePipe
+  alias Credo.Check.Readability.StrictModuleLayout
   alias Credo.Check.Refactor.PipeChainStart
   alias Quokka.Style.Configs
 
@@ -64,6 +65,9 @@ defmodule Quokka.Config do
     rewrite_deprecations =
       if is_nil(config[:rewrite_deprecations]), do: true, else: config[:rewrite_deprecations]
 
+    default_order = [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require]
+    strict_module_layout_order = credo_opts[:strict_module_layout_order] || default_order
+
     :persistent_term.put(@key, %{
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
@@ -83,6 +87,7 @@ defmodule Quokka.Config do
       rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
       sort_order: credo_opts[:sort_order] || :alpha,
+      strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
       zero_arity_parens: credo_opts[:zero_arity_parens]
     })
   end
@@ -170,6 +175,10 @@ defmodule Quokka.Config do
     get(:single_pipe_flag)
   end
 
+  def strict_module_layout_order() do
+    get(:strict_module_layout_order)
+  end
+
   def zero_arity_parens?() do
     get(:zero_arity_parens)
   end
@@ -220,6 +229,9 @@ defmodule Quokka.Config do
 
       {SinglePipe, opts}, acc when is_list(opts) ->
         Map.put(acc, :single_pipe_flag, true)
+
+      {StrictModuleLayout, opts}, acc when is_list(opts) ->
+        Map.put(acc, :strict_module_layout_order, opts[:order])
 
       _, acc ->
         acc
