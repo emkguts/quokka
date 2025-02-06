@@ -218,12 +218,18 @@ defmodule Quokka.Style.ModuleDirectives do
         {directive, _, _} = ast, acc when directive in @directives ->
           {ast, acc} = lift_module_attrs(ast, acc)
           ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [ast]
-          # import and used get hoisted above aliases, so need to dealias
-          ast =
-            if directive in ~w(import use)a, do: AliasEnv.expand(acc.dealiases, ast), else: ast
 
-          dealiases =
-            if directive == :alias, do: AliasEnv.define(acc.dealiases, ast), else: acc.dealiases
+          # import and used might get hoisted above aliases, so need to dealias depending on the layout order
+          layout_order = Quokka.Config.strict_module_layout_order()
+          needs_dealiasing = directive in ~w(import use)a and
+                            with directive_idx <- Enum.find_index(layout_order, &(&1 == directive)),
+                                 alias_idx <- Enum.find_index(layout_order, &(&1 == :alias)) do
+                              directive_idx < alias_idx
+                            end
+
+          ast = if needs_dealiasing, do: AliasEnv.expand(acc.dealiases, ast), else: ast
+
+          dealiases = if directive == :alias, do: AliasEnv.define(acc.dealiases, ast), else: acc.dealiases
 
           # the reverse accounts for `expand` putting things in reading order, whereas we're accumulating in reverse
           %{acc | directive => Enum.reverse(ast, acc[directive]), dealiases: dealiases}
