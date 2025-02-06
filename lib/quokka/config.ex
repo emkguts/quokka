@@ -186,14 +186,14 @@ defmodule Quokka.Config do
   end
 
   def allowed_directory?(file) do
-    file = to_string(file)
+    relative_path = Path.relative_to_cwd(file)
     included_dirs = get(:directories_included)
     excluded_dirs = get(:directories_excluded)
 
     cond do
-      Enum.any?(excluded_dirs, &String.starts_with?(file, &1)) -> false
+      Enum.any?(excluded_dirs, &String.starts_with?(relative_path, &1)) -> false
       Enum.empty?(included_dirs) -> true
-      true -> Enum.any?(included_dirs, &String.starts_with?(file, &1))
+      true -> Enum.any?(included_dirs, &String.starts_with?(relative_path, &1))
     end
   end
 
