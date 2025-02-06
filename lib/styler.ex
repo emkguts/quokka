@@ -21,16 +21,6 @@ defmodule Quokka do
 
   @doc false
   def style({ast, comments}, file, opts) do
-    Quokka.Config.set(opts)
-
-    if Quokka.Config.allowed_directory?(file) do
-      do_style({ast, comments}, file, opts)
-    else
-      {ast, comments}
-    end
-  end
-
-  defp do_style({ast, comments}, file, opts) do
     on_error = opts[:on_error] || :log
     zipper = Zipper.zip(ast)
 
@@ -78,12 +68,23 @@ defmodule Quokka do
     file = formatter_opts[:file]
     styler_opts = formatter_opts[:quokka] || []
 
-    {ast, comments} =
-      input
-      |> string_to_quoted_with_comments(to_string(file))
-      |> style(file, styler_opts)
+    Quokka.Config.set(styler_opts)
 
-    quoted_to_string(ast, comments, formatter_opts)
+    # todo:
+    # `file` is the full path
+    # need to extract the path from the consumer project directory
+    # and pass into allowed_directory?/1
+
+    if Quokka.Config.allowed_directory?(file) do
+      {ast, comments} =
+        input
+        |> string_to_quoted_with_comments(to_string(file))
+        |> style(file, styler_opts)
+
+      quoted_to_string(ast, comments, formatter_opts)
+    else
+      input
+    end
   end
 
   @doc false
