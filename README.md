@@ -68,8 +68,8 @@ Quokka can be configured in your `.formatter.exs` file
     reorder_configs: true | false,
     rewrite_deprecations: true | false,
     files: %{
-      included: [String.t()],
-      excluded: [String.t()]
+      included: ["lib/", ...],
+      excluded: ["lib/example.ex", ...]
     }
   ]
 ]
