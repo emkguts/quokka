@@ -610,6 +610,24 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
       end
       """
     end
+
+      test "does not lift aliases that are already lifted" do
+      # if the last module of a list in an alias is the first of an already lifted alias,
+      # do not lift the alias
+      assert_style """
+      defmodule A do
+        @moduledoc false
+
+        alias C.D.E
+
+        E.f()
+        E.f()
+
+        A.B.C.f()
+        A.B.C.f()
+      end
+      """
+      end
   end
 
   test "lifts all aliases when lift_alias_depth is 0" do

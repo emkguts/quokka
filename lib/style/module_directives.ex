@@ -313,8 +313,9 @@ defmodule Quokka.Style.ModuleDirectives do
     # we can't use the dealias map built into state as that's what things look like before sorting
     # now that we've sorted, it could be different!
     dealiases = AliasEnv.define(aliases)
+    already_lifted = Map.values(dealiases)
     excluded = dealiases |> Map.keys() |> Enum.into(Quokka.Config.lift_alias_excluded_lastnames())
-    liftable = if Quokka.Config.lift_alias?(), do: find_liftable_aliases(requires ++ nondirectives, excluded), else: []
+    liftable = if Quokka.Config.lift_alias?(), do: find_liftable_aliases(requires ++ nondirectives, excluded, already_lifted), else: []
 
     if Enum.any?(liftable) do
       # This is a silly hack that helps comments stay put.
@@ -337,10 +338,15 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp find_liftable_aliases(ast, excluded) do
+  defp find_liftable_aliases(ast, excluded, already_lifted) do
+    lifts =
+      already_lifted
+      |> Enum.map(&List.first/1)
+      |> Map.new(&{&1, :collision_with_first})
+
     ast
     |> Zipper.zip()
-    |> Zipper.reduce_while(%{}, fn
+    |> Zipper.reduce_while(lifts, fn
       # we don't want to rewrite alias name `defx Aliases ... do` of these three keywords
       {{defx, _, args}, _} = zipper, lifts when defx in ~w(defmodule defimpl defprotocol)a ->
         # don't conflict with submodules, which elixir automatically aliases
@@ -374,8 +380,7 @@ defmodule Quokka.Style.ModuleDirectives do
           last = List.last(aliases)
 
           lifts =
-            if excluded_namespace_match or last in excluded or not Enum.all?(aliases, &is_atom/1) or
-               length(aliases) <= Quokka.Config.lift_alias_depth() do
+            if excluded_namespace_match or last in excluded or length(aliases) <= Quokka.Config.lift_alias_depth() do
               lifts
             else
               Map.update(lifts, last, {aliases, 1}, fn
