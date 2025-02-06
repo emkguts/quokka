@@ -70,12 +70,10 @@ defmodule Quokka do
 
     Quokka.Config.set(styler_opts)
 
-    # todo:
-    # `file` is the full path
-    # need to extract the path from the consumer project directory
-    # and pass into allowed_directory?/1
+    project_root = File.cwd!()
+    relative_path = Path.relative_to(file, project_root)
 
-    if Quokka.Config.allowed_directory?(file) do
+    if Quokka.Config.allowed_directory?(relative_path) do
       {ast, comments} =
         input
         |> string_to_quoted_with_comments(to_string(file))

@@ -71,8 +71,8 @@ defmodule Quokka.Config do
     :persistent_term.put(@key, %{
       block_pipe_flag: credo_opts[:block_pipe_flag] || false,
       block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
-      directories_included: config[:directories_included] || [],
-      directories_excluded: config[:directories_excluded] || [],
+      directories_included: Map.get(config[:files] || %{}, :included, []),
+      directories_excluded: Map.get(config[:files] || %{}, :excluded, []),
       inefficient_function_rewrites: inefficient_function_rewrites,
       large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
       line_length: credo_opts[:line_length] || 98,
