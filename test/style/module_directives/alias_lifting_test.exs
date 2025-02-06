@@ -777,6 +777,8 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         end
         """
       )
+
+      Quokka.Config.set_for_test!(:strict_module_layout_order, [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require])
     end
   end
 end
