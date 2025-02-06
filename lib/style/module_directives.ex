@@ -222,9 +222,8 @@ defmodule Quokka.Style.ModuleDirectives do
           # import and used might get hoisted above aliases, so need to dealias depending on the layout order
           layout_order = Quokka.Config.strict_module_layout_order()
           needs_dealiasing = directive in ~w(import use)a and
-                            with directive_idx <- Enum.find_index(layout_order, &(&1 == directive)),
-                                 alias_idx <- Enum.find_index(layout_order, &(&1 == :alias)) do
-                              directive_idx < alias_idx
+                            with {before, _after} <- Enum.split_while(layout_order, & &1 != :alias) do
+                              Enum.member?(before, directive)
                             end
 
           ast = if needs_dealiasing, do: AliasEnv.expand(acc.dealiases, ast), else: ast
