@@ -220,11 +220,11 @@ defmodule Quokka.Style.ModuleDirectives do
           ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [ast]
 
           # import and used might get hoisted above aliases, so need to dealias depending on the layout order
-          layout_order = Quokka.Config.strict_module_layout_order()
-          needs_dealiasing = directive in ~w(import use)a and
-                            with {before, _after} <- Enum.split_while(layout_order, & &1 != :alias) do
-                              Enum.member?(before, directive)
-                            end
+          {before, _after} = 
+            Quokka.Config.strict_module_layout_order()
+            |> Enum.split_while(& &1 != :alias)
+
+          needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
 
           ast = if needs_dealiasing, do: AliasEnv.expand(acc.dealiases, ast), else: ast
 
