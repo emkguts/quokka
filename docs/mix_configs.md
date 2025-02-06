@@ -1,5 +1,7 @@
 # Mix Configs
 
+This can be enabled or disabled by setting the `:reorder_configs` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.
+
 Mix Config files have their config stanzas sorted. Similar to the sorting of aliases, this delivers consistency to an otherwise arbitrary world, and can even help catch bugs like configuring the same key multiple times.
 
 A file is considered a config file if
