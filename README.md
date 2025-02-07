@@ -8,6 +8,68 @@
 
 Quokka is an Elixir formatter plugin that's combination of `mix format` and `mix credo`, except instead of telling you what's wrong, it just rewrites the code for you. Quokka is a fork of [Styler](https://github.com/adobe/styler) that checks the Credo config to determine which rules to rewrite. Many common, non-controversial Credo style rules are rewritten automatically, while the controversial Credo style rules are rewritten based on your Credo configuration so you can customize your style.
 
+> #### WARNING {: .warning}
+> Quokka can change the behavior of your program!
+> 
+> In some cases, this can introduce bugs. It goes without saying, but look over your changes before committing to main :)
+> 
+> Some ways Quokka can change your program:
+> 
+> - [`with` statement rewrites](https://github.com/adobe/elixir-styler/issues/186)
+> - [config file sorting](https://hexdocs.pm/styler/mix_configs.html#this-can-break-your-program) -- But this can be disabled.
+> - and likely other ways. stay safe out there!
+
+## Installation
+
+Add `:quokka` as a dependency to your project's `mix.exs`:
+
+```elixir
+def deps do
+  [
+    {:quokka, "~> 0.1", only: [:dev, :test], runtime: false},
+  ]
+end
+```
+
+Then add `Quokka` as a plugin to your `.formatter.exs` file
+
+```elixir
+[
+  plugins: [Quokka]
+]
+```
+
+And that's it! Now when you run `mix format` you'll also get the benefits of Quokka's Stylish Stylings.
+
+**Speed**: Expect the first run to take some time as `Quokka` rewrites violations of styles and bottlenecks on disk I/O. Subsequent formats will take noticeably less time.
+
+### Configuration
+
+Quokka primarily relies on the configurations of `.formatter.exs` and `Credo` (if available).
+However, there are some Quokka specific options that can also be specified
+in `.formatter.exs` to fine tune your setup:
+
+```elixir
+[
+  plugins: [Quokka],
+  quokka: [
+    inefficient_function_rewrites: true | false,
+    reorder_configs: true | false,
+    rewrite_deprecations: true | false,
+    files: %{
+      included: ["lib/", ...],
+      excluded: ["lib/example.ex", ...]
+    }
+  ]
+]
+```
+| Option | Description | Default |
+| --- | --- | --- |
+| `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) |
+| `:inefficient_function_rewrites` | Rewrite inefficient functions to more efficient form | `true` |
+| `:reorder_configs` | Alphabetize `config` by key in `config/*.exs` files | `true` |
+| `:rewrite_deprecations` | Rewrite deprecated functions to their new form | `true` |
+
 ## Rewrites
 
 | Credo Check | Rewrite Description | Documentation | Configurable |
@@ -47,66 +109,6 @@ Quokka is an Elixir formatter plugin that's combination of `mix format` and `mix
 
 
 [See our Rewrites documentation on hexdocs](https://hexdocs.pm/quokka/styles.html)
-
-## Installation
-
-Add `:quokka` as a dependency to your project's `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:quokka, "~> 0.1", only: [:dev, :test], runtime: false},
-  ]
-end
-```
-
-Then add `Quokka` as a plugin to your `.formatter.exs` file
-
-```elixir
-[
-  plugins: [Quokka]
-]
-```
-
-And that's it! Now when you run `mix format` you'll also get the benefits of Quokka's Stylish Stylings.
-
-**Speed**: Expect the first run to take some time as `Quokka` rewrites violations of styles and bottlenecks on disk I/O. Subsequent formats formats won't take noticeably more time.
-
-### Configuration
-
-Quokka can be configured in your `.formatter.exs` file
-
-```elixir
-[
-  plugins: [Quokka],
-  quokka: [
-    inefficient_function_rewrites: true | false,
-    reorder_configs: true | false,
-    rewrite_deprecations: true | false,
-    files: %{
-      included: ["lib/", ...],
-      excluded: ["lib/example.ex", ...]
-    }
-  ]
-]
-```
-
-Quokka has several configuration options:
-
-- `:files`, which controls which files Quokka will format. This is `%{included: [], excluded: []}` by default.
-- `:inefficient_function_rewrites`, which controls whether or not Quokka will rewrite deprecated functions to their new form. This is true by default.
-- `:reorder_configs`, which controls whether or not the configs in your `config/*.exs` files are alphabetized. This is true by default.
-- `:rewrite_deprecations`, which controls whether or not Quokka will rewrite deprecated functions to their new form. This is true by default.
-
-## WARNING: Quokka can change the behavior of your program!
-
-In some cases, this can introduce bugs. It goes without saying, but look over your changes before committing to main :)
-
-Some ways Quokka can change your program:
-
-- [`with` statement rewrites](https://github.com/adobe/elixir-styler/issues/186)
-- [config file sorting](https://hexdocs.pm/styler/mix_configs.html#this-can-break-your-program) -- But this can be disabled.
-- and likely other ways. stay safe out there!
 
 ## License
 
