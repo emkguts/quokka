@@ -2,8 +2,8 @@
 
 ## Pipe Start
 
-- If [Credo.Check.Readability.BlockPipe](https://hexdocs.pm/credo/Credo.Check.Readability.BlockPipe.html) is enabled, Quokka will prevent using blocks with pipes. Quokka respects the `:exclude` Credo opt.
-- If [Credo.Check.Refactor.PipeChainStart](https://hexdocs.pm/credo/Credo.Check.Refactor.PipeChainStart.html) is enabled, Quokka will rewrite the start of a pipechain to be a 0-arity function, a raw value, or a variable. Quokka respects the `:excluded_functions` and `excluded_argument_types` Credo opts.
+- If [`Credo.Check.Readability.BlockPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.BlockPipe.html) is enabled, Quokka will prevent using blocks with pipes. Quokka respects the `:exclude` Credo opt.
+- If [`Credo.Check.Refactor.PipeChainStart`](https://hexdocs.pm/credo/Credo.Check.Refactor.PipeChainStart.html) is enabled, Quokka will rewrite the start of a pipechain to be a 0-arity function, a raw value, or a variable. Quokka respects the `:excluded_functions` and `excluded_argument_types` Credo opts.
 
 Based on the Credo config, Quokka will rewrite the start of a pipechain to be a 0-arity function, a raw value, or a variable.
 
@@ -43,7 +43,7 @@ if_result
 
 ### Add parenthesis to function calls in pipes
 
-This addresses [Credo.Check.Readability.OneArityFunctionInPipe](https://hexdocs.pm/credo/Credo.Check.Readability.OneArityFunctionInPipe.html). This is not configurable.
+This addresses [`Credo.Check.Readability.OneArityFunctionInPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.OneArityFunctionInPipe.html). This is not configurable.
 
 ```elixir
 a |> b |> c |> d
@@ -65,7 +65,7 @@ a |> f(...) |> b()
 
 ### Add `then/2` when defining and calling anonymous functions in pipes
 
-- Addresses [Credo.Check.Readability.PipeIntoAnonymousFunctions](https://hexdocs.pm/credo/Credo.Check.Readability.PipeIntoAnonymousFunctions.html) by rewriting anonymous function invocations to use `then/2`. This is not configurable.
+- Addresses [`Credo.Check.Readability.PipeIntoAnonymousFunctions`](https://hexdocs.pm/credo/Credo.Check.Readability.PipeIntoAnonymousFunctions.html) by rewriting anonymous function invocations to use `then/2`. This is not configurable.
 
 ```elixir
 a |> (fn x -> x end).() |> c()
@@ -116,7 +116,7 @@ a |> b() |> Enum.each(fun)
 
 ### Unpiping Single Pipes
 
-This addresses [Credo.Check.Readability.SinglePipe](https://hexdocs.pm/credo/Credo.Check.Readability.SinglePipe.html). If the Credo check is enabled, Quokka will rewrite pipechains with a single pipe to be function calls. Notably, this rule combined with the optimizations rewrites above means some chains with more than one pipe will also become function calls.
+This addresses [`Credo.Check.Readability.SinglePipe`](https://hexdocs.pm/credo/Credo.Check.Readability.SinglePipe.html). If the Credo check is enabled, Quokka will rewrite pipechains with a single pipe to be function calls. Notably, this rule combined with the optimizations rewrites above means some chains with more than one pipe will also become function calls.
 
 ```elixir
 foo = bar |> baz()

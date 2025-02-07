@@ -7,7 +7,7 @@ These apply to the piped versions as well
 
 ## Strings to Sigils
 
-This addresses [Credo.Check.Readability.StringSigils](https://hexdocs.pm/credo/Credo.Check.Readability.StringSigils.html). This is not configurable.
+This addresses [`Credo.Check.Readability.StringSigils`](https://hexdocs.pm/credo/Credo.Check.Readability.StringSigils.html). This is not configurable.
 
 Rewrites strings with 4 or more escaped quotes to string sigils with an alternative delimiter.
 The delimiter will be one of `" ( { | [ ' < /`, chosen by which would require the fewest escapes, and otherwise preferred in the order listed.
@@ -21,7 +21,7 @@ The delimiter will be one of `" ( { | [ ' < /`, chosen by which would require th
 
 ## Large Base 10 Numbers
 
-This addresses [Credo.Check.Readability.LargeNumbers](https://hexdocs.pm/credo/Credo.Check.Readability.LargeNumbers.html). Quokka will respect the `:only_greater_than` Credo opt.
+This addresses [`Credo.Check.Readability.LargeNumbers`](https://hexdocs.pm/credo/Credo.Check.Readability.LargeNumbers.html). Quokka will respect the `:only_greater_than` Credo opt.
 
 Style base 10 numbers with 5 or more digits to have a `_` every three digits.
 Formatter already does this except it doesn't rewrite "typos" like `100_000_0`.
@@ -148,7 +148,7 @@ DateTime.before?(start, end_date)
 
 ## Filter count
 
-This addresses [Credo.Check.Refactor.FilterCount](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.FilterCount`](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html). This is not configurable.
 
 ```elixir
 [1, 2, 3, 4, 5]
@@ -161,7 +161,7 @@ Enum.count([1, 2, 3, 4, 5], fn x -> rem(x, 3) == 0 end)
 
 ## Map into
 
-This addresses [Credo.Check.Refactor.MapInto](https://hexdocs.pm/credo/Credo.Check.Refactor.MapInto.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.MapInto`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapInto.html). This is not configurable.
 
 ```elixir
 [:apple, :banana, :carrot]
@@ -174,7 +174,7 @@ Map.new([:apple, :banana, :carrot], &{&1, to_string(&1)})
 
 ## Map join
 
-This addresses [Credo.Check.Refactor.MapJoin](https://hexdocs.pm/credo/Credo.Check.Refactor.MapJoin.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.MapJoin`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapJoin.html). This is not configurable.
 
 ```elixir
 ["a", "b", "c"]
@@ -187,7 +187,7 @@ Enum.join(["a", "b", "c"], ", ", &String.upcase/1)
 
 ## Implicit Try
 
-Quokka will rewrite functions whose entire body is a try/do to instead use the implicit try syntax. Addresses [Credo.Check.Readability.PreferImplicitTry](https://hexdocs.pm/credo/Credo.Check.Readability.PreferImplicitTry.html). This is not configurable.
+Quokka will rewrite functions whose entire body is a try/do to instead use the implicit try syntax. Addresses [`Credo.Check.Readability.PreferImplicitTry`](https://hexdocs.pm/credo/Credo.Check.Readability.PreferImplicitTry.html). This is not configurable.
 
 
 The following example illustrates the most complex case, but Quokka happily handles just basic try do/rescue bodies just as easily.
@@ -228,7 +228,7 @@ end
 
 ## Add parenthesis to 0-arity functions and macro definitions
 
-This addresses [Credo.Check.Readability.ParenthesesOnZeroArityDefs](https://hexdocs.pm/credo/Credo.Check.Readability.ParenthesesOnZeroArityDefs.html). Quokka will add or remove parens from function calls in pipes when the function has no arguments based on the Credo config. If the Credo check is disabled, Quokka will not add or remove parens.
+This addresses [`Credo.Check.Readability.ParenthesesOnZeroArityDefs`](https://hexdocs.pm/credo/Credo.Check.Readability.ParenthesesOnZeroArityDefs.html). Quokka will add or remove parens from function calls in pipes when the function has no arguments based on the Credo config. If the Credo check is disabled, Quokka will not add or remove parens.
 
 ```elixir
 # Behavior if .credo.exs has `Credo.Check.Readability.ParenthesesOnZeroArityDefs, parens: true`
@@ -371,7 +371,7 @@ def save(%Socket{assigns: %{user: user, live_action: :new}} = initial_socket, pa
 
 ## Parameter Pattern Matching Consistency
 
-This addresses [Credo.Check.Consistency.ParameterPatternMatching](https://hexdocs.pm/credo/Credo.Check.Consistency.ParameterPatternMatching.html). Note that while this is configurable in credo, Quokka will rewrite all matches to be on the right hand side of the `=` sign.
+This addresses [`Credo.Check.Consistency.ParameterPatternMatching`](https://hexdocs.pm/credo/Credo.Check.Consistency.ParameterPatternMatching.html). Note that while this is configurable in credo, Quokka will rewrite all matches to be on the right hand side of the `=` sign.
 
 ```elixir
 # Before
@@ -397,7 +397,7 @@ end
 
 ## Line Length
 
-This addresses [Credo.Check.Readability.MaxLineLength](https://hexdocs.pm/credo/Credo.Check.Readability.MaxLineLength.html). Quokka will respect the `:line_length` configuration (from `.credo.exs`) when determining whether to split lines. When possible, will compress code onto a single line if it fits within the configured length.
+This addresses [`Credo.Check.Readability.MaxLineLength`](https://hexdocs.pm/credo/Credo.Check.Readability.MaxLineLength.html). Quokka will respect the `:line_length` configuration (from `.credo.exs`) when determining whether to split lines. When possible, will compress code onto a single line if it fits within the configured length.
 
 ```elixir
 # Before - Multiple lines when it could fit on one

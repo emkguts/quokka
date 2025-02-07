@@ -13,7 +13,7 @@ if a, do: b, else: nil
 if a, do: b
 ```
 
-Quokka removes `unless` since it is being deprecated in Elixir 1.18. This implicitly addresses [Credo.Check.Refactor.NegatedConditionsInUnless](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsInUnless.html) and [Credo.Check.Refactor.NegatedConditionsWithElse](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html).
+Quokka removes `unless` since it is being deprecated in Elixir 1.18. This implicitly addresses [`Credo.Check.Refactor.NegatedConditionsInUnless`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsInUnless.html) and [`Credo.Check.Refactor.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html).
 
 ```elixir
 # Given:
@@ -24,7 +24,7 @@ if a, do: b
 
 ### Negation Inversion
 
-This addresses [Credo.Check.Refactor.NegatedConditionsWithElse](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html). This is not configurable.
 
 Quokka removes negators in the head of `if` statements by "inverting" the statement.
 The following operators are considered "negators": `!`, `not`, `!=`, `!==`
@@ -94,7 +94,7 @@ end
 
 ## `cond`
 
-This addresses [Credo.Check.Refactor.CondStatements](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html). This is not configurable.
 
 Quokka has only one `cond` statement rewrite: replace 2-clause statements with `if` statements.
 
@@ -114,7 +114,7 @@ end
 
 ## `with`
 
-This addresses [Credo.Check.Readability.WithSingleClause](https://hexdocs.pm/credo/Credo.Check.Readability.WithSingleClause.html), [Credo.Check.Refactor.RedundantWithClauseResult](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html), and [Credo.Check.Refactor.WithClauses](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html). This is not configurable.
+This addresses [`Credo.Check.Readability.WithSingleClause`](https://hexdocs.pm/credo/Credo.Check.Readability.WithSingleClause.html), [`Credo.Check.Refactor.RedundantWithClauseResult`](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html), and [`Credo.Check.Refactor.WithClauses`](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html). This is not configurable.
 
 
 ### Remove Identity Else Clause

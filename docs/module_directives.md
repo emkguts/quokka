@@ -12,9 +12,9 @@ This will prevent Quokka from doing any of the below transformations.
 
 This addresses:
 
-- [Credo.Check.Consistency.MultiAliasImportRequireUse](https://hexdocs.pm/credo/Credo.Check.Consistency.MultiAliasImportRequireUse.html). Note that while Credo will pass as long as multi alias usage is consistent, Quokka will only expand multi-alias statements. It will not compress multiple aliases into a single statement.
-- [Credo.Check.Readability.MultiAlias](https://hexdocs.pm/credo/Credo.Check.Readability.MultiAlias.html). Note that this is configurable and Quokka will check the Credo config to determine if aliases should be expanded.
-- [Credo.Check.Readability.UnnecessaryAliasExpansion](https://hexdocs.pm/credo/Credo.Check.Readability.UnnecessaryAliasExpansion.html). This is not configurable.
+- [`Credo.Check.Consistency.MultiAliasImportRequireUse`](https://hexdocs.pm/credo/Credo.Check.Consistency.MultiAliasImportRequireUse.html). Note that while Credo will pass as long as multi alias usage is consistent, Quokka will only expand multi-alias statements. It will not compress multiple aliases into a single statement.
+- [`Credo.Check.Readability.MultiAlias`](https://hexdocs.pm/credo/Credo.Check.Readability.MultiAlias.html). Note that this is configurable and Quokka will check the Credo config to determine if aliases should be expanded.
+- [`Credo.Check.Readability.UnnecessaryAliasExpansion`](https://hexdocs.pm/credo/Credo.Check.Readability.UnnecessaryAliasExpansion.html). This is not configurable.
 
 Expands `Module.{SubmoduleA, SubmoduleB}` to their explicit forms for ease of searching.
 
@@ -36,8 +36,8 @@ alias Foo.Bop
 ## Directive Organization
 
 This addresses:
-- [Credo.Check.Readability.AliasOrder](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html). While it is not possible to disable this rewrite, Quokka will respect the `:sort_method` Credo config.
-- [Credo.Check.Readability.StrictModuleLayout](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html). While it is not possible to disable this rewrite, Quokka will respect the `:order` Credo config.
+- [`Credo.Check.Readability.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html). While it is not possible to disable this rewrite, Quokka will respect the `:sort_method` Credo config.
+- [`Credo.Check.Readability.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html). While it is not possible to disable this rewrite, Quokka will respect the `:order` Credo config.
 
 Modules directives are sorted into the following order by default:
 
@@ -148,7 +148,7 @@ alias Foo.Bar
 
 ## Alias Lifting
 
-This addresses [Credo.Check.Design.AliasUsage](https://hexdocs.pm/credo/Credo.Check.Design.AliasUsage.html). The Credo configs supported by Quokka include:
+This addresses [`Credo.Check.Design.AliasUsage`](https://hexdocs.pm/credo/Credo.Check.Design.AliasUsage.html). The Credo configs supported by Quokka include:
 
 - `:lift_alias_excluded_namespaces`
 - `:lift_alias_excluded_lastnames`
