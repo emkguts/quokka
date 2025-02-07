@@ -56,6 +56,8 @@ defmodule Quokka.MixProject do
 
   defp docs() do
     [
+      assets: %{"docs/assets" => "docs/assets"},
+      logo: "docs/assets/quokka.png",
       main: "readme",
       source_ref: "v#{@version}",
       source_url: @url,
@@ -70,7 +72,6 @@ defmodule Quokka.MixProject do
         "docs/control_flow_macros.md": [title: "Control Flow Macros (if, case, ...)"],
         "docs/mix_configs.md": [title: "Mix Configs (config/config.exs, ...)"],
         "docs/module_directives.md": [title: "Module Directives (use, alias, ...)"],
-        "docs/credo.md": [title: "Quokka & Credo"],
         "README.md": [title: "Quokka"]
       ]
     ]
