@@ -58,40 +58,6 @@ if !!x, do: y
 if x, do: y
 ```
 
-## `case`
-
-### "Erlang heritage" `case` true/false -> `if`
-
-Trivial true/false `case` statements are rewritten to `if` statements. While this results in a [semantically different program](https://github.com/rrrene/credo/issues/564#issue-338349517), we argue that it results in a better program for maintainability. If the developer wants their case statement to raise when receiving a non-boolean value as a feature of the program, they would better serve their callers by raising something more descriptive.
-
-In other words, Quokka leaves the code with better style, trumping obscure exception design :)
-
-```elixir
-# Quokka will rewrite this even if the clause order is flipped,
-# and if the `false` is replaced with a wildcard (`_`)
-case foo do
-  true -> :ok
-  false -> :error
-end
-
-# styled:
-if foo do
-  :ok
-else
-  :error
-end
-```
-
-Per the argument above, if the `if` statement is an incorrect rewrite for your program, we recommend this manual fix rewrite:
-
-```elixir
-case foo do
-  true -> :ok
-  false -> :error
-  other -> raise "expected `true` or `false`, got: #{inspect other}"
-end
-```
-
 ## `cond`
 
 This addresses [`Credo.Check.Refactor.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html). This is not configurable.

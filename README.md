@@ -104,7 +104,7 @@ in `.formatter.exs` to fine tune your setup:
 | - | Alphabetizes configuration in config files | [Config Files](docs/mix_configs.md) | ✓ |
 | - | Rewrites deprecated functions | [Deprecation Rewrites](docs/styles.md#elixir-deprecation-rewrites) | ✓ |
 | - | Miscellaneous inefficient function calls | [Inefficient Function Rewrites](docs/styles.md#inefficient-function-rewrites) | ✓ |
-| - | Miscellaneous case and with rewrites !! CHANGES FUNCTIONALITY !! | [Case Rewrites](docs/control_flow_macros.md#case) | |
+| - | Miscellaneous with rewrites | [With Rewrites](docs/control_flow_macros.md#with) | |
 | - | Piped function optimizations | [Pipe Chains](docs/pipes.md#piped-function-optimizations) | |
 
 
