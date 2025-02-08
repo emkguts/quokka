@@ -1,5 +1,8 @@
 # Mix Configs
 
+> #### THIS CAN BREAK YOUR PROGRAM {: .warning}
+> It's important to double check your configuration after running Quokka on it for the first time.
+
 This can be enabled or disabled by setting the `:reorder_configs` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.
 
 Mix Config files have their config stanzas sorted. Similar to the sorting of aliases, this delivers consistency to an otherwise arbitrary world, and can even help catch bugs like configuring the same key multiple times.
@@ -14,12 +17,6 @@ Once a file is detected as a mix config, its `config/2,3` stanzas are grouped an
 - group config stanzas separated by assignments (`x = y`) together
 - sort each group according to erlang term sorting
 - move all existing assignments between the config stanzas to above the stanzas (without changing their ordering)
-
-## THIS CAN BREAK YOUR PROGRAM
-
-It's important to double check your configuration after running Quokka on it for the first time.
-
-**First Use Advice**: To limit the size of changes Quokka submits to a codebase, we recommend formatting only a few (or a single) files at a time and making pull requests for each. Only commit Quokka as a new formatter plugin once each of these more dangerous changes has been safely committed to the codebase.
 
 Imagine your application configures the same value twice, once with an invalid or application breaking value, and then again with a correct value, like so:
 
