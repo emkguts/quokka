@@ -13,11 +13,8 @@ Quokka is an Elixir formatter plugin that's combination of `mix format` and `mix
 > 
 > In some cases, this can introduce bugs. It goes without saying, but look over your changes before committing to main :)
 > 
-> Some ways Quokka can change your program:
-> 
-> - [`with` statement rewrites](https://github.com/adobe/elixir-styler/issues/186)
-> - [config file sorting](https://hexdocs.pm/styler/mix_configs.html#this-can-break-your-program) -- But this can be disabled.
-> - and likely other ways. stay safe out there!
+> We recommend making changes in small chunks until all of the more dangerous
+> changes has been safely committed to the codebase
 
 ## Installation
 
@@ -70,45 +67,70 @@ in `.formatter.exs` to fine tune your setup:
 | `:reorder_configs` | Alphabetize `config` by key in `config/*.exs` files | `true` |
 | `:rewrite_deprecations` | Rewrite deprecated functions to their new form | `true` |
 
-## Rewrites
+## Credo inspired rewrites
+
+The power of Quokka comes from utilizing the opinions you've already made with
+Credo and going one step further to attempt rewriting them for you.
+
+Below is a general overall of many Credo checks Quokka attempts to handle and
+some additional useful details such as links to detailed documentation and if
+the check can be configured further for fine tuning.
+
+> #### `:controversial` Credo checks {: .tip}
+> 
+> Quokka allows all `:controversial` Credo checks to be configurable. In many cases,
+> a Credo check can also be disabled to prevent rewriting.
+
+<!-- tabs-open -->
+
+### Credo.Check.Consistency
 
 | Credo Check | Rewrite Description | Documentation | Configurable |
 |-------------|-------------------|---------------|--------------|
-| [`Credo.Check.Consistency.MultiAliasImportRequireUse`](https://hexdocs.pm/credo/Credo.Check.Consistency.MultiAliasImportRequireUse.html) | Expands multi-alias/import statements | [Directive Expansion](docs/module_directives.md#directive-expansion) | |
-| [`Credo.Check.Consistency.ParameterPatternMatching`](https://hexdocs.pm/credo/Credo.Check.Consistency.ParameterPatternMatching.html) | Enforces consistent parameter pattern matching | [Parameter Pattern Matching](docs/styles.md#parameter-pattern-matching-consistency) | |
-| [`Credo.Check.Design.AliasUsage`](https://hexdocs.pm/credo/Credo.Check.Design.AliasUsage.html) | Extracts repeated aliases | [Alias Lifting](docs/module_directives.md#alias-lifting) | ✓ |
-| [`Credo.Check.Readability.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html) | Alphabetizes module directives | [Module Directives](docs/module_directives.md#directive-organization) | ✓ |
-| [`Credo.Check.Readability.BlockPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.BlockPipe.html) | (En\|dis)ables piping into blocks | [Pipe Chains](docs/pipes.md#pipe-start) | ✓ |
-| [`Credo.Check.Readability.LargeNumbers`](https://hexdocs.pm/credo/Credo.Check.Readability.LargeNumbers.html) | Formats large numbers with underscores | [Number Formatting](docs/styles.md#large-base-10-numbers) | ✓ |
-| [`Credo.Check.Readability.MaxLineLength`](https://hexdocs.pm/credo/Credo.Check.Readability.MaxLineLength.html) | Enforces maximum line length | [Line Length](docs/styles.md#line-length) | ✓ |
-| [`Credo.Check.Readability.MultiAlias`](https://hexdocs.pm/credo/Credo.Check.Readability.MultiAlias.html) | Expands multi-alias statements | [Module Directives](docs/module_directives.md#directive-expansion) | ✓ |
-| [`Credo.Check.Readability.OneArityFunctionInPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.OneArityFunctionInPipe.html) | Optimizes pipe chains with single arity functions | [Pipe Chains](docs/pipes.md#add-parenthesis-to-function-calls-in-pipes) | |
-| [`Credo.Check.Readability.ParenthesesOnZeroArityDefs`](https://hexdocs.pm/credo/Credo.Check.Readability.ParenthesesOnZeroArityDefs.html) | Enforces consistent function call parentheses | [Function Calls](docs/styles.md#add-parenthesis-to-0-arity-functions-and-macro-definitions) | ✓ |
-| [`Credo.Check.Readability.PipeIntoAnonymousFunctions`](https://hexdocs.pm/credo/Credo.Check.Readability.PipeIntoAnonymousFunctions.html) | Optimizes pipes with anonymous functions | [Pipe Chains](docs/pipes.md#add-then-2-when-defining-and-calling-anonymous-functions-in-pipes) | |
-| [`Credo.Check.Readability.PreferImplicitTry`](https://hexdocs.pm/credo/Credo.Check.Readability.PreferImplicitTry.html) | Simplifies try expressions | [Control Flow Macros](docs/styles.md#implicit-try) | |
-| [`Credo.Check.Readability.SinglePipe`](https://hexdocs.pm/credo/Credo.Check.Readability.SinglePipe.html) | Optimizes pipe chains | [Pipe Chains](docs/pipes.md#unpiping-single-pipes) | ✓ |
-| [`Credo.Check.Readability.StringSigils`](https://hexdocs.pm/credo/Credo.Check.Readability.StringSigils.html) | Replaces strings with sigils | [Strings to Sigils](docs/styles.md#strings-to-sigils) | |
-| [`Credo.Check.Readability.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html) | Enforces strict module layout | [Module Directives](docs/module_directives.md#directive-organization) | ✓ |
-| [`Credo.Check.Readability.UnnecessaryAliasExpansion`](https://hexdocs.pm/credo/Credo.Check.Readability.UnnecessaryAliasExpansion.html) | Removes unnecessary alias expansions | [Module Directives](docs/module_directives.md#directive-expansion) | |
-| [`Credo.Check.Readability.WithSingleClause`](https://hexdocs.pm/credo/Credo.Check.Readability.WithSingleClause.html) | Simplifies with statements | [Control Flow Macros](docs/control_flow_macros.md#with) | |
-| [`Credo.Check.Refactor.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html) | Simplifies boolean expressions | [Control Flow Macros](docs/control_flow_macros.md#cond) | |
-| [`Credo.Check.Refactor.FilterCount`](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html) | Optimizes filter + count operations | [Styles](docs/styles.md#filter-count) | |
-| [`Credo.Check.Refactor.MapInto`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapInto.html) | Optimizes map + into operations | [Styles](docs/styles.md#map-into) | |
-| [`Credo.Check.Refactor.MapJoin`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapJoin.html) | Optimizes map + join operations | [Styles](docs/styles.md#map-join) | |
-| [`Credo.Check.Refactor.NegatedConditionsInUnless`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsInUnless.html) | Simplifies negated conditions in unless | [Control Flow Macros](docs/control_flow_macros.md#if-and-unless) | |
-| [`Credo.Check.Refactor.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html) | Simplifies negated conditions with else | [Control Flow Macros](docs/control_flow_macros.md#negation-inversion) | |
-| [`Credo.Check.Refactor.PipeChainStart`](https://hexdocs.pm/credo/Credo.Check.Refactor.PipeChainStart.html) | Optimizes pipe chain start | [Pipe Chains](docs/pipes.md#pipe-start) | |
-| [`Credo.Check.Refactor.RedundantWithClauseResult`](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html) | Removes redundant with clause results | [Control Flow Macros](docs/control_flow_macros.md#with) | |
-| [`Credo.Check.Refactor.UnlessWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.UnlessWithElse.html) | Simplifies unless with else | [Control Flow Macros](docs/control_flow_macros.md#if-and-unless) | |
-| [`Credo.Check.Refactor.WithClauses`](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html) | Optimizes with clauses | [Control Flow Macros](docs/control_flow_macros.md#with) | |
-| - | Alphabetizes configuration in config files | [Config Files](docs/mix_configs.md) | ✓ |
-| - | Rewrites deprecated functions | [Deprecation Rewrites](docs/styles.md#elixir-deprecation-rewrites) | ✓ |
-| - | Miscellaneous inefficient function calls | [Inefficient Function Rewrites](docs/styles.md#inefficient-function-rewrites) | ✓ |
-| - | Miscellaneous with rewrites | [With Rewrites](docs/control_flow_macros.md#with) | |
-| - | Piped function optimizations | [Pipe Chains](docs/pipes.md#piped-function-optimizations) | |
+| [`.MultiAliasImportRequireUse`](https://hexdocs.pm/credo/Credo.Check.Consistency.MultiAliasImportRequireUse.html) | Expands multi-alias/import statements | [Directive Expansion](docs/module_directives.md#directive-expansion) | |
+| [`.ParameterPatternMatching`](https://hexdocs.pm/credo/Credo.Check.Consistency.ParameterPatternMatching.html) | Enforces consistent parameter pattern matching | [Parameter Pattern Matching](docs/styles.md#parameter-pattern-matching-consistency) | |
 
+### Credo.Check.Design
 
-[See our Rewrites documentation on hexdocs](https://hexdocs.pm/quokka/styles.html)
+| Credo Check | Rewrite Description | Documentation | Configurable |
+|-------------|-------------------|---------------|--------------|
+| [`.AliasUsage`](https://hexdocs.pm/credo/Credo.Check.Design.AliasUsage.html) | Extracts repeated aliases | [Alias Lifting](docs/module_directives.md#alias-lifting) | ✓ |
+
+### Credo.Check.Readability
+
+| Credo Check | Rewrite Description | Documentation | Configurable |
+|-------------|-------------------|---------------|--------------|
+| [`.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html) | Alphabetizes module directives | [Module Directives](docs/module_directives.md#directive-organization) | ✓ |
+| [`.BlockPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.BlockPipe.html) | (En\|dis)ables piping into blocks | [Pipe Chains](docs/pipes.md#pipe-start) | ✓ |
+| [`.LargeNumbers`](https://hexdocs.pm/credo/Credo.Check.Readability.LargeNumbers.html) | Formats large numbers with underscores | [Number Formatting](docs/styles.md#large-base-10-numbers) | ✓ |
+| [`.MaxLineLength`](https://hexdocs.pm/credo/Credo.Check.Readability.MaxLineLength.html) | Enforces maximum line length | [Line Length](docs/styles.md#line-length) | ✓ |
+| [`.MultiAlias`](https://hexdocs.pm/credo/Credo.Check.Readability.MultiAlias.html) | Expands multi-alias statements | [Module Directives](docs/module_directives.md#directive-expansion) | ✓ |
+| [`.OneArityFunctionInPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.OneArityFunctionInPipe.html) | Optimizes pipe chains with single arity functions | [Pipe Chains](docs/pipes.md#add-parenthesis-to-function-calls-in-pipes) | |
+| [`.ParenthesesOnZeroArityDefs`](https://hexdocs.pm/credo/Credo.Check.Readability.ParenthesesOnZeroArityDefs.html) | Enforces consistent function call parentheses | [Function Calls](docs/styles.md#add-parenthesis-to-0-arity-functions-and-macro-definitions) | ✓ |
+| [`.PipeIntoAnonymousFunctions`](https://hexdocs.pm/credo/Credo.Check.Readability.PipeIntoAnonymousFunctions.html) | Optimizes pipes with anonymous functions | [Pipe Chains](docs/pipes.md#add-then-2-when-defining-and-calling-anonymous-functions-in-pipes) | |
+| [`.PreferImplicitTry`](https://hexdocs.pm/credo/Credo.Check.Readability.PreferImplicitTry.html) | Simplifies try expressions | [Control Flow Macros](docs/styles.md#implicit-try) | |
+| [`.SinglePipe`](https://hexdocs.pm/credo/Credo.Check.Readability.SinglePipe.html) | Optimizes pipe chains | [Pipe Chains](docs/pipes.md#unpiping-single-pipes) | ✓ |
+| [`.StringSigils`](https://hexdocs.pm/credo/Credo.Check.Readability.StringSigils.html) | Replaces strings with sigils | [Strings to Sigils](docs/styles.md#strings-to-sigils) | |
+| [`.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html) | Enforces strict module layout | [Module Directives](docs/module_directives.md#directive-organization) | ✓ |
+| [`.UnnecessaryAliasExpansion`](https://hexdocs.pm/credo/Credo.Check.Readability.UnnecessaryAliasExpansion.html) | Removes unnecessary alias expansions | [Module Directives](docs/module_directives.md#directive-expansion) | |
+| [`.WithSingleClause`](https://hexdocs.pm/credo/Credo.Check.Readability.WithSingleClause.html) | Simplifies with statements | [Control Flow Macros](docs/control_flow_macros.md#with) | |
+
+### Credo.Check.Refactor
+
+| Credo Check | Rewrite Description | Documentation | Configurable |
+|-------------|-------------------|---------------|--------------|
+| [`.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html) | Simplifies boolean expressions | [Control Flow Macros](docs/control_flow_macros.md#cond) | |
+| [`.FilterCount`](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html) | Optimizes filter + count operations | [Styles](docs/styles.md#filter-count) | |
+| [`.MapInto`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapInto.html) | Optimizes map + into operations | [Styles](docs/styles.md#map-into) | |
+| [`.MapJoin`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapJoin.html) | Optimizes map + join operations | [Styles](docs/styles.md#map-join) | |
+| [`.NegatedConditionsInUnless`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsInUnless.html) | Simplifies negated conditions in unless | [Control Flow Macros](docs/control_flow_macros.md#if-and-unless) | |
+| [`.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html) | Simplifies negated conditions with else | [Control Flow Macros](docs/control_flow_macros.md#negation-inversion) | |
+| [`.PipeChainStart`](https://hexdocs.pm/credo/Credo.Check.Refactor.PipeChainStart.html) | Optimizes pipe chain start | [Pipe Chains](docs/pipes.md#pipe-start) | |
+| [`.RedundantWithClauseResult`](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html) | Removes redundant with clause results | [Control Flow Macros](docs/control_flow_macros.md#with) | |
+| [`.UnlessWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.UnlessWithElse.html) | Simplifies unless with else | [Control Flow Macros](docs/control_flow_macros.md#if-and-unless) | |
+| [`.WithClauses`](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html) | Optimizes with clauses | [Control Flow Macros](docs/control_flow_macros.md#with) | |
+
+<!-- tabs-close -->
 
 ## License
 
