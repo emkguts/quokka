@@ -27,7 +27,7 @@ defmodule Quokka.MixProject do
 
       ## Hex
       package: package(),
-      description: "A code-style enforcer that will just FIFY instead of complaining",
+      description: "A Credo-configured code-style enforcer that will just fix it for you instead of complaining",
 
       # Docs
       name: "Quokka",
@@ -72,7 +72,8 @@ defmodule Quokka.MixProject do
         "docs/control_flow_macros.md": [title: "Control Flow Macros (if, case, ...)"],
         "docs/mix_configs.md": [title: "Mix Configs (config/config.exs, ...)"],
         "docs/module_directives.md": [title: "Module Directives (use, alias, ...)"],
-        "README.md": [title: "Quokka"]
+        "README.md": [title: "Quokka"],
+        "LICENSE": [title: "License"]
       ]
     ]
   end
