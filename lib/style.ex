@@ -164,8 +164,7 @@ defmodule Quokka.Style do
 
   def reset_newlines([node], acc), do: Enum.reverse([set_newlines(node, 2) | acc])
 
-  def reset_newlines([node | nodes], acc),
-    do: reset_newlines(nodes, [set_newlines(node, 1) | acc])
+  def reset_newlines([node | nodes], acc), do: reset_newlines(nodes, [set_newlines(node, 1) | acc])
 
   defp set_newlines({directive, meta, children}, newline) do
     updated_meta =

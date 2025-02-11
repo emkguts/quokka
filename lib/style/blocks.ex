@@ -31,11 +31,7 @@ defmodule Quokka.Style.Blocks do
   defguardp is_negator(n) when elem(n, 0) in [:!, :not, :!=, :!==]
 
   # Credo.Check.Refactor.CondStatements
-  def run(
-        {{:cond, _, [[{_, [{:->, _, [[head], a]}, {:->, _, [[{:__block__, _, [truthy]}], b]}]}]]},
-         _} = zipper,
-        ctx
-      )
+  def run({{:cond, _, [[{_, [{:->, _, [[head], a]}, {:->, _, [[{:__block__, _, [truthy]}], b]}]}]]}, _} = zipper, ctx)
       when is_atom(truthy) and truthy not in [nil, false],
       do: if_ast(zipper, head, a, b, ctx)
 
@@ -119,8 +115,7 @@ defmodule Quokka.Style.Blocks do
               do_children = if node == :__block__, do: do_children, else: [do_body]
 
               do_body =
-                {:__block__, Keyword.take(do_body_meta, [:line]),
-                 Enum.reverse(postroll, do_children)}
+                {:__block__, Keyword.take(do_body_meta, [:line]), Enum.reverse(postroll, do_children)}
 
               {reversed_clauses, do_body}
 
@@ -332,9 +327,7 @@ defmodule Quokka.Style.Blocks do
       end
 
     zipper
-    |> Zipper.replace(
-      {:if, [do: [line: line], end: [line: end_line], line: line], [head, [do_, else_]]}
-    )
+    |> Zipper.replace({:if, [do: [line: line], end: [line: end_line], line: line], [head, [do_, else_]]})
     |> run(%{ctx | comments: comments})
   end
 

@@ -196,18 +196,14 @@ defmodule Quokka.Style.Pipes do
 
   # a |> then(&fun/1) |> c => a |> fun() |> c()
   # recurses to add the `()` to `fun` as it gets unwound
-  defp fix_pipe(
-         {:|>, m,
-          [lhs, {:then, _, [{:&, _, [{:/, _, [{_, _, nil} = fun, {:__block__, _, [1]}]}]}]}]}
-       ),
-       do: fix_pipe({:|>, m, [lhs, fun]})
+  defp fix_pipe({:|>, m, [lhs, {:then, _, [{:&, _, [{:/, _, [{_, _, nil} = fun, {:__block__, _, [1]}]}]}]}]}),
+    do: fix_pipe({:|>, m, [lhs, fun]})
 
   # Credo.Check.Readability.PipeIntoAnonymousFunctions
   # rewrite anonymous function invocation to use `then/2`
   # `a |> (& &1).() |> c()` => `a |> then(& &1) |> c()`
-  defp fix_pipe({:|>, m, [lhs, {{:., m2, [{anon_fun, _, _}] = fun}, _, []}]})
-       when anon_fun in [:&, :fn],
-       do: {:|>, m, [lhs, {:then, m2, fun}]}
+  defp fix_pipe({:|>, m, [lhs, {{:., m2, [{anon_fun, _, _}] = fun}, _, []}]}) when anon_fun in [:&, :fn],
+    do: {:|>, m, [lhs, {:then, m2, fun}]}
 
   # `lhs |> Enum.reverse() |> Enum.concat(enum)` => `lhs |> Enum.reverse(enum)`
   defp fix_pipe(
@@ -338,8 +334,7 @@ defmodule Quokka.Style.Pipes do
   # 0-arity function_call()
   defp valid_pipe_start?({fun, _, []}) when is_atom(fun), do: true
 
-  defp valid_pipe_start?({fun, _, _args})
-       when fun in [:case, :cond, :if, :quote, :unless, :with, :for] do
+  defp valid_pipe_start?({fun, _, _args}) when fun in [:case, :cond, :if, :quote, :unless, :with, :for] do
     not Quokka.Config.block_pipe_flag?() or fun in Quokka.Config.block_pipe_exclude()
   end
 
@@ -371,11 +366,9 @@ defmodule Quokka.Style.Pipes do
   defp first_arg_excluded_type?([{:<<>>, _, _} | _]),
     do: :bitstring in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
-  defp first_arg_excluded_type?([{:&, _, _} | _]),
-    do: :fn in Quokka.Config.pipe_chain_start_excluded_argument_types()
+  defp first_arg_excluded_type?([{:&, _, _} | _]), do: :fn in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
-  defp first_arg_excluded_type?([{:fn, _, _} | _]),
-    do: :fn in Quokka.Config.pipe_chain_start_excluded_argument_types()
+  defp first_arg_excluded_type?([{:fn, _, _} | _]), do: :fn in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
   defp first_arg_excluded_type?([{_, _, [arg1 | _]} | _]) do
     case arg1 do

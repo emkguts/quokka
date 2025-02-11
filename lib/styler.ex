@@ -16,6 +16,7 @@ defmodule Quokka do
   @behaviour Mix.Tasks.Format
 
   alias Mix.Tasks.Format
+  alias Quokka.Style.ModuleDirectives
   alias Quokka.StyleError
   alias Quokka.Zipper
 
@@ -46,7 +47,7 @@ defmodule Quokka do
       end)
 
     zipper = Zipper.zip(ast)
-    moduledoc_placeholder = Quokka.Style.ModuleDirectives.moduledoc_placeholder()
+    moduledoc_placeholder = ModuleDirectives.moduledoc_placeholder()
 
     {{ast, _}, _} =
       Zipper.traverse_while(zipper, nil, fn

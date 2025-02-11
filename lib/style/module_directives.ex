@@ -53,8 +53,7 @@ defmodule Quokka.Style.ModuleDirectives do
   @module_placeholder "Xk9pLm3Qw7_RAND_PLACEHOLDER"
   @moduledoc_false {:@, [line: nil],
                     [
-                      {:moduledoc, [line: nil],
-                       [{:__block__, [line: nil], [@module_placeholder]}]}
+                      {:moduledoc, [line: nil], [{:__block__, [line: nil], [@module_placeholder]}]}
                     ]}
 
   def run({{:defmodule, _, children}, _} = zipper, ctx) do
@@ -110,8 +109,7 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   # Style directives inside of snippets or function defs.
-  def run({{directive, _, children}, _} = zipper, ctx)
-      when directive in @directives and is_list(children) do
+  def run({{directive, _, children}, _} = zipper, ctx) when directive in @directives and is_list(children) do
     # Need to be careful that we aren't getting false positives on variables or fns like `def import(foo)` or `alias = 1`
     case Style.ensure_block_parent(zipper) do
       {:ok, zipper} -> {:skip, zipper |> Zipper.up() |> organize_directives(), ctx}
@@ -148,7 +146,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
   def run(zipper, ctx), do: {:cont, zipper, ctx}
 
-  def moduledoc_placeholder, do: @module_placeholder
+  def moduledoc_placeholder(), do: @module_placeholder
 
   defp moduledoc({:__aliases__, m, aliases}) do
     name = aliases |> List.last() |> to_string()
@@ -336,9 +334,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
       aliases =
         liftable
-        |> Enum.map(
-          &AliasEnv.expand(dealiases, {:alias, m, [{:__aliases__, [{:last, m} | m], &1}]})
-        )
+        |> Enum.map(&AliasEnv.expand(dealiases, {:alias, m, [{:__aliases__, [{:last, m} | m], &1}]}))
         |> Enum.concat(aliases)
         |> sort()
 
@@ -374,8 +370,7 @@ defmodule Quokka.Style.ModuleDirectives do
           end
 
         # move the focus to the body block, zkipping over the alias (and the `for` keyword for `defimpl`)
-        {:skip, zipper |> Zipper.down() |> Zipper.rightmost() |> Zipper.down() |> Zipper.down(),
-         lifts}
+        {:skip, zipper |> Zipper.down() |> Zipper.rightmost() |> Zipper.down() |> Zipper.down(), lifts}
 
       {{:quote, _, _}, _} = zipper, lifts ->
         {:skip, zipper, lifts}

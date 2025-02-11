@@ -48,10 +48,7 @@ defmodule Quokka.Style.Configs do
     {:skip, zipper, Map.put(ctx, :mix_config?, true)}
   end
 
-  def run(
-        {{:config, cfm, [_, _ | _]} = config, zm},
-        %{mix_config?: true, comments: comments} = ctx
-      ) do
+  def run({{:config, cfm, [_, _ | _]} = config, zm}, %{mix_config?: true, comments: comments} = ctx) do
     # all of these list are reversed due to the reduce
     {configs, assignments, rest} = accumulate(zm.r, [], [])
     # @TODO
@@ -210,11 +207,9 @@ defmodule Quokka.Style.Configs do
     end
   end
 
-  defp accumulate([{:config, _, [_, _ | _]} = c | siblings], cs, as),
-    do: accumulate(siblings, [c | cs], as)
+  defp accumulate([{:config, _, [_, _ | _]} = c | siblings], cs, as), do: accumulate(siblings, [c | cs], as)
 
-  defp accumulate([{:=, _, [_lhs, _rhs]} = a | siblings], cs, as),
-    do: accumulate(siblings, cs, [a | as])
+  defp accumulate([{:=, _, [_lhs, _rhs]} = a | siblings], cs, as), do: accumulate(siblings, cs, [a | as])
 
   defp accumulate(rest, configs, assignments), do: {configs, assignments, rest}
 end

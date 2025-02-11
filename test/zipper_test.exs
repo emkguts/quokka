@@ -81,8 +81,7 @@ defmodule QuokkaTest.ZipperTest do
                {1, %{l: [], r: [2], ptree: {{:foo, [], [1, 2]}, nil}}}
 
       assert {{:., [], [:a, :b]}, [], [1, 2]} |> Zipper.zip() |> Zipper.down() ==
-               {{:., [], [:a, :b]},
-                %{l: [], r: [1, 2], ptree: {{{:., [], [:a, :b]}, [], [1, 2]}, nil}}}
+               {{:., [], [:a, :b]}, %{l: [], r: [1, 2], ptree: {{{:., [], [:a, :b]}, [], [1, 2]}, nil}}}
     end
   end
 
