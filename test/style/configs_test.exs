@@ -16,7 +16,15 @@ defmodule Quokka.Style.ConfigsTest do
   alias Quokka.Style.Configs
 
   setup do
-    Quokka.Config.set_for_test!(:strict_module_layout_order, [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require])
+    Quokka.Config.set_for_test!(:strict_module_layout_order, [
+      :shortdoc,
+      :moduledoc,
+      :behaviour,
+      :use,
+      :import,
+      :alias,
+      :require
+    ])
   end
 
   test "only runs on exs files in config folders" do
@@ -25,7 +33,9 @@ defmodule Quokka.Style.ConfigsTest do
 
     for file <- ~w(dev.exs my_app.exs config.exs) do
       # :config? is private api, so don't be surprised if this has to change at some point
-      assert {:cont, _, %{config?: true}} = Configs.run(zipper, %{file: "apps/foo/config/#{file}"})
+      assert {:cont, _, %{config?: true}} =
+               Configs.run(zipper, %{file: "apps/foo/config/#{file}"})
+
       assert {:cont, _, %{config?: true}} = Configs.run(zipper, %{file: "config/#{file}"})
       assert {:cont, _, %{config?: true}} = Configs.run(zipper, %{file: "rel/overlays/#{file}"})
       assert {:halt, _, _} = Configs.run(zipper, %{file: file})
@@ -359,6 +369,7 @@ defmodule Quokka.Style.ConfigsTest do
 
   test "respects custom strict_module_layout_order" do
     Quokka.Config.set_for_test!(:strict_module_layout_order, [:alias, :import, :moduledoc])
+
     assert_style(
       """
       @moduledoc "Some doc"

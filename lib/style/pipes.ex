@@ -196,14 +196,18 @@ defmodule Quokka.Style.Pipes do
 
   # a |> then(&fun/1) |> c => a |> fun() |> c()
   # recurses to add the `()` to `fun` as it gets unwound
-  defp fix_pipe({:|>, m, [lhs, {:then, _, [{:&, _, [{:/, _, [{_, _, nil} = fun, {:__block__, _, [1]}]}]}]}]}),
-    do: fix_pipe({:|>, m, [lhs, fun]})
+  defp fix_pipe(
+         {:|>, m,
+          [lhs, {:then, _, [{:&, _, [{:/, _, [{_, _, nil} = fun, {:__block__, _, [1]}]}]}]}]}
+       ),
+       do: fix_pipe({:|>, m, [lhs, fun]})
 
   # Credo.Check.Readability.PipeIntoAnonymousFunctions
   # rewrite anonymous function invocation to use `then/2`
   # `a |> (& &1).() |> c()` => `a |> then(& &1) |> c()`
-  defp fix_pipe({:|>, m, [lhs, {{:., m2, [{anon_fun, _, _}] = fun}, _, []}]}) when anon_fun in [:&, :fn],
-    do: {:|>, m, [lhs, {:then, m2, fun}]}
+  defp fix_pipe({:|>, m, [lhs, {{:., m2, [{anon_fun, _, _}] = fun}, _, []}]})
+       when anon_fun in [:&, :fn],
+       do: {:|>, m, [lhs, {:then, m2, fun}]}
 
   # `lhs |> Enum.reverse() |> Enum.concat(enum)` => `lhs |> Enum.reverse(enum)`
   defp fix_pipe(
@@ -334,14 +338,16 @@ defmodule Quokka.Style.Pipes do
   # 0-arity function_call()
   defp valid_pipe_start?({fun, _, []}) when is_atom(fun), do: true
 
-  defp valid_pipe_start?({fun, _, _args}) when fun in [:case, :cond, :if, :quote, :unless, :with, :for] do
+  defp valid_pipe_start?({fun, _, _args})
+       when fun in [:case, :cond, :if, :quote, :unless, :with, :for] do
     not Quokka.Config.block_pipe_flag?() or fun in Quokka.Config.block_pipe_exclude()
   end
 
   # function_call(with, args) or sigils. sigils are allowed, function w/ args is not
   defp valid_pipe_start?({fun, meta, args}) when is_atom(fun) do
     not Quokka.Config.refactor_pipe_chain_starts?() or first_arg_excluded_type?(args) or
-      (custom_macro?(meta) and (not Quokka.Config.block_pipe_flag?() or fun in Quokka.Config.block_pipe_exclude())) or
+      (custom_macro?(meta) and
+         (not Quokka.Config.block_pipe_flag?() or fun in Quokka.Config.block_pipe_exclude())) or
       "#{fun}" in Quokka.Config.pipe_chain_start_excluded_functions() or
       String.match?("#{fun}", ~r/^sigil_[a-zA-Z]$/)
   end
@@ -365,7 +371,6 @@ defmodule Quokka.Style.Pipes do
   defp first_arg_excluded_type?([{:<<>>, _, _} | _]),
     do: :bitstring in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
-
   defp first_arg_excluded_type?([{:&, _, _} | _]),
     do: :fn in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
@@ -375,7 +380,8 @@ defmodule Quokka.Style.Pipes do
   defp first_arg_excluded_type?([{_, _, [arg1 | _]} | _]) do
     case arg1 do
       [{{:__block__, [format: :keyword, line: _], _}, _} | _] ->
-        :keyword in Quokka.Config.pipe_chain_start_excluded_argument_types() or :list in Quokka.Config.pipe_chain_start_excluded_argument_types()
+        :keyword in Quokka.Config.pipe_chain_start_excluded_argument_types() or
+          :list in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
       _ ->
         get_type(arg1) in Quokka.Config.pipe_chain_start_excluded_argument_types()
@@ -383,7 +389,9 @@ defmodule Quokka.Style.Pipes do
   end
 
   defp first_arg_excluded_type?([[{{:__block__, [format: :keyword, line: _], _}, _} | _] | _]),
-    do: :keyword in Quokka.Config.pipe_chain_start_excluded_argument_types() or :list in Quokka.Config.pipe_chain_start_excluded_argument_types()
+    do:
+      :keyword in Quokka.Config.pipe_chain_start_excluded_argument_types() or
+        :list in Quokka.Config.pipe_chain_start_excluded_argument_types()
 
   # Bare variables are not excluded
   defp first_arg_excluded_type?(_), do: false

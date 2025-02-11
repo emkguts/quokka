@@ -18,7 +18,14 @@ defmodule Quokka.StyleCase do
   using options do
     quote do
       import unquote(__MODULE__),
-        only: [assert_style: 1, assert_style: 2, style: 1, style: 2, format_diff: 2, format_diff: 3]
+        only: [
+          assert_style: 1,
+          assert_style: 2,
+          style: 1,
+          style: 2,
+          format_diff: 2,
+          format_diff: 3
+        ]
 
       @filename unquote(options)[:filename] || "testfile"
       @ordered_siblings unquote(options)[:ordered_siblings] || false
@@ -68,6 +75,7 @@ defmodule Quokka.StyleCase do
           line = meta[:line]
 
           up = Zipper.up(zipper)
+
           # body blocks - for example, the block node for an anonymous function - don't have line meta
           # yes, i just did `&& case`. sometimes it's funny to write ugly things in my project that's all about style.
           # i believe they calls that one "irony"
@@ -92,7 +100,10 @@ defmodule Quokka.StyleCase do
                     dbg(ast)
                   end
 
-                  assert(prev_meta[:line] <= meta[:line], "Previous node had a higher line than this node")
+                  assert(
+                    prev_meta[:line] <= meta[:line],
+                    "Previous node had a higher line than this node"
+                  )
                 end
 
               _ ->
@@ -146,7 +157,10 @@ defmodule Quokka.StyleCase do
       {styled_ast, styled_code, comments}
     rescue
       exception ->
-        IO.inspect(styled_ast, label: [IO.ANSI.red(), "**Style created invalid ast:**", IO.ANSI.light_red()])
+        IO.inspect(styled_ast,
+          label: [IO.ANSI.red(), "**Style created invalid ast:**", IO.ANSI.light_red()]
+        )
+
         reraise exception, __STACKTRACE__
     end
   end
@@ -159,18 +173,28 @@ defmodule Quokka.StyleCase do
     expected =
       for {diff?, content} <- expected.contents do
         cond do
-          diff? and String.trim_leading(Macro.unescape_string(content)) == "" -> [:red_background, content, :reset]
-          diff? -> [:red, content, :reset]
-          true -> content
+          diff? and String.trim_leading(Macro.unescape_string(content)) == "" ->
+            [:red_background, content, :reset]
+
+          diff? ->
+            [:red, content, :reset]
+
+          true ->
+            content
         end
       end
 
     styled =
       for {diff?, content} <- styled.contents do
         cond do
-          diff? and String.trim_leading(Macro.unescape_string(content)) == "" -> [:green_background, content, :reset]
-          diff? -> [:green, content, :reset]
-          true -> content
+          diff? and String.trim_leading(Macro.unescape_string(content)) == "" ->
+            [:green_background, content, :reset]
+
+          diff? ->
+            [:green, content, :reset]
+
+          true ->
+            content
         end
       end
 

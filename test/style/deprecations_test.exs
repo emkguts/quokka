@@ -55,7 +55,10 @@ defmodule Quokka.Style.DeprecationsTest do
   end
 
   test "replace Date.range/2 with Date.range/3 when first > last" do
-    assert_style("Date.range(~D[2000-01-01], ~D[1999-01-01])", "Date.range(~D[2000-01-01], ~D[1999-01-01], -1)")
+    assert_style(
+      "Date.range(~D[2000-01-01], ~D[1999-01-01])",
+      "Date.range(~D[2000-01-01], ~D[1999-01-01], -1)"
+    )
 
     assert_style(
       "~D[2000-01-01] |> Date.range(~D[1999-01-01]) |> foo()",
@@ -87,8 +90,16 @@ defmodule Quokka.Style.DeprecationsTest do
       assert_style("#{mod}.slice(x, ..)")
 
       # piped
-      assert_style("foo |> bar() |> #{mod}.slice(1..-2)", "foo |> bar() |> #{mod}.slice(1..-2//1)")
-      assert_style("foo |> bar() |> #{mod}.slice(-1..-2)", "foo |> bar() |> #{mod}.slice(-1..-2//1)")
+      assert_style(
+        "foo |> bar() |> #{mod}.slice(1..-2)",
+        "foo |> bar() |> #{mod}.slice(1..-2//1)"
+      )
+
+      assert_style(
+        "foo |> bar() |> #{mod}.slice(-1..-2)",
+        "foo |> bar() |> #{mod}.slice(-1..-2//1)"
+      )
+
       assert_style("foo |> bar() |> #{mod}.slice(2..1)", "foo |> bar() |> #{mod}.slice(2..1//1)")
       assert_style("foo |> bar() |> #{mod}.slice(1..3)")
 

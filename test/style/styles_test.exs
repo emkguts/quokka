@@ -14,6 +14,7 @@ defmodule Quokka.Style.StylesTest do
   A place for tests that make sure our styles play nicely with each other
   """
   use Quokka.StyleCase, async: true
+
   setup do
     Quokka.Config.set_for_test!(:zero_arity_parens, true)
   end
@@ -21,6 +22,7 @@ defmodule Quokka.Style.StylesTest do
   describe "pipes + defs" do
     test "pipes doesnt abuse meta and break defs" do
       Quokka.Config.set_for_test!(:single_pipe_flag, true)
+
       assert_style(
         """
         foo

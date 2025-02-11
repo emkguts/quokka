@@ -48,7 +48,10 @@ defmodule Quokka.Style.Configs do
     {:skip, zipper, Map.put(ctx, :mix_config?, true)}
   end
 
-  def run({{:config, cfm, [_, _ | _]} = config, zm}, %{mix_config?: true, comments: comments} = ctx) do
+  def run(
+        {{:config, cfm, [_, _ | _]} = config, zm},
+        %{mix_config?: true, comments: comments} = ctx
+      ) do
     # all of these list are reversed due to the reduce
     {configs, assignments, rest} = accumulate(zm.r, [], [])
     # @TODO
@@ -148,7 +151,9 @@ defmodule Quokka.Style.Configs do
         {node, [], comments}
       else
         {mine, comments} = comments_for_lines(comments, line, last_line)
-        line_with_comments = (List.first(mine)[:line] || line) - (List.first(mine)[:previous_eol_count] || 1) + 1
+
+        line_with_comments =
+          (List.first(mine)[:line] || line) - (List.first(mine)[:previous_eol_count] || 1) + 1
 
         if line_with_comments == start_line do
           {node, mine, comments}
@@ -162,6 +167,7 @@ defmodule Quokka.Style.Configs do
       end
 
     {_, meta, _} = node
+
     # @TODO what about comments that were free floating between blocks? i'm just ignoring them and maybe always will...
     # kind of just want to shove them to the end though, so that they don't interrupt existing stanzas.
     # i think that's accomplishable by doing a final call above that finds all comments in the comments list that weren't moved
@@ -188,16 +194,27 @@ defmodule Quokka.Style.Configs do
 
   defp comments_for_lines([%{line: line} = comment | rev_comments], start, last, match, acc) do
     cond do
-      line > last -> comments_for_lines(rev_comments, start, last, match, [comment | acc])
-      line >= start -> comments_for_lines(rev_comments, start, last, [comment | match], acc)
+      line > last ->
+        comments_for_lines(rev_comments, start, last, match, [comment | acc])
+
+      line >= start ->
+        comments_for_lines(rev_comments, start, last, [comment | match], acc)
+
       # @TODO bug: match line looks like `x = :foo # comment for x`
       # could account for that by pre-running the formatter on config files :/
-      line == start - 1 -> comments_for_lines(rev_comments, start - 1, last, [comment | match], acc)
-      true -> {match, Enum.reverse(rev_comments, [comment | acc])}
+      line == start - 1 ->
+        comments_for_lines(rev_comments, start - 1, last, [comment | match], acc)
+
+      true ->
+        {match, Enum.reverse(rev_comments, [comment | acc])}
     end
   end
 
-  defp accumulate([{:config, _, [_, _ | _]} = c | siblings], cs, as), do: accumulate(siblings, [c | cs], as)
-  defp accumulate([{:=, _, [_lhs, _rhs]} = a | siblings], cs, as), do: accumulate(siblings, cs, [a | as])
+  defp accumulate([{:config, _, [_, _ | _]} = c | siblings], cs, as),
+    do: accumulate(siblings, [c | cs], as)
+
+  defp accumulate([{:=, _, [_lhs, _rhs]} = a | siblings], cs, as),
+    do: accumulate(siblings, cs, [a | as])
+
   defp accumulate(rest, configs, assignments), do: {configs, assignments, rest}
 end

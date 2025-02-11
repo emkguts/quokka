@@ -53,14 +53,19 @@ defmodule Quokka.Config do
   def set!(config) do
     credo_opts = extract_configs_from_credo()
 
-    lift_alias_excluded_namespaces = (credo_opts[:lift_alias_excluded_namespaces] || []) |> Enum.map(&Atom.to_string/1)
-    lift_alias_excluded_lastnames = (credo_opts[:lift_alias_excluded_lastnames] || []) |> Enum.map(&Atom.to_string/1)
+    lift_alias_excluded_namespaces =
+      (credo_opts[:lift_alias_excluded_namespaces] || []) |> Enum.map(&Atom.to_string/1)
+
+    lift_alias_excluded_lastnames =
+      (credo_opts[:lift_alias_excluded_lastnames] || []) |> Enum.map(&Atom.to_string/1)
 
     reorder_configs =
       if is_nil(config[:reorder_configs]), do: true, else: config[:reorder_configs]
 
     inefficient_function_rewrites =
-      if is_nil(config[:inefficient_function_rewrites]), do: true, else: config[:inefficient_function_rewrites]
+      if is_nil(config[:inefficient_function_rewrites]),
+        do: true,
+        else: config[:inefficient_function_rewrites]
 
     rewrite_deprecations =
       if is_nil(config[:rewrite_deprecations]), do: true, else: config[:rewrite_deprecations]
@@ -78,7 +83,8 @@ defmodule Quokka.Config do
       line_length: credo_opts[:line_length] || 98,
       pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
       pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
-      pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
+      pipe_chain_start_excluded_argument_types:
+        credo_opts[:pipe_chain_start_excluded_argument_types] || [],
       reorder_configs: reorder_configs,
       rewrite_deprecations: rewrite_deprecations,
       lift_alias: credo_opts[:lift_alias] || false,
@@ -89,8 +95,9 @@ defmodule Quokka.Config do
       rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
       single_pipe_flag: credo_opts[:single_pipe_flag] || false,
       sort_order: credo_opts[:sort_order] || :alpha,
-      strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
-      zero_arity_parens: credo_opts[:zero_arity_parens] || false,
+      strict_module_layout_order:
+        strict_module_layout_order ++ (default_order -- strict_module_layout_order),
+      zero_arity_parens: credo_opts[:zero_arity_parens] || false
     })
   end
 
@@ -105,83 +112,86 @@ defmodule Quokka.Config do
     |> Map.fetch!(key)
   end
 
-  def get_styles() do
+  def get_styles do
     styles_to_remove =
-      for {module, flag_name} <- [{Configs, :reorder_configs}, {Quokka.Style.Deprecations, :rewrite_deprecations}],
-          do: (if get(flag_name), do: nil, else: module)
+      for {module, flag_name} <- [
+            {Configs, :reorder_configs},
+            {Quokka.Style.Deprecations, :rewrite_deprecations}
+          ],
+          do: if(get(flag_name), do: nil, else: module)
 
     @styles -- styles_to_remove
   end
 
-  def sort_order() do
+  def sort_order do
     get(:sort_order)
   end
 
-  def block_pipe_flag?() do
+  def block_pipe_flag? do
     get(:block_pipe_flag)
   end
 
-  def block_pipe_exclude() do
+  def block_pipe_exclude do
     get(:block_pipe_exclude)
   end
 
-  def inefficient_function_rewrites?() do
+  def inefficient_function_rewrites? do
     get(:inefficient_function_rewrites)
   end
 
-  def large_numbers_gt() do
+  def large_numbers_gt do
     get(:large_numbers_gt)
   end
 
-  def lift_alias?() do
+  def lift_alias? do
     get(:lift_alias)
   end
 
-  def lift_alias_depth() do
+  def lift_alias_depth do
     get(:lift_alias_depth)
   end
 
-  def lift_alias_excluded_lastnames() do
+  def lift_alias_excluded_lastnames do
     get(:lift_alias_excluded_lastnames)
   end
 
-  def lift_alias_excluded_namespaces() do
+  def lift_alias_excluded_namespaces do
     get(:lift_alias_excluded_namespaces)
   end
 
-  def lift_alias_frequency() do
+  def lift_alias_frequency do
     get(:lift_alias_frequency)
   end
 
-  def line_length() do
+  def line_length do
     get(:line_length)
   end
 
-  def pipe_chain_start_excluded_functions() do
+  def pipe_chain_start_excluded_functions do
     get(:pipe_chain_start_excluded_functions)
   end
 
-  def pipe_chain_start_excluded_argument_types() do
+  def pipe_chain_start_excluded_argument_types do
     get(:pipe_chain_start_excluded_argument_types)
   end
 
-  def refactor_pipe_chain_starts?() do
+  def refactor_pipe_chain_starts? do
     get(:pipe_chain_start_flag)
   end
 
-  def rewrite_multi_alias?() do
+  def rewrite_multi_alias? do
     get(:rewrite_multi_alias)
   end
 
-  def single_pipe_flag?() do
+  def single_pipe_flag? do
     get(:single_pipe_flag)
   end
 
-  def strict_module_layout_order() do
+  def strict_module_layout_order do
     get(:strict_module_layout_order)
   end
 
-  def zero_arity_parens?() do
+  def zero_arity_parens? do
     get(:zero_arity_parens)
   end
 
@@ -197,14 +207,14 @@ defmodule Quokka.Config do
     end
   end
 
-  defp read_credo_config() do
+  defp read_credo_config do
     exec = Credo.Execution.build()
     dir = File.cwd!()
     {:ok, config} = Credo.ConfigFile.read_or_default(exec, dir)
     config
   end
 
-  defp extract_configs_from_credo() do
+  defp extract_configs_from_credo do
     Enum.reduce(read_credo_config().checks, %{}, fn
       {AliasOrder, opts}, acc when is_list(opts) ->
         Map.put(acc, :sort_order, opts[:sort_method])

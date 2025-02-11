@@ -22,6 +22,7 @@ defmodule Quokka.Style.SingleNodeTest do
     assert_style ~s|"\\"\\""|
     assert_style ~s|"\\"\\"\\""|
     assert_style ~s|"\\"\\"\\"\\""|, ~s|~s("""")|
+
     # choose closing delimiter wisely, based on what has the least conflicts, in the styliest order
     assert_style ~s/"\\"\\"\\"\\" )"/, ~s/~s{"""" )}/
     assert_style ~s/"\\"\\"\\"\\" })"/, ~s/~s|"""" })|/
@@ -44,7 +45,11 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "normal call" do
       for module <- ~w(Map Keyword) do
-        assert_style("#{module}.merge(foo, %{one_key: :bar})", "#{module}.put(foo, :one_key, :bar)")
+        assert_style(
+          "#{module}.merge(foo, %{one_key: :bar})",
+          "#{module}.put(foo, :one_key, :bar)"
+        )
+
         assert_style("#{module}.merge(foo, one_key: :bar)", "#{module}.put(foo, :one_key, :bar)")
         # # doesn't rewrite if there's a custom merge strategy
         assert_style("#{module}.merge(foo, %{one_key: :bar}, custom_merge_strategy)")
@@ -58,7 +63,11 @@ defmodule Quokka.Style.SingleNodeTest do
     for module <- ~w(Map Keyword) do
       for singular <- ~w(:key key %{} [] 1 "key") do
         assert_style("#{module}.drop(foo, [#{singular}])", "#{module}.delete(foo, #{singular})")
-        assert_style("foo |> #{module}.drop([#{singular}]) |> bar()", "foo |> #{module}.delete(#{singular}) |> bar()")
+
+        assert_style(
+          "foo |> #{module}.drop([#{singular}]) |> bar()",
+          "foo |> #{module}.delete(#{singular}) |> bar()"
+        )
       end
 
       assert "#{module}.drop(foo, [])"
@@ -232,7 +241,11 @@ defmodule Quokka.Style.SingleNodeTest do
 
   describe "RHS pattern matching" do
     test "left arrows" do
-      assert_style("with {:ok, result = %{}} <- foo, do: result", "with {:ok, %{} = result} <- foo, do: result")
+      assert_style(
+        "with {:ok, result = %{}} <- foo, do: result",
+        "with {:ok, %{} = result} <- foo, do: result"
+      )
+
       assert_style("for map = %{} <- maps, do: map[:key]", "for %{} = map <- maps, do: map[:key]")
     end
 

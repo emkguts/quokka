@@ -42,16 +42,23 @@ defmodule QuokkaTest.ZipperTest do
     end
 
     test "lists" do
-      assert [1, 2, 3] |> Zipper.zip() |> Zipper.replace_children([:a, :b, :c]) |> Zipper.node() == [:a, :b, :c]
+      assert [1, 2, 3] |> Zipper.zip() |> Zipper.replace_children([:a, :b, :c]) |> Zipper.node() ==
+               [:a, :b, :c]
     end
 
     test "unqualified calls" do
-      assert {:foo, [], [1, 2]} |> Zipper.zip() |> Zipper.replace_children([:a, :b]) |> Zipper.node() ==
+      assert {:foo, [], [1, 2]}
+             |> Zipper.zip()
+             |> Zipper.replace_children([:a, :b])
+             |> Zipper.node() ==
                {:foo, [], [:a, :b]}
     end
 
     test "qualified calls" do
-      assert {{:., [], [1, 2]}, [], [3, 4]} |> Zipper.zip() |> Zipper.replace_children([:a, :b, :c]) |> Zipper.node() ==
+      assert {{:., [], [1, 2]}, [], [3, 4]}
+             |> Zipper.zip()
+             |> Zipper.replace_children([:a, :b, :c])
+             |> Zipper.node() ==
                {:a, [], [:b, :c]}
     end
   end
@@ -64,14 +71,18 @@ defmodule QuokkaTest.ZipperTest do
 
   describe "down/1" do
     test "rips and tears the parent node" do
-      assert [1, 2] |> Zipper.zip() |> Zipper.down() == {1, %{l: [], r: [2], ptree: {[1, 2], nil}}}
-      assert {1, 2} |> Zipper.zip() |> Zipper.down() == {1, %{l: [], r: [2], ptree: {{1, 2}, nil}}}
+      assert [1, 2] |> Zipper.zip() |> Zipper.down() ==
+               {1, %{l: [], r: [2], ptree: {[1, 2], nil}}}
+
+      assert {1, 2} |> Zipper.zip() |> Zipper.down() ==
+               {1, %{l: [], r: [2], ptree: {{1, 2}, nil}}}
 
       assert {:foo, [], [1, 2]} |> Zipper.zip() |> Zipper.down() ==
                {1, %{l: [], r: [2], ptree: {{:foo, [], [1, 2]}, nil}}}
 
       assert {{:., [], [:a, :b]}, [], [1, 2]} |> Zipper.zip() |> Zipper.down() ==
-               {{:., [], [:a, :b]}, %{l: [], r: [1, 2], ptree: {{{:., [], [:a, :b]}, [], [1, 2]}, nil}}}
+               {{:., [], [:a, :b]},
+                %{l: [], r: [1, 2], ptree: {{{:., [], [:a, :b]}, [], [1, 2]}, nil}}}
     end
   end
 
@@ -79,7 +90,9 @@ defmodule QuokkaTest.ZipperTest do
     test "reconstructs the previous parent" do
       assert [1, 2] |> Zipper.zip() |> Zipper.down() |> Zipper.up() == {[1, 2], nil}
       assert {1, 2} |> Zipper.zip() |> Zipper.down() |> Zipper.up() == {{1, 2}, nil}
-      assert {:foo, [], [1, 2]} |> Zipper.zip() |> Zipper.down() |> Zipper.up() == {{:foo, [], [1, 2]}, nil}
+
+      assert {:foo, [], [1, 2]} |> Zipper.zip() |> Zipper.down() |> Zipper.up() ==
+               {{:foo, [], [1, 2]}, nil}
 
       assert {{:., [], [:a, :b]}, [], [1, 2]} |> Zipper.zip() |> Zipper.down() |> Zipper.up() ==
                {{{:., [], [:a, :b]}, [], [1, 2]}, nil}
@@ -94,8 +107,17 @@ defmodule QuokkaTest.ZipperTest do
     test "correctly navigate horizontally" do
       zipper = Zipper.zip([1, [2, 3], [[4, 5], 6]])
 
-      assert zipper |> Zipper.down() |> Zipper.right() |> Zipper.right() |> Zipper.node() == [[4, 5], 6]
-      assert zipper |> Zipper.down() |> Zipper.right() |> Zipper.right() |> Zipper.left() |> Zipper.node() == [2, 3]
+      assert zipper |> Zipper.down() |> Zipper.right() |> Zipper.right() |> Zipper.node() == [
+               [4, 5],
+               6
+             ]
+
+      assert zipper
+             |> Zipper.down()
+             |> Zipper.right()
+             |> Zipper.right()
+             |> Zipper.left()
+             |> Zipper.node() == [2, 3]
     end
 
     test "return nil at the boundaries" do
@@ -108,7 +130,11 @@ defmodule QuokkaTest.ZipperTest do
 
   describe "rightmost/1" do
     test "returns the rightmost child" do
-      assert [1, 2, 3, 4, 5] |> Zipper.zip() |> Zipper.down() |> Zipper.rightmost() |> Zipper.node() == 5
+      assert [1, 2, 3, 4, 5]
+             |> Zipper.zip()
+             |> Zipper.down()
+             |> Zipper.rightmost()
+             |> Zipper.node() == 5
     end
 
     test "returns itself it already at the rightmost node" do
@@ -160,7 +186,12 @@ defmodule QuokkaTest.ZipperTest do
     test "walks forward in depth-first pre-order" do
       zipper = Zipper.zip([1, [2, [3, 4]], 5])
 
-      assert zipper |> Zipper.next() |> Zipper.next() |> Zipper.next() |> Zipper.next() |> Zipper.node() == [3, 4]
+      assert zipper
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.node() == [3, 4]
 
       assert zipper
              |> Zipper.next()
@@ -236,7 +267,9 @@ defmodule QuokkaTest.ZipperTest do
       assert Zipper.node(zipper) == {:foo, [], [1, 2, 3]}
       assert zipper |> Zipper.skip() |> Zipper.node() == {:bar, [], [1, 2, 3]}
       assert zipper |> Zipper.skip(:next) |> Zipper.node() == {:bar, [], [1, 2, 3]}
-      assert zipper |> Zipper.skip() |> Zipper.skip(:prev) |> Zipper.node() == {:foo, [], [1, 2, 3]}
+
+      assert zipper |> Zipper.skip() |> Zipper.skip(:prev) |> Zipper.node() ==
+               {:foo, [], [1, 2, 3]}
     end
 
     test "returns nil if no previous sibling is available" do
@@ -409,7 +442,12 @@ defmodule QuokkaTest.ZipperTest do
 
   describe "top/1" do
     test "returns the top zipper" do
-      assert [1, [2, [3, 4]]] |> Zipper.zip() |> Zipper.next() |> Zipper.next() |> Zipper.next() |> Zipper.top() ==
+      assert [1, [2, [3, 4]]]
+             |> Zipper.zip()
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.top() ==
                {[1, [2, [3, 4]]], nil}
 
       assert 42 |> Zipper.zip() |> Zipper.top() |> Zipper.top() |> Zipper.top() == {42, nil}
@@ -418,27 +456,40 @@ defmodule QuokkaTest.ZipperTest do
 
   describe "root/1" do
     test "returns the root node" do
-      assert [1, [2, [3, 4]]] |> Zipper.zip() |> Zipper.next() |> Zipper.next() |> Zipper.next() |> Zipper.root() ==
+      assert [1, [2, [3, 4]]]
+             |> Zipper.zip()
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.next()
+             |> Zipper.root() ==
                [1, [2, [3, 4]]]
     end
   end
 
   describe "replace/2" do
     test "replaces the current node" do
-      assert [1, 2] |> Zipper.zip() |> Zipper.down() |> Zipper.replace(:a) |> Zipper.root() == [:a, 2]
+      assert [1, 2] |> Zipper.zip() |> Zipper.down() |> Zipper.replace(:a) |> Zipper.root() == [
+               :a,
+               2
+             ]
     end
   end
 
   describe "update/2" do
     test "updates the current node" do
-      assert [1, 2] |> Zipper.zip() |> Zipper.down() |> Zipper.update(fn x -> x + 50 end) |> Zipper.root() ==
+      assert [1, 2]
+             |> Zipper.zip()
+             |> Zipper.down()
+             |> Zipper.update(fn x -> x + 50 end)
+             |> Zipper.root() ==
                [51, 2]
     end
   end
 
   describe "remove/1" do
     test "removes the node and goes back to the previous zipper" do
-      zipper = [1, [2, 3], 4] |> Zipper.zip() |> Zipper.down() |> Zipper.rightmost() |> Zipper.remove()
+      zipper =
+        [1, [2, 3], 4] |> Zipper.zip() |> Zipper.down() |> Zipper.rightmost() |> Zipper.remove()
 
       assert Zipper.node(zipper) == 3
       assert Zipper.root(zipper) == [1, [2, 3]]
@@ -479,7 +530,11 @@ defmodule QuokkaTest.ZipperTest do
 
   describe "insert_child/2 and append_child/2" do
     test "add child nodes to the leftmost or rightmost side" do
-      assert [1, 2, 3] |> Zipper.zip() |> Zipper.insert_child(:first) |> Zipper.append_child(:last) |> Zipper.root() ==
+      assert [1, 2, 3]
+             |> Zipper.zip()
+             |> Zipper.insert_child(:first)
+             |> Zipper.append_child(:last)
+             |> Zipper.root() ==
                [
                  :first,
                  1,

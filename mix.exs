@@ -16,7 +16,7 @@ defmodule Quokka.MixProject do
   @version "1.0.0"
   @url "https://github.com/smartrent/quokka"
 
-  def project() do
+  def project do
     [
       app: :quokka,
       version: @version,
@@ -27,7 +27,8 @@ defmodule Quokka.MixProject do
 
       ## Hex
       package: package(),
-      description: "A Credo-configured code-style enforcer that will just fix it for you instead of complaining",
+      description:
+        "A Credo-configured code-style enforcer that will just fix it for you instead of complaining",
 
       # Docs
       name: "Quokka",
@@ -38,23 +39,23 @@ defmodule Quokka.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  def application(), do: [extra_applications: [:logger]]
+  def application, do: [extra_applications: [:logger]]
 
-  defp deps() do
+  defp deps do
     [
       {:ex_doc, "~> 0.31", runtime: false, only: :dev},
       {:credo, "~> 1.7", runtime: true}
     ]
   end
 
-  defp package() do
+  defp package do
     [
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @url}
     ]
   end
 
-  defp docs() do
+  defp docs do
     [
       assets: %{"docs/assets" => "docs/assets"},
       logo: "docs/assets/quokka.png",
@@ -73,7 +74,7 @@ defmodule Quokka.MixProject do
         "docs/mix_configs.md": [title: "Mix Configs (config/config.exs, ...)"],
         "docs/module_directives.md": [title: "Module Directives (use, alias, ...)"],
         "README.md": [title: "Quokka"],
-        "LICENSE": [title: "License"]
+        LICENSE: [title: "License"]
       ]
     ]
   end

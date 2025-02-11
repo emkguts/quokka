@@ -765,7 +765,10 @@ defmodule Quokka.Style.PipesTest do
       assert_style("a |> (& {&1, &2}).(b)", "(&{&1, &2}).(a, b)")
       assert_style("a |> (& &1).() |> c", "a |> then(& &1) |> c()")
 
-      assert_style("a |> (fn x, y -> {x, y} end).() |> c", "a |> then(fn x, y -> {x, y} end) |> c()")
+      assert_style(
+        "a |> (fn x, y -> {x, y} end).() |> c",
+        "a |> then(fn x, y -> {x, y} end) |> c()"
+      )
 
       assert_style("a |> (fn x -> x end).()", "then(a, fn x -> x end)")
       assert_style("a |> (fn x -> x end).() |> c", "a |> then(fn x -> x end) |> c()")
@@ -937,7 +940,10 @@ defmodule Quokka.Style.PipesTest do
           """
         )
 
-        assert_style("a |> #{enum}.map(mapper) |> Enum.join(joiner)", "Enum.map_join(a, joiner, mapper)")
+        assert_style(
+          "a |> #{enum}.map(mapper) |> Enum.join(joiner)",
+          "Enum.map_join(a, joiner, mapper)"
+        )
       end
     end
 
@@ -1157,16 +1163,18 @@ defmodule Quokka.Style.PipesTest do
       |> h()
       """)
 
-      assert_style("""
-      f([a: 1, b: 2, c: 3])
-      |> g()
-      |> h()
-      """,
-      """
-      f(a: 1, b: 2, c: 3)
-      |> g()
-      |> h()
-      """)
+      assert_style(
+        """
+        f([a: 1, b: 2, c: 3])
+        |> g()
+        |> h()
+        """,
+        """
+        f(a: 1, b: 2, c: 3)
+        |> g()
+        |> h()
+        """
+      )
 
       Quokka.Config.set_for_test!(:pipe_chain_start_excluded_argument_types, [])
     end
@@ -1181,16 +1189,17 @@ defmodule Quokka.Style.PipesTest do
       """)
 
       assert_style(
-      """
-      f([a: 1, b: 2, c: 3])
-      |> g()
-      |> h()
-      """,
-      """
-      f(a: 1, b: 2, c: 3)
-      |> g()
-      |> h()
-      """)
+        """
+        f([a: 1, b: 2, c: 3])
+        |> g()
+        |> h()
+        """,
+        """
+        f(a: 1, b: 2, c: 3)
+        |> g()
+        |> h()
+        """
+      )
 
       Quokka.Config.set_for_test!(:pipe_chain_start_excluded_argument_types, [])
     end
@@ -1239,7 +1248,6 @@ defmodule Quokka.Style.PipesTest do
       |> g()
       |> h()
       """)
-
 
       Quokka.Config.set_for_test!(:pipe_chain_start_excluded_argument_types, [])
     end

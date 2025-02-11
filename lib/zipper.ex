@@ -52,10 +52,15 @@ defmodule Quokka.Zipper do
   Returns the zipper with the current children of the node replaced with `children`
   """
   @spec replace_children(zipper, [tree]) :: zipper
-  def replace_children({node, meta}, children) when is_list(children), do: {do_replace_children(node, children), meta}
+  def replace_children({node, meta}, children) when is_list(children),
+    do: {do_replace_children(node, children), meta}
 
-  defp do_replace_children({form, meta, _}, children) when is_atom(form), do: {form, meta, children}
-  defp do_replace_children({_form, meta, args}, [first | rest]) when is_list(args), do: {first, meta, rest}
+  defp do_replace_children({form, meta, _}, children) when is_atom(form),
+    do: {form, meta, children}
+
+  defp do_replace_children({_form, meta, args}, [first | rest]) when is_list(args),
+    do: {first, meta, rest}
+
   defp do_replace_children({_, _}, [left, right]), do: {left, right}
   defp do_replace_children(list, children) when is_list(list), do: children
 
@@ -175,7 +180,9 @@ defmodule Quokka.Zipper do
   top level.
   """
   @spec insert_left(zipper, tree) :: zipper
-  def insert_left({_, nil}, _), do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+  def insert_left({_, nil}, _),
+    do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+
   def insert_left({tree, meta}, child), do: {tree, %{meta | l: [child | meta.l]}}
 
   @doc """
@@ -186,8 +193,11 @@ defmodule Quokka.Zipper do
       Enum.reduce(siblings, zipper, &Zipper.insert_left(&2, &1))
   """
   @spec prepend_siblings(zipper, [tree]) :: zipper
-  def prepend_siblings({_, nil}, _), do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
-  def prepend_siblings({tree, meta}, siblings), do: {tree, %{meta | l: Enum.reverse(siblings, meta.l)}}
+  def prepend_siblings({_, nil}, _),
+    do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+
+  def prepend_siblings({tree, meta}, siblings),
+    do: {tree, %{meta | l: Enum.reverse(siblings, meta.l)}}
 
   @doc """
   Inserts the item as the right sibling of the node at this zipper, without
@@ -195,7 +205,9 @@ defmodule Quokka.Zipper do
   top level.
   """
   @spec insert_right(zipper, tree) :: zipper
-  def insert_right({_, nil}, _), do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+  def insert_right({_, nil}, _),
+    do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+
   def insert_right({tree, meta}, child), do: {tree, %{meta | r: [child | meta.r]}}
 
   @doc """
@@ -206,7 +218,9 @@ defmodule Quokka.Zipper do
       Enum.reduce(siblings, zipper, &Zipper.insert_right(&2, &1))
   """
   @spec insert_siblings(zipper, [tree]) :: zipper
-  def insert_siblings({_, nil}, _), do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+  def insert_siblings({_, nil}, _),
+    do: raise(ArgumentError, message: "Can't insert siblings at the top level.")
+
   def insert_siblings({tree, meta}, siblings), do: {tree, %{meta | r: siblings ++ meta.r}}
 
   @doc """
@@ -215,7 +229,9 @@ defmodule Quokka.Zipper do
   """
   def insert_child({tree, meta}, child), do: {do_insert_child(tree, child), meta}
 
-  defp do_insert_child({form, meta, args}, child) when is_list(args), do: {form, meta, [child | args]}
+  defp do_insert_child({form, meta, args}, child) when is_list(args),
+    do: {form, meta, [child | args]}
+
   defp do_insert_child(list, child) when is_list(list), do: [child | list]
   defp do_insert_child({left, right}, child), do: {:{}, [], [child, left, right]}
 
@@ -225,7 +241,9 @@ defmodule Quokka.Zipper do
   """
   def append_child({tree, meta}, child), do: {do_append_child(tree, child), meta}
 
-  defp do_append_child({form, meta, args}, child) when is_list(args), do: {form, meta, args ++ [child]}
+  defp do_append_child({form, meta, args}, child) when is_list(args),
+    do: {form, meta, args ++ [child]}
+
   defp do_append_child(list, child) when is_list(list), do: list ++ [child]
   defp do_append_child({left, right}, child), do: {:{}, [], [left, right, child]}
 
@@ -360,9 +378,14 @@ defmodule Quokka.Zipper do
 
   defp do_traverse_while(zipper, fun) do
     case fun.(zipper) do
-      {:cont, zipper} -> if next = next(zipper), do: do_traverse_while(next, fun), else: top(zipper)
-      {:skip, zipper} -> if skipped = skip(zipper), do: do_traverse_while(skipped, fun), else: top(zipper)
-      {:halt, zipper} -> top(zipper)
+      {:cont, zipper} ->
+        if next = next(zipper), do: do_traverse_while(next, fun), else: top(zipper)
+
+      {:skip, zipper} ->
+        if skipped = skip(zipper), do: do_traverse_while(skipped, fun), else: top(zipper)
+
+      {:halt, zipper} ->
+        top(zipper)
     end
   end
 
@@ -387,9 +410,14 @@ defmodule Quokka.Zipper do
 
   defp do_traverse_while(zipper, acc, fun) do
     case fun.(zipper, acc) do
-      {:cont, zipper, acc} -> if next = next(zipper), do: do_traverse_while(next, acc, fun), else: {top(zipper), acc}
-      {:skip, zipper, acc} -> if skip = skip(zipper), do: do_traverse_while(skip, acc, fun), else: {top(zipper), acc}
-      {:halt, zipper, acc} -> {top(zipper), acc}
+      {:cont, zipper, acc} ->
+        if next = next(zipper), do: do_traverse_while(next, acc, fun), else: {top(zipper), acc}
+
+      {:skip, zipper, acc} ->
+        if skip = skip(zipper), do: do_traverse_while(skip, acc, fun), else: {top(zipper), acc}
+
+      {:halt, zipper, acc} ->
+        {top(zipper), acc}
     end
   end
 
@@ -408,10 +436,17 @@ defmodule Quokka.Zipper do
 
   defp do_reduce_while(zipper, acc, fun) do
     case fun.(zipper, acc) do
-      {:cont, zipper, acc} -> if next = next(zipper), do: do_reduce_while(next, acc, fun), else: acc
-      {:skip, zipper, acc} -> if skip = skip(zipper), do: do_reduce_while(skip, acc, fun), else: acc
-      {:halt, acc} -> acc
-      {:halt, _, _} -> raise "use `{:halt, acc}` with `reduce_while/3`"
+      {:cont, zipper, acc} ->
+        if next = next(zipper), do: do_reduce_while(next, acc, fun), else: acc
+
+      {:skip, zipper, acc} ->
+        if skip = skip(zipper), do: do_reduce_while(skip, acc, fun), else: acc
+
+      {:halt, acc} ->
+        acc
+
+      {:halt, _, _} ->
+        raise "use `{:halt, acc}` with `reduce_while/3`"
     end
   end
 
