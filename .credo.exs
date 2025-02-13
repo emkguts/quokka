@@ -64,7 +64,8 @@
       #
       #     {Credo.Check.Design.DuplicatedCode, false}
       #
-      checks: [
+      checks: %{
+        enabled: [
           #
           ## Consistency Checks
           #
@@ -210,6 +211,7 @@
           # Custom checks can be created using `mix credo.gen.check`.
           #
         ]
+      }
     }
-  ]
-}
+    ]
+  }

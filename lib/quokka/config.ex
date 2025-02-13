@@ -219,7 +219,11 @@ defmodule Quokka.Config do
   end
 
   defp extract_configs_from_credo() do
-    Enum.reduce(read_credo_config().checks, %{}, fn
+    case read_credo_config().checks do
+      checks when is_list(checks) -> checks
+      checks -> Map.get(checks, :enabled, [])
+    end
+    |> Enum.reduce(%{}, fn
       {AliasOrder, opts}, acc when is_list(opts) ->
         Map.put(acc, :sort_order, opts[:sort_method])
 
