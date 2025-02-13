@@ -20,7 +20,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
     test "sorts lists of atoms" do
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         [
           :c,
           :b,
@@ -29,7 +29,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         ]
         """,
         """
-        # styler:sort
+        # quokka:sort
         [
           :a,
           :b,
@@ -43,7 +43,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
     test "sort keywordy things" do
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         [
           c: 2,
           b: 3,
@@ -52,7 +52,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         ]
         """,
         """
-        # styler:sort
+        # quokka:sort
         [
           a: 4,
           b: 3,
@@ -64,7 +64,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
 
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         %{
           c: 2,
           b: 3,
@@ -73,7 +73,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         }
         """,
         """
-        # styler:sort
+        # quokka:sort
         %{
           a: 4,
           b: 3,
@@ -85,7 +85,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
 
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         %Struct{
           c: 2,
           b: 3,
@@ -94,7 +94,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         }
         """,
         """
-        # styler:sort
+        # quokka:sort
         %Struct{
           a: 4,
           b: 3,
@@ -106,18 +106,18 @@ defmodule Quokka.Style.CommentDirectivesTest do
 
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         defstruct c: 2, b: 3, a: 4, d: 1
         """,
         """
-        # styler:sort
+        # quokka:sort
         defstruct a: 4, b: 3, c: 2, d: 1
         """
       )
 
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         defstruct [
           :repo,
           :query,
@@ -128,7 +128,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         ]
         """,
         """
-        # styler:sort
+        # quokka:sort
         defstruct [
           :chunk_size,
           :cursor,
@@ -146,7 +146,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """
         %{
           key:
-          # styler:sort
+          # quokka:sort
           [
             3,
             2,
@@ -156,7 +156,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """,
         """
         %{
-          # styler:sort
+          # quokka:sort
           key: [
             1,
             2,
@@ -169,7 +169,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
       assert_style(
         """
         %{
-          # styler:sort
+          # quokka:sort
           key: [
             3,
             2,
@@ -179,7 +179,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """,
         """
         %{
-          # styler:sort
+          # quokka:sort
           key: [
             1,
             2,
@@ -191,11 +191,11 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "sorts sigils" do
-      assert_style("# styler:sort\n~w|c a b|", "# styler:sort\n~w|a b c|")
+      assert_style("# quokka:sort\n~w|c a b|", "# quokka:sort\n~w|a b c|")
 
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         ~w(
           a
           long
@@ -206,7 +206,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         )
         """,
         """
-        # styler:sort
+        # quokka:sort
         ~w(
           a
           list
@@ -222,7 +222,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
     test "assignments" do
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         my_var =
           ~w(
             a
@@ -234,7 +234,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
           )
         """,
         """
-        # styler:sort
+        # quokka:sort
         my_var =
           ~w(
             a
@@ -251,7 +251,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """
         defmodule M do
           @moduledoc false
-          # styler:sort
+          # quokka:sort
           @attr ~w(
               a
               long
@@ -265,7 +265,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """
         defmodule M do
           @moduledoc false
-          # styler:sort
+          # quokka:sort
           @attr ~w(
               a
               list
@@ -282,7 +282,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
     test "doesnt affect downstream nodes" do
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         [:c, :a, :b]
 
         @country_codes ~w(
@@ -293,7 +293,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         )
         """,
         """
-        # styler:sort
+        # quokka:sort
         [:a, :b, :c]
 
         @country_codes ~w(
@@ -311,7 +311,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
       # decided the easiest way to handle this is to just use string representation for meow
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         [
           {:styler, github: "adobe/elixir-styler"},
           {:ash, "~> 3.0"},
@@ -321,7 +321,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         ]
         """,
         """
-        # styler:sort
+        # quokka:sort
         [
           {:ash, "~> 3.0"},
           {:fluxon, "~> 1.0.0", repo: :fluxon},
@@ -336,7 +336,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
     test "nodes within a do end block" do
       assert_style(
         """
-        # styler:sort
+        # quokka:sort
         my_macro "some arg" do
           another_macro :q
           # w
@@ -350,7 +350,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         end
         """,
         """
-        # styler:sort
+        # quokka:sort
         my_macro "some arg" do
           another_macro(:e)
           another_macro(:q)
@@ -370,7 +370,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
       assert_style(
         """
         # pre-amble comment
-        # styler:sort
+        # quokka:sort
         [
           {:phoenix, "~> 1.7"},
           # hackney comment
@@ -393,7 +393,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """,
         """
         # pre-amble comment
-        # styler:sort
+        # quokka:sort
         [
           {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
           # ecto

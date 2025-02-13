@@ -67,11 +67,12 @@ defmodule Quokka.MixProject do
       extra_section: "Docs",
       extras: [
         "CHANGELOG.md": [title: "Changelog"],
-        "docs/styles.md": [title: "Basic Styles"],
-        "docs/pipes.md": [title: "Pipe Chains"],
+        "docs/comment_directives.md": [title: "Comment Directives (quokka:sort, ...)"],
         "docs/control_flow_macros.md": [title: "Control Flow Macros (if, case, ...)"],
         "docs/mix_configs.md": [title: "Mix Configs (config/config.exs, ...)"],
         "docs/module_directives.md": [title: "Module Directives (use, alias, ...)"],
+        "docs/pipes.md": [title: "Pipe Chains"],
+        "docs/styles.md": [title: "Basic Styles"],
         "README.md": [title: "Quokka"],
         LICENSE: [title: "License"]
       ]
