@@ -66,7 +66,7 @@ defmodule Quokka.Style.DeprecationsTest do
   test "List.zip/1" do
     assert_style "List.zip(foo)", "Enum.zip(foo)"
     assert_style "foo |> List.zip |> bar", "foo |> Enum.zip() |> bar()"
-    assert_style "foo |> List.zip", "Enum.zip(foo)"
+    assert_style "foo |> List.zip", "foo |> Enum.zip()"
   end
 
   describe "1.16 deprecations" do
