@@ -13,7 +13,6 @@ defmodule Quokka.Style.CommentDirectives do
 
   @behaviour Quokka.Style
 
-  alias Quokka.Style
   alias Quokka.Zipper
 
   def run(zipper, ctx) do
