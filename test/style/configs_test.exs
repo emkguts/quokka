@@ -11,7 +11,7 @@
 
 defmodule Quokka.Style.ConfigsTest do
   @moduledoc false
-  use Quokka.StyleCase, async: true, filename: "config/config.exs"
+  use Quokka.StyleCase, async: false, filename: "config/config.exs"
 
   alias Quokka.Style.Configs
 

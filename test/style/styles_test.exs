@@ -13,7 +13,7 @@ defmodule Quokka.Style.StylesTest do
   @moduledoc """
   A place for tests that make sure our styles play nicely with each other
   """
-  use Quokka.StyleCase, async: true
+  use Quokka.StyleCase, async: false
 
   setup do
     Quokka.Config.set_for_test!(:zero_arity_parens, true)

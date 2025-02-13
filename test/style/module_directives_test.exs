@@ -11,7 +11,7 @@
 
 defmodule Quokka.Style.ModuleDirectivesTest do
   @moduledoc false
-  use Quokka.StyleCase, async: true
+  use Quokka.StyleCase, async: false
 
   setup_all do
     Quokka.Config.set_for_test!(:rewrite_multi_alias, true)

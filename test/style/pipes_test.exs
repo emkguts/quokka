@@ -10,7 +10,7 @@
 # governing permissions and limitations under the License.
 
 defmodule Quokka.Style.PipesTest do
-  use Quokka.StyleCase, async: true
+  use Quokka.StyleCase, async: false
 
   setup do
     Quokka.Config.set_for_test!(:single_pipe_flag, true)

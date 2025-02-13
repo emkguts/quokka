@@ -12,7 +12,7 @@
 # Branched from https://github.com/doorgan/sourceror/blob/main/test/zipper_test.exs
 # See this issue for context on branching: https://github.com/doorgan/sourceror/issues/67
 defmodule QuokkaTest.ZipperTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false
 
   alias Quokka.Zipper
 

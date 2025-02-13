@@ -10,7 +10,7 @@
 # governing permissions and limitations under the License.
 
 defmodule Quokka.Style.DefsTest do
-  use Quokka.StyleCase, async: true
+  use Quokka.StyleCase, async: false
 
   setup do
     Quokka.Config.set_for_test!(:zero_arity_parens, true)
