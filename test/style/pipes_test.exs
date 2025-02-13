@@ -423,19 +423,18 @@ defmodule Quokka.Style.PipesTest do
   end
 
   describe "block pipe starts when credo check disabled and PipeChainStart is enabled" do
-    # Commented out until an upstream bug is fixed
-    # test "parent is a function invocation" do
-    #   assert_style(
-    #     "a(if x do y end |> foo(), b)",
-    #     """
-    #     if x do
-    #       y
-    #     end
-    #     |> foo()
-    #     |> a(b)
-    #     """
-    #   )
-    # end
+    test "parent is a function invocation" do
+      assert_style(
+        "a(if x do y end |> foo(), b)",
+        """
+        if x do
+          y
+        end
+        |> foo()
+        |> a(b)
+        """
+      )
+    end
 
     test "handles arbitrary do-block macros" do
       assert_style("""

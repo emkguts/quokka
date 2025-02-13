@@ -173,7 +173,10 @@ defmodule Quokka.Style.Pipes do
         {:cont, zipper, ctx}
 
       true ->
-        {:cont, Zipper.replace(zipper, {:|>, metadata, [pipe, {function_name, metadata, args}]}), ctx}
+        # Recurse in case the function-looking is a multi pipe
+        zipper
+        |> Zipper.replace({:|>, metadata, [pipe, {function_name, metadata, args}]})
+        |> run(ctx)
     end
   end
 
