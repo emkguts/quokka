@@ -3,6 +3,126 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [1.1.0] - 2025-02-14
+
+### Improvements
+
+#### Line length formatting only
+
+In order to phase this into large codebases, Quokka now supports formatting only the line length, the idea being that it is easier to review a diff where one commit is just compressing vertical code and the following is the substantive rewrites -- aka the rewrites that change the AST. In order to use this feature, use `newline_fixes_only: true | false` in the config. 
+
+##### `# quokka:sort` Quokka's first comment directive
+
+Quokka will now keep a user-designated list or wordlist (`~w` sigil) sorted as part of formatting via the use of comments. Elements of the list are sorted by their string representation. It also works with maps, key-value pairs (sort by key), and `defstruct`, and even arbitrary ast nodes with a `do end` block.
+
+The intention is to remove comments to humans, like `# Please keep this list sorted!`, in favor of comments to robots: `# quokka:sort`. Personally speaking, Quokka is much better at alphabetical-order than I ever will be.
+
+To use the new directive, put it on the line before a list or wordlist.
+
+This example:
+
+```elixir
+# quokka:sort
+[:c, :a, :b]
+
+# quokka:sort
+~w(a list of words)
+
+# quokka:sort
+@country_codes ~w(
+  en_US
+  po_PO
+  fr_CA
+  ja_JP
+)
+
+# quokka:sort
+a_var =
+  [
+    Modules,
+    In,
+    A,
+    List
+  ]
+
+  # quokka:sort
+  my_macro "some arg" do
+    another_macro :q
+    another_macro :w
+    another_macro :e
+    another_macro :r
+    another_macro :t
+    another_macro :y
+  end
+```
+
+Would yield:
+
+```elixir
+# quokka:sort
+[:a, :b, :c]
+
+# quokka:sort
+~w(a list of words)
+
+# quokka:sort
+@country_codes ~w(
+  en_US
+  fr_CA
+  ja_JP
+  po_PO
+)
+
+# quokka:sort
+a_var =
+  [
+    A,
+    In,
+    List,
+    Modules
+  ]
+
+# quokka:sort
+my_macro "some arg" do
+  another_macro :e
+  another_macro :q
+  another_macro :r
+  another_macro :t
+  another_macro :w
+  another_macro :y
+end
+```
+#### Other improvements
+- General improvements around conflict detection, lifting in more correct places and fewer incorrect places.
+- Use knowledge of existing aliases to shorten invocations.
+
+    example:
+        alias A.B.C
+
+        A.B.C.foo()
+        A.B.C.bar()
+        A.B.C.baz()
+
+    becomes:
+        alias A.B.C
+
+        C.foo()
+        C.bar()
+        C.baz()
+
+- Config Sorting: improve comment handling when only sorting a few nodes.
+- Pipes: pipe-ifies when first arg to a function is a pipe. reach out if this happens in unstylish places in your code.
+- Pipes: unpiping assignments will make the assignment one-line when possible
+- Deprecations: 1.18 deprecations
+  - `List.zip` => `Enum.zip`
+  - `first..last = range` => `first..last//_ = range`
+
+### Fixes
+
+- Support the credo config of the format `checks: %{enabled: [...], disabled: [...]}`, whereas previously it expected `checks: [...]}`
+- Pipes: optimizations are less likely to move comments
+- Don't pipify when the call is itself in a pipe (aka don't touch a |> b(c |> d() |>e()) |> f())
+
 ## [1.0.0] - 2025-02-10
 
 Quokka is inspired by the wonderful [`elixir-styler`](https://github.com/adobe/elixir-styler) :heart:
