@@ -33,16 +33,16 @@ defmodule Quokka.Config do
 
   @key __MODULE__
 
-  @styles [
-    ModuleDirectives,
-    Pipes,
-    SingleNode,
-    Defs,
-    Blocks,
-    Deprecations,
-    Configs,
-    CommentDirectives
-  ]
+  @styles_by_atom %{
+    blocks: Blocks,
+    comment_directives: CommentDirectives,
+    configs: Configs,
+    defs: Defs,
+    deprecations: Deprecations,
+    module_directives: ModuleDirectives,
+    pipes: Pipes,
+    single_node: SingleNode
+  }
 
   @stdlib ~w(
     Access Agent Application Atom Base Behaviour Bitwise Code Date DateTime Dict Ecto Enum Exception
@@ -58,56 +58,46 @@ defmodule Quokka.Config do
     ArgumentError -> set!(config)
   end
 
-  def set!(config) do
+  def set!(config \\ []) do
     credo_opts = extract_configs_from_credo()
 
     lift_alias_excluded_namespaces =
-      (credo_opts[:lift_alias_excluded_namespaces] || []) |> Enum.map(&Atom.to_string/1)
+      Enum.map(credo_opts[:lift_alias_excluded_namespaces] || [], &Atom.to_string/1)
 
     lift_alias_excluded_lastnames =
-      (credo_opts[:lift_alias_excluded_lastnames] || []) |> Enum.map(&Atom.to_string/1)
-
-    inefficient_function_rewrites =
-      if is_nil(config[:inefficient_function_rewrites]),
-        do: true,
-        else: config[:inefficient_function_rewrites]
-
-    newline_fixes_only = if is_nil(config[:newline_fixes_only]), do: false, else: config[:newline_fixes_only]
-
-    reorder_configs =
-      if is_nil(config[:reorder_configs]), do: true, else: config[:reorder_configs]
-
-    rewrite_deprecations =
-      if is_nil(config[:rewrite_deprecations]), do: true, else: config[:rewrite_deprecations]
+      Enum.map(credo_opts[:lift_alias_excluded_lastnames] || [], &Atom.to_string/1)
 
     default_order = [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require]
     strict_module_layout_order = credo_opts[:strict_module_layout_order] || default_order
 
-    :persistent_term.put(@key, %{
-      block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
-      block_pipe_flag: credo_opts[:block_pipe_flag] || false,
-      directories_excluded: Map.get(config[:files] || %{}, :excluded, []),
-      directories_included: Map.get(config[:files] || %{}, :included, []),
-      inefficient_function_rewrites: inefficient_function_rewrites,
-      large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
-      lift_alias: credo_opts[:lift_alias] || false,
-      lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
-      lift_alias_excluded_lastnames: MapSet.new(lift_alias_excluded_lastnames ++ @stdlib),
-      lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
-      lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
-      line_length: credo_opts[:line_length] || 98,
-      newline_fixes_only: newline_fixes_only,
-      pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
-      pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
-      pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
-      reorder_configs: reorder_configs,
-      rewrite_deprecations: rewrite_deprecations,
-      rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
-      single_pipe_flag: credo_opts[:single_pipe_flag] || false,
-      sort_order: credo_opts[:sort_order] || :alpha,
-      strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
-      zero_arity_parens: credo_opts[:zero_arity_parens] || false
-    })
+    :persistent_term.put(
+      @key,
+      # quokka:sort
+      %{
+        block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
+        block_pipe_flag: credo_opts[:block_pipe_flag] || false,
+        directories_excluded: Map.get(config[:files] || %{}, :excluded, []),
+        directories_included: Map.get(config[:files] || %{}, :included, []),
+        exclude_styles: config[:exclude] || [],
+        inefficient_function_rewrites: Keyword.get(config, :inefficient_function_rewrites, true),
+        large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
+        lift_alias: credo_opts[:lift_alias] || false,
+        lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
+        lift_alias_excluded_lastnames: MapSet.new(lift_alias_excluded_lastnames ++ @stdlib),
+        lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
+        lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
+        line_length: credo_opts[:line_length] || 98,
+        only_styles: config[:only] || [],
+        pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
+        pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
+        pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
+        rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
+        single_pipe_flag: credo_opts[:single_pipe_flag] || false,
+        sort_order: credo_opts[:sort_order] || :alpha,
+        strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
+        zero_arity_parens: credo_opts[:zero_arity_parens] || false
+      }
+    )
   end
 
   def set_for_test!(key, value) do
@@ -122,18 +112,29 @@ defmodule Quokka.Config do
   end
 
   def get_styles() do
-    if get(:newline_fixes_only) do
-      [Defs]
-    else
-      styles_to_remove =
-        for {module, flag_name} <- [
-              {Configs, :reorder_configs},
-              {Deprecations, :rewrite_deprecations}
-            ],
-            do: if(get(flag_name), do: nil, else: module)
+    styles_to_apply =
+      cond do
+        :line_length in only_styles() ->
+          []
 
-      @styles -- styles_to_remove
-    end
+        only_styles() == [] ->
+          Map.values(@styles_by_atom)
+
+        true ->
+          Enum.map(only_styles(), &@styles_by_atom[&1])
+          |> Enum.filter(&(&1 != nil))
+      end
+
+    styles_to_exclude = Enum.map(exclude_styles(), &@styles_by_atom[&1])
+    Enum.filter(styles_to_apply, fn style -> !Enum.member?(styles_to_exclude, style) end)
+  end
+
+  def only_styles() do
+    get(:only_styles)
+  end
+
+  def exclude_styles() do
+    get(:exclude_styles)
   end
 
   def sort_order() do
