@@ -13,7 +13,7 @@ defmodule Quokka.MixProject do
   use Mix.Project
 
   # Don't forget to bump the README when doing non-patch version changes
-  @version "1.1.0"
+  @version "2.0.0"
   @url "https://github.com/smartrent/quokka"
 
   def project() do
