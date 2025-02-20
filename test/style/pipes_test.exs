@@ -1044,6 +1044,21 @@ defmodule Quokka.Style.PipesTest do
         )
       end
     end
+
+    test "doesn't rewrite pipe start functions that are a part of piped_function_exclusions" do
+      # Sanity check
+      assert_style("foo(bar() |> baz() |> boz())", "bar() |> baz() |> boz() |> foo()")
+
+      Quokka.Config.set_for_test!(:piped_function_exclusions, [:foo, :"Repo.update", :"Multi.Module.function"])
+
+      assert_style("foo(bar() |> baz() |> boz())")
+
+      assert_style("Repo.update(bar() |> baz() |> boz())")
+
+      assert_style("Multi.Module.function(bar() |> baz() |> boz())")
+
+      Quokka.Config.set_for_test!(:piped_function_exclusions, [])
+    end
   end
 
   describe "comments and..." do

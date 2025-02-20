@@ -95,10 +95,10 @@ defmodule Quokka.Style.Pipes do
                 # Not going to lie, no idea why the `shift + 1` is correct but it makes tests pass ¯\_(ツ)_/¯
                 rhs_max_line = Style.max_line(rhs)
 
-              comments =
-                ctx.comments
-                |> Style.displace_comments(lhs_line..(rhs_line - 1)//1)
-                |> Style.shift_comments(rhs_line..rhs_max_line, shift + 1)
+                comments =
+                  ctx.comments
+                  |> Style.displace_comments(lhs_line..(rhs_line - 1)//1)
+                  |> Style.shift_comments(rhs_line..rhs_max_line, shift + 1)
 
                 {:cont, Zipper.replace(single_pipe_zipper, {fun, meta, [lhs | args]}), %{ctx | comments: comments}}
               else
@@ -168,6 +168,14 @@ defmodule Quokka.Style.Pipes do
       function_name in [:assert, :refute | @special_ops] ->
         {:cont, zipper, ctx}
 
+      # Ignore explicitly excluded functions
+      function_name in Quokka.Config.piped_function_exclusions() ->
+        {:cont, zipper, ctx}
+
+      # Ignore explicitly included functions that are part of another module, e.g. Repo.update
+      alias_function_usage_to_existing_atom(function_name) in Quokka.Config.piped_function_exclusions() ->
+        {:cont, zipper, ctx}
+
       # if a |> b() |> c(), do: ...
       Enum.any?(args, &Style.do_block?/1) ->
         {:cont, zipper, ctx}
@@ -182,6 +190,17 @@ defmodule Quokka.Style.Pipes do
   end
 
   def run(zipper, ctx), do: {:cont, zipper, ctx}
+
+  # Functions should look like this:     # {:., [line: 1], [{:__aliases__, [last: [line: 1], line: 1], [:Repo]}, :update]}
+  defp alias_function_usage_to_existing_atom(
+         {:., _metadata, [{:__aliases__, _more_metadata, modules}, function_name]} = _node
+       ) do
+    String.to_existing_atom("#{Enum.join(modules, ".")}.#{function_name}")
+  rescue
+    _ -> nil
+  end
+
+  defp alias_function_usage_to_existing_atom(_), do: nil
 
   defp fix_pipe_start({pipe, zmeta} = zipper) do
     {{:|>, pipe_meta, [lhs, rhs]}, _} = start_zipper = find_pipe_start({pipe, nil})

@@ -91,7 +91,8 @@ in `.formatter.exs` to fine tune your setup:
       | :module_directives
       | :pipes
       | :single_node
-    ]
+    ],
+    piped_function_exclusions: [:subquery, :"Repo.update", ...]
   ]
 ]
 ```
@@ -102,6 +103,7 @@ in `.formatter.exs` to fine tune your setup:
 | `:only`                          | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups.                                                                                          | `[]` (all modules included)                                         |
 | `:exclude`                       | Exclude the given modules. This is just a convenience function that filters from the `:only` list.                                                                                                         | `[]` (all modules included)                                         |
 | `:inefficient_function_rewrites` | Rewrite inefficient functions to more efficient form                                                                                                                                                       | `true`                                                              |
+| `:piped_function_exclusions`     | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro.                                                                    | `[]`                                                                |
 
 ## Credo inspired rewrites
 

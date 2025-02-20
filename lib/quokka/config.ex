@@ -92,6 +92,7 @@ defmodule Quokka.Config do
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
         pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
+        piped_function_exclusions: config[:piped_function_exclusions] || [],
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
         sort_order: credo_opts[:sort_order] || :alpha,
@@ -204,6 +205,10 @@ defmodule Quokka.Config do
 
   def strict_module_layout_order() do
     get(:strict_module_layout_order)
+  end
+
+  def piped_function_exclusions() do
+    get(:piped_function_exclusions)
   end
 
   def zero_arity_parens?() do
