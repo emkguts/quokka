@@ -10,16 +10,12 @@
 # governing permissions and limitations under the License.
 
 defmodule Quokka.Style.PipesTest do
-  use Quokka.StyleCase, async: false
+  use Quokka.StyleCase, async: true
+  use Mimic
 
   setup do
-    Quokka.Config.set_for_test!(:single_pipe_flag, true)
-    Quokka.Config.set_for_test!(:pipe_chain_start_flag, true)
-
-    on_exit(fn ->
-      Quokka.Config.set_for_test!(:single_pipe_flag, false)
-      Quokka.Config.set_for_test!(:pipe_chain_start_flag, false)
-    end)
+    stub(Quokka.Config, :single_pipe_flag?, fn -> true end)
+    stub(Quokka.Config, :refactor_pipe_chain_starts?, fn -> true end)
 
     :ok
   end
@@ -56,7 +52,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "fixes nested pipes" do
-      Quokka.Config.set_for_test!(:block_pipe_flag, true)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
       assert_style(
         """
@@ -93,7 +89,7 @@ defmodule Quokka.Style.PipesTest do
         """
       )
 
-      Quokka.Config.set_for_test!(:block_pipe_flag, false)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> false end)
 
       assert_style("""
       a
@@ -114,11 +110,7 @@ defmodule Quokka.Style.PipesTest do
 
   describe "block pipe starts" do
     setup do
-      Quokka.Config.set_for_test!(:block_pipe_flag, true)
-
-      on_exit(fn ->
-        Quokka.Config.set_for_test!(:block_pipe_flag, false)
-      end)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
       :ok
     end
@@ -408,7 +400,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "ignores excluded functions" do
-      Quokka.Config.set_for_test!(:block_pipe_exclude, [:case])
+      stub(Quokka.Config, :block_pipe_exclude, fn -> [:case] end)
 
       assert_style("""
       case x do
@@ -417,8 +409,6 @@ defmodule Quokka.Style.PipesTest do
       |> foo()
       |> bar()
       """)
-
-      Quokka.Config.set_for_test!(:block_pipe_exclude, [])
     end
   end
 
@@ -611,7 +601,7 @@ defmodule Quokka.Style.PipesTest do
         """
       )
 
-      Quokka.Config.set_for_test!(:block_pipe_flag, true)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
       assert_style(
         """
@@ -632,7 +622,7 @@ defmodule Quokka.Style.PipesTest do
         """
       )
 
-      Quokka.Config.set_for_test!(:block_pipe_flag, false)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> false end)
     end
 
     test "onelines assignments" do
@@ -650,11 +640,7 @@ defmodule Quokka.Style.PipesTest do
 
   describe "single pipe when credo check disabled" do
     setup do
-      Quokka.Config.set_for_test!(:single_pipe_flag, false)
-
-      on_exit(fn ->
-        Quokka.Config.set_for_test!(:single_pipe_flag, true)
-      end)
+      stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
 
       :ok
     end
@@ -688,7 +674,7 @@ defmodule Quokka.Style.PipesTest do
       end
       """)
 
-      Quokka.Config.set_for_test!(:block_pipe_flag, true)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
       assert_style(
         """
@@ -710,7 +696,7 @@ defmodule Quokka.Style.PipesTest do
         """
       )
 
-      Quokka.Config.set_for_test!(:block_pipe_flag, false)
+      stub(Quokka.Config, :block_pipe_flag?, fn -> false end)
     end
   end
 
@@ -884,7 +870,7 @@ defmodule Quokka.Style.PipesTest do
           """
         )
 
-        Quokka.Config.set_for_test!(:block_pipe_flag, true)
+        stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
         assert_style(
           """
@@ -908,7 +894,7 @@ defmodule Quokka.Style.PipesTest do
           """
         )
 
-        Quokka.Config.set_for_test!(:block_pipe_flag, false)
+        stub(Quokka.Config, :block_pipe_flag?, fn -> false end)
       end
     end
 
@@ -1049,15 +1035,13 @@ defmodule Quokka.Style.PipesTest do
       # Sanity check
       assert_style("foo(bar() |> baz() |> boz())", "bar() |> baz() |> boz() |> foo()")
 
-      Quokka.Config.set_for_test!(:piped_function_exclusions, [:foo, :"Repo.update", :"Multi.Module.function"])
+      stub(Quokka.Config, :piped_function_exclusions, fn -> [:foo, :"Repo.update", :"Multi.Module.function"] end)
 
       assert_style("foo(bar() |> baz() |> boz())")
 
       assert_style("Repo.update(bar() |> baz() |> boz())")
 
       assert_style("Multi.Module.function(bar() |> baz() |> boz())")
-
-      Quokka.Config.set_for_test!(:piped_function_exclusions, [])
     end
   end
 

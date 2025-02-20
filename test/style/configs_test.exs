@@ -11,20 +11,25 @@
 
 defmodule Quokka.Style.ConfigsTest do
   @moduledoc false
-  use Quokka.StyleCase, async: false, filename: "config/config.exs"
+  use Quokka.StyleCase, async: true, filename: "config/config.exs"
+  use Mimic
 
   alias Quokka.Style.Configs
 
   setup do
-    Quokka.Config.set_for_test!(:strict_module_layout_order, [
-      :shortdoc,
-      :moduledoc,
-      :behaviour,
-      :use,
-      :import,
-      :alias,
-      :require
-    ])
+    stub(Quokka.Config, :strict_module_layout_order, fn ->
+      [
+        :shortdoc,
+        :moduledoc,
+        :behaviour,
+        :use,
+        :import,
+        :alias,
+        :require
+      ]
+    end)
+
+    :ok
   end
 
   test "only runs on exs files in config folders" do
@@ -368,7 +373,7 @@ defmodule Quokka.Style.ConfigsTest do
   end
 
   test "respects custom strict_module_layout_order" do
-    Quokka.Config.set_for_test!(:strict_module_layout_order, [:alias, :import, :moduledoc])
+    stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :import, :moduledoc] end)
 
     assert_style(
       """

@@ -10,7 +10,7 @@
 # governing permissions and limitations under the License.
 
 defmodule Quokka.Style.DeprecationsTest do
-  use Quokka.StyleCase, async: false
+  use Quokka.StyleCase, async: true
 
   test "Logger.warn to Logger.warning" do
     assert_style("Logger.warn(foo)", "Logger.warning(foo)")

@@ -32,10 +32,6 @@ defmodule Quokka.StyleCase do
     end
   end
 
-  setup_all do
-    Quokka.Config.set([])
-  end
-
   defmacro assert_style(before, expected \\ nil) do
     expected = expected || before
 

@@ -10,10 +10,13 @@
 # governing permissions and limitations under the License.
 
 defmodule Quokka.Style.SingleNodeTest do
-  use Quokka.StyleCase, async: false
+  use Quokka.StyleCase, async: true
+  use Mimic
 
   setup do
-    Quokka.Config.set_for_test!(:zero_arity_parens, true)
+    stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
+
+    :ok
   end
 
   test "string sigil rewrites" do
@@ -154,7 +157,7 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "0-arity functions have parens removed when Quokka.Config.zero_arity_parens? is false" do
-      Quokka.Config.set_for_test!(:zero_arity_parens, false)
+      stub(Quokka.Config, :zero_arity_parens?, fn -> false end)
 
       assert_style("def foo(), do: :ok", "def foo, do: :ok")
       assert_style("defp foo(), do: :ok", "defp foo, do: :ok")
@@ -348,14 +351,8 @@ defmodule Quokka.Style.SingleNodeTest do
   end
 
   describe "numbers" do
-    setup do
-      on_exit(fn ->
-        Quokka.Config.set_for_test!(:large_numbers_gt, :infinity)
-      end)
-    end
-
     test "styles floats and integers with >4 digits" do
-      Quokka.Config.set_for_test!(:large_numbers_gt, 9999)
+      stub(Quokka.Config, :large_numbers_gt, fn -> 9999 end)
       assert_style("10000", "10_000")
       assert_style("1_0_0_0_0", "10_000")
       assert_style("-543213", "-543_213")
@@ -375,18 +372,14 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "respects credo config :only_greater_than" do
-      Quokka.Config.set_for_test!(:large_numbers_gt, 20_000)
+      stub(Quokka.Config, :large_numbers_gt, fn -> 20_000 end)
       assert_style("20000", "20000")
       assert_style("20001", "20_001")
-      Quokka.Config.set_for_test!(:large_numbers_gt, 9999)
-      assert_style("20000", "20_000")
     end
 
     test "respects credo config LargeNumbers false" do
-      Quokka.Config.set_for_test!(:large_numbers_gt, :infinity)
+      stub(Quokka.Config, :large_numbers_gt, fn -> :infinity end)
       assert_style("10000", "10000")
-      Quokka.Config.set_for_test!(:large_numbers_gt, 9999)
-      assert_style("10000", "10_000")
     end
   end
 

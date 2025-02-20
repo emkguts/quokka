@@ -11,24 +11,23 @@
 
 defmodule Quokka.Style.ModuleDirectivesTest do
   @moduledoc false
-  use Quokka.StyleCase, async: false
+  use Quokka.StyleCase, async: true
+  use Mimic
 
-  setup_all do
-    Quokka.Config.set_for_test!(:rewrite_multi_alias, true)
-    Quokka.Config.set_for_test!(:zero_arity_parens, true)
+  setup do
+    stub(Quokka.Config, :rewrite_multi_alias?, fn -> true end)
+    stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
 
-    Quokka.Config.set_for_test!(:strict_module_layout_order, [
-      :shortdoc,
-      :moduledoc,
-      :behaviour,
-      :use,
-      :import,
-      :alias,
-      :require
-    ])
-
-    on_exit(fn ->
-      Quokka.Config.set_for_test!(:rewrite_multi_alias, false)
+    stub(Quokka.Config, :strict_module_layout_order, fn ->
+      [
+        :shortdoc,
+        :moduledoc,
+        :behaviour,
+        :use,
+        :import,
+        :alias,
+        :require
+      ]
     end)
 
     :ok
@@ -436,7 +435,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     end
 
     test "respects rewrite_multi_alias false" do
-      Quokka.Config.set_for_test!(:rewrite_multi_alias, false)
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
 
       assert_style("""
       alias A.{B, C}
@@ -446,8 +445,6 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       alias A.D
       alias A.{B, E, C}
       """)
-
-      Quokka.Config.set_for_test!(:rewrite_multi_alias, true)
     end
   end
 

@@ -10,10 +10,13 @@
 # governing permissions and limitations under the License.
 
 defmodule Quokka.Style.DefsTest do
-  use Quokka.StyleCase, async: false
+  use Quokka.StyleCase, async: true
+  use Mimic
 
   setup do
-    Quokka.Config.set_for_test!(:zero_arity_parens, true)
+    stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
+
+    :ok
   end
 
   describe "run" do

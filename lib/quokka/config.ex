@@ -102,11 +102,6 @@ defmodule Quokka.Config do
     )
   end
 
-  def set_for_test!(key, value) do
-    current_vals = :persistent_term.get(@key, %{})
-    :persistent_term.put(@key, Map.put(current_vals, key, value))
-  end
-
   def get(key) do
     @key
     |> :persistent_term.get()

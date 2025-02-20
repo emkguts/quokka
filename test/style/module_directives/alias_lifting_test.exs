@@ -11,17 +11,14 @@
 
 defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
   @moduledoc false
-  use Quokka.StyleCase, async: false
+  use Quokka.StyleCase, async: true
+  use Mimic
 
   setup do
-    Quokka.Config.set_for_test!(:lift_alias, true)
-    Quokka.Config.set_for_test!(:lift_alias_depth, 2)
-    Quokka.Config.set_for_test!(:lift_alias_frequency, 1)
-    Quokka.Config.set_for_test!(:zero_arity_parens, true)
-
-    on_exit(fn ->
-      Quokka.Config.set!([])
-    end)
+    stub(Quokka.Config, :lift_alias?, fn -> true end)
+    stub(Quokka.Config, :lift_alias_depth, fn -> 2 end)
+    stub(Quokka.Config, :lift_alias_frequency, fn -> 1 end)
+    stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
 
     :ok
   end
@@ -239,7 +236,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
   end
 
   test "sorts in ascii order when sort_order is :ascii" do
-    Quokka.Config.set_for_test!(:sort_order, :ascii)
+    stub(Quokka.Config, :sort_order, fn -> :ascii end)
 
     assert_style(
       """
@@ -265,8 +262,6 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
       end
       """
     )
-
-    Quokka.Config.set_for_test!(:sort_order, :alpha)
   end
 
   describe "comments stay put" do
@@ -314,7 +309,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
 
   describe "it doesn't lift" do
     test "when flag is off" do
-      Quokka.Config.set_for_test!(:lift_alias, false)
+      stub(Quokka.Config, :lift_alias?, fn -> false end)
 
       assert_style(
         """
@@ -375,7 +370,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     end
 
     test "collisions with configured modules" do
-      Quokka.Config.set_for_test!(:lift_alias_excluded_lastnames, MapSet.new([:C]))
+      stub(Quokka.Config, :lift_alias_excluded_lastnames, fn -> MapSet.new([:C]) end)
 
       assert_style """
                    alias Foo.Bar
@@ -394,12 +389,10 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
                    F.foo()
                    F.foo()
                    """
-
-      Quokka.Config.set_for_test!(:lift_alias_excluded_lastnames, MapSet.new())
     end
 
     test "collisions with configured regexes" do
-      Quokka.Config.set_for_test!(:lift_alias_excluded_namespaces, MapSet.new([:Name]))
+      stub(Quokka.Config, :lift_alias_excluded_namespaces, fn -> MapSet.new([:Name]) end)
 
       assert_style(
         """
@@ -429,8 +422,6 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         end
         """
       )
-
-      Quokka.Config.set_for_test!(:lift_alias_excluded_namespaces, MapSet.new())
     end
 
     test "collisions with std lib" do
@@ -634,7 +625,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
   end
 
   test "lifts all aliases when lift_alias_depth is 0" do
-    Quokka.Config.set_for_test!(:lift_alias_depth, 0)
+    stub(Quokka.Config, :lift_alias_depth, fn -> 0 end)
 
     assert_style(
       """
@@ -670,7 +661,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
 
   describe "lift_alias_frequency configuration" do
     test "only lifts aliases that meet frequency threshold" do
-      Quokka.Config.set_for_test!(:lift_alias_frequency, 2)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 2 end)
 
       assert_style(
         """
@@ -703,7 +694,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     end
 
     test "lifts all aliases when frequency is 0" do
-      Quokka.Config.set_for_test!(:lift_alias_frequency, 0)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
 
       assert_style(
         """
@@ -734,8 +725,8 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
 
   describe "alias lifting within use" do
     test "lifts aliases when use is after alias" do
-      Quokka.Config.set_for_test!(:lift_alias_frequency, 0)
-      Quokka.Config.set_for_test!(:strict_module_layout_order, [:alias, :use])
+      stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :use] end)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
 
       assert_style("""
       defmodule MyApp.Schemas.MySchema do
@@ -751,8 +742,8 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     end
 
     test "doesn't lift aliases when use is before alias" do
-      Quokka.Config.set_for_test!(:lift_alias_frequency, 0)
-      Quokka.Config.set_for_test!(:strict_module_layout_order, [:use, :alias])
+      stub(Quokka.Config, :strict_module_layout_order, fn -> [:use, :alias] end)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
 
       assert_style(
         """
@@ -778,16 +769,6 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         end
         """
       )
-
-      Quokka.Config.set_for_test!(:strict_module_layout_order, [
-        :shortdoc,
-        :moduledoc,
-        :behaviour,
-        :use,
-        :import,
-        :alias,
-        :require
-      ])
     end
   end
 end

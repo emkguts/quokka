@@ -13,15 +13,13 @@ defmodule Quokka.Style.StylesTest do
   @moduledoc """
   A place for tests that make sure our styles play nicely with each other
   """
-  use Quokka.StyleCase, async: false
-
-  setup do
-    Quokka.Config.set_for_test!(:zero_arity_parens, true)
-  end
+  use Quokka.StyleCase, async: true
+  use Mimic
 
   describe "pipes + defs" do
-    test "pipes doesnt abuse meta and break defs" do
-      Quokka.Config.set_for_test!(:single_pipe_flag, true)
+    test "pipes doesn't abuse meta and break defs" do
+      stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
+      stub(Quokka.Config, :single_pipe_flag?, fn -> true end)
 
       assert_style(
         """
@@ -40,8 +38,6 @@ defmodule Quokka.Style.StylesTest do
         end)
         """
       )
-
-      Quokka.Config.set_for_test!(:single_pipe_flag, false)
     end
   end
 end

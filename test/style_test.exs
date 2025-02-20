@@ -1,5 +1,5 @@
 defmodule Quokka.StyleTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
 
   import Quokka.Style, only: [displace_comments: 2, shift_comments: 3]
 
