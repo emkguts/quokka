@@ -95,10 +95,10 @@ defmodule Quokka.Style.Pipes do
                 # Not going to lie, no idea why the `shift + 1` is correct but it makes tests pass ¯\_(ツ)_/¯
                 rhs_max_line = Style.max_line(rhs)
 
-                comments =
-                  ctx.comments
-                  |> Style.displace_comments(lhs_line..(rhs_line - 1))
-                  |> Style.shift_comments(rhs_line..rhs_max_line, shift + 1)
+              comments =
+                ctx.comments
+                |> Style.displace_comments(lhs_line..(rhs_line - 1)//1)
+                |> Style.shift_comments(rhs_line..rhs_max_line, shift + 1)
 
                 {:cont, Zipper.replace(single_pipe_zipper, {fun, meta, [lhs | args]}), %{ctx | comments: comments}}
               else
