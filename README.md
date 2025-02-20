@@ -57,22 +57,30 @@ in `.formatter.exs` to fine tune your setup:
   plugins: [Quokka],
   quokka: [
     inefficient_function_rewrites: true | false,
-    reorder_configs: true | false,
-    rewrite_deprecations: true | false,
     files: %{
       included: ["lib/", ...],
       excluded: ["lib/example.ex", ...]
     },
     newline_fixes_only: true | false
     only: [
+      # Changes to blocks of code
       :blocks
+      # Comment directives such as # quokka:sort
       | :comment_directives
+      # Sorting config files
       | :configs
+      # Minimizes function heads
       | :defs
+      # Converts deprecations
       | :deprecations
+      # SPECIAL CASE: excludes all modules and only does newline fixups
       | :line_length
+      # Fixes for imports, aliases, etc.
       | :module_directives
+      # Various fixes for pipes
       | :pipes
+      # Inefficient function rewrites, large numbers get underscores, etc.
+      # Basically anything that doesn't fit into the categories above
       | :single_node
     ],
     exclude: [

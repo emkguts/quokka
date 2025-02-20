@@ -1,9 +1,10 @@
 # Mix Configs
 
 > #### THIS CAN BREAK YOUR PROGRAM {: .warning}
+>
 > It's important to double check your configuration after running Quokka on it for the first time.
 
-This can be enabled or disabled by setting the `:reorder_configs` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.
+This can be enabled or disabled by setting the `exclude: :configs` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.
 
 Mix Config files have their config stanzas sorted. Similar to the sorting of aliases, this delivers consistency to an otherwise arbitrary world, and can even help catch bugs like configuring the same key multiple times.
 
