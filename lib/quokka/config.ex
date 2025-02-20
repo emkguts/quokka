@@ -122,7 +122,7 @@ defmodule Quokka.Config do
 
         true ->
           Enum.map(only_styles(), &@styles_by_atom[&1])
-          |> Enum.filter(&(&1 != nil))
+          |> Enum.reject(&is_nil/1)
       end
 
     styles_to_exclude = Enum.map(exclude_styles(), &@styles_by_atom[&1])
