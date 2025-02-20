@@ -159,8 +159,8 @@ defmodule Quokka.Style.DeprecationsTest do
     end
   end
 
-  describe "1.18+" do
-    @describetag skip: Version.match?(System.version(), "< 1.18.0-dev")
+  describe "1.19+" do
+    @describetag skip: Version.match?(System.version(), "< 1.19.0-dev")
 
     test "struct update" do
       assert_style "%Foo{widget | bar: :baz}", "%{widget | bar: :baz}"

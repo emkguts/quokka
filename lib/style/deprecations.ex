@@ -66,7 +66,7 @@ defmodule Quokka.Style.Deprecations do
     end
   end
 
-  if Version.match?(System.version(), ">= 1.18.0-dev") do
+  if Version.match?(System.version(), ">= 1.19.0-dev") do
     # Struct update syntax was deprecated `%Foo{x | y} => %{x | y}`
     defp style({:%, _, [_struct, {:%{}, _, [{:|, _, _}]} = update]}), do: update
   end
