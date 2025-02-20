@@ -33,6 +33,7 @@ defmodule Quokka.Config do
 
   @key __MODULE__
 
+  # quokka:sort
   @styles_by_atom %{
     blocks: Blocks,
     comment_directives: CommentDirectives,
