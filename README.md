@@ -61,7 +61,6 @@ in `.formatter.exs` to fine tune your setup:
       included: ["lib/", ...],
       excluded: ["lib/example.ex", ...]
     },
-    newline_fixes_only: true | false
     only: [
       # Changes to blocks of code
       :blocks

@@ -3,6 +3,34 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.0.0] - 2025-02-20
+
+### Improvements
+
+#### Configuration filtering with :only and :exclude
+
+Quokka now supports filtering which rewrites to apply using the `:only` and `:exclude` configuration options. This allows teams to gradually adopt Quokka's rewrites by explicitly including or excluding specific ones.
+
+Example configuration in `.formatter.exs`:
+
+```elixir
+[
+  # Only apply these specific rewrites
+  only: [:pipes, :aliases, :line_length],
+  
+  # Or exclude specific rewrites
+  exclude: [:sort_directives]
+]
+```
+
+See the documentation for a complete list of available rewrite options.
+
+### Breaking Changes
+
+- Removed `newline_fixes_only` configuration option in favor of using `only: [:line_length]`
+- Removed `reorder_configs` configuration option in favor of using `only: [:configs]`
+- Removed `rewrite_deprecations` configuration option in favor of using `only: [:deprecations]`
+
 ## [1.1.0] - 2025-02-14
 
 ### Improvements
