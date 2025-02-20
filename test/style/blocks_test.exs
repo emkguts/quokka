@@ -16,7 +16,7 @@ defmodule Quokka.Style.BlocksTest do
     Quokka.Config.set_for_test!(:zero_arity_parens, true)
   end
 
-  describe "with statements" do
+  describe "with" do
     test "replacement due to no (or all removed) arrows" do
       assert_style(
         """
@@ -471,6 +471,20 @@ defmodule Quokka.Style.BlocksTest do
           end
       end
       """
+    end
+
+    test "elixir1.17+ stab regressions" do
+      assert_style(
+        """
+        with :ok <- foo, do: :bar, else: (_ -> :baz)
+        """,
+        """
+        case foo do
+          :ok -> :bar
+          _ -> :baz
+        end
+        """
+      )
     end
   end
 
