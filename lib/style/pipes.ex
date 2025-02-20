@@ -173,10 +173,11 @@ defmodule Quokka.Style.Pipes do
         {:cont, zipper, ctx}
 
       true ->
-        # Recurse in case the function-looking is a multi pipe
-        zipper
-        |> Zipper.replace({:|>, metadata, [pipe, {function_name, metadata, args}]})
-        |> run(ctx)
+        zipper = Zipper.replace(zipper, {:|>, metadata, [pipe, {function_name, metadata, args}]})
+        # it's possible this is a nested function call `c(b(a |> b))`, so we should walk up the tree for de-nesting
+        zipper = Zipper.up(zipper) || zipper
+        # recursion ensures we get those nested function calls and any additional pipes
+        run(zipper, ctx)
     end
   end
 
