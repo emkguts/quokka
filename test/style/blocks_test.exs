@@ -415,6 +415,7 @@ defmodule Quokka.Style.BlocksTest do
       assert_style(
         """
         with {:ok, a} <- foo(),
+             x = y,
              {:ok, b} <- bar(a) do
           {:ok, b}
         else
@@ -423,6 +424,7 @@ defmodule Quokka.Style.BlocksTest do
         """,
         """
         with {:ok, a} <- foo() do
+          x = y
           bar(a)
         end
         """
