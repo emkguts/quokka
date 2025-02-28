@@ -75,6 +75,7 @@ defmodule Quokka.Config do
       @key,
       # quokka:sort
       %{
+        autosort: config[:autosort] || [],
         block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
         directories_excluded: Map.get(config[:files] || %{}, :excluded, []),
@@ -95,7 +96,6 @@ defmodule Quokka.Config do
         piped_function_exclusions: config[:piped_function_exclusions] || [],
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
-        sort_all_maps: config[:sort_all_maps] || true,
         sort_order: credo_opts[:sort_order] || :alpha,
         strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
         zero_arity_parens: credo_opts[:zero_arity_parens] || false
@@ -137,6 +137,10 @@ defmodule Quokka.Config do
 
   def sort_order() do
     get(:sort_order)
+  end
+
+  def autosort() do
+    get(:autosort)
   end
 
   def block_pipe_flag?() do
@@ -197,10 +201,6 @@ defmodule Quokka.Config do
 
   def single_pipe_flag?() do
     get(:single_pipe_flag)
-  end
-
-  def sort_all_maps?() do
-    get(:sort_all_maps)
   end
 
   def strict_module_layout_order() do

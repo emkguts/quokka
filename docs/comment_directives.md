@@ -58,12 +58,13 @@ a_var =
   ]
 ```
 
-## Sort all maps
+## Autosort
 
-By default, Quokka will sort all maps in your codebase. This can be disabled by setting `sort_all_maps: false` in the config. Quokka will skip sort maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `sort_all_maps` is true, a specific map can be skipped by adding `# quokka:skip-sort` on the line above the map.
+Quokka can autosort maps and defstructs. To enable this feature, set `autosort: [:map, :defstruct]` in the config. Quokka will skip sort maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `sort_all_maps` is true, a specific map can be skipped by adding `# quokka:skip-sort` on the line above the map.
 
 #### Examples
 
+When `autosort: [:map]` is enabled:
 ```elixir
 # quokka:skip-sort
 %{c: 3, b: 2, a: 1}

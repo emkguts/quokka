@@ -12,9 +12,9 @@ defmodule Quokka.Style.CommentDirectivesTest do
   @moduledoc false
   use Quokka.StyleCase, async: true
 
-  describe "sort" do
-    test "test" do
-      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+  describe "autosort" do
+    test "autosorts map update keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
       assert_style(
         """
@@ -26,8 +26,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
-    test "sorts all maps if the config is set" do
-      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+    test "autosorts maps" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
       assert_style(
         """
@@ -39,8 +39,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
-    test "skips sorting maps when config is set and there is a skip-sort directive" do
-      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+    test "skips autosorting maps when there is a skip-sort directive" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
       assert_style("""
       # quokka:skip-sort
@@ -48,8 +48,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
       """)
     end
 
-    test "skips sorting maps when config is set and there is a comment inside the map" do
-      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+    test "skips autosorting maps when there is a comment inside the map" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
       assert_style("""
       %{
@@ -61,8 +61,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
       """)
     end
 
-    test "sorts maps when config is set, map has comment, and there is a sort directive" do
-      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+    test "autosorts maps when map contains comment and there is a sort directive" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
       assert_style(
         """
@@ -86,6 +86,43 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts module attributes" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        @attr %{c: 1, b: 2, a: 3}
+        """,
+        """
+        @attr %{a: 3, b: 2, c: 1}
+        """
+      )
+    end
+
+    test "autosorts defstructs" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:defstruct] end)
+
+      assert_style(
+        """
+        defstruct c: 1, b: 2, a: 3
+        """,
+        """
+        defstruct a: 3, b: 2, c: 1
+        """
+      )
+
+      assert_style(
+        """
+        defstruct [c, b, a]
+        """,
+        """
+        defstruct [a, b, c]
+        """
+      )
+    end
+  end
+
+  describe "sort" do
     test "we dont just sort by accident" do
       assert_style "[:c, :b, :a]"
     end

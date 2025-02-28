@@ -41,42 +41,64 @@ defmodule Quokka.Style.CommentDirectives do
         end
       end)
 
-    zipper = if Quokka.Config.sort_all_maps?(), do: sort_all_maps(zipper, ctx), else: zipper
+    zipper = apply_autosort(zipper, ctx)
 
     {:halt, zipper, %{ctx | comments: comments}}
   end
 
-  defp sort_all_maps(zipper, ctx) do
-    {zipper, skip_sort_lines} =
-      Enum.reduce(
-        Enum.filter(ctx.comments, &(&1.text == "# quokka:skip-sort")),
-        {zipper, MapSet.new()},
-        fn comment, {z, lines} ->
-          {z, lines |> MapSet.put(comment.line) |> MapSet.put(comment.line + 1)}
+  defp apply_autosort(zipper, ctx) do
+    autosort_types = Quokka.Config.autosort()
+
+    if Enum.empty?(autosort_types) do
+      zipper
+    else
+      {zipper, skip_sort_lines} =
+        Enum.reduce(
+          Enum.filter(ctx.comments, &(&1.text == "# quokka:skip-sort")),
+          {zipper, MapSet.new()},
+          fn comment, {z, lines} ->
+            {z, lines |> MapSet.put(comment.line) |> MapSet.put(comment.line + 1)}
+          end
+        )
+
+      Zipper.traverse(zipper, fn z ->
+        node = Zipper.node(z)
+        node_line = Style.meta(node)[:line]
+
+        # Skip sorting if the node has a skip-sort directive on its line or the line above
+        should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
+
+        # Skip sorting nodes with comments to avoid disrupting comment placement. Can still force sorting with # quokka:sort
+        case !should_skip && !has_comments_inside?(node, ctx.comments) && node do
+          {:%{}, _, _} ->
+            if :map in autosort_types do
+              {sorted, _} = sort(node, [])
+              Zipper.replace(z, sorted)
+            else
+              z
+            end
+
+          {:%, _, [_, {:%{}, _, _}]} ->
+            if :map in autosort_types do
+              {sorted, _} = sort(node, [])
+              Zipper.replace(z, sorted)
+            else
+              z
+            end
+
+          {:defstruct, _, _} ->
+            if :defstruct in autosort_types do
+              {sorted, _} = sort(node, [])
+              Zipper.replace(z, sorted)
+            else
+              z
+            end
+
+          _ ->
+            z
         end
-      )
-
-    Zipper.traverse(zipper, fn z ->
-      node = Zipper.node(z)
-      node_line = Style.meta(node)[:line]
-
-      # Skip sorting if the node has a skip-sort directive on its line or the line above
-      should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
-
-      # Skip sorting maps with comments to avoid disrupting comment placement. Can still force sorting with # quokka:sort
-      case !should_skip && !has_comments_inside?(node, ctx.comments) && node do
-        {:%{}, _, _} ->
-          {sorted, _} = sort(node, [])
-          Zipper.replace(z, sorted)
-
-        {:%, _, [_, {:%{}, _, _}]} ->
-          {sorted, _} = sort(node, [])
-          Zipper.replace(z, sorted)
-
-        _ ->
-          z
-      end
-    end)
+      end)
+    end
   end
 
   # Check if there are any comments within the line range of a node
@@ -113,16 +135,19 @@ defmodule Quokka.Style.CommentDirectives do
     {{:defstruct, meta, [list]}, comments}
   end
 
+  # map update with a keyword list
   defp sort({:%{}, meta, [{:|, _, [var, keyword_list]}]}, comments) do
     {{:__block__, meta, [keyword_list]}, comments} = sort({:__block__, meta, [keyword_list]}, comments)
     {{:%{}, meta, [{:|, meta, [var, keyword_list]}]}, comments}
   end
 
+  # map
   defp sort({:%{}, meta, list}, comments) when is_list(list) do
     {{:__block__, meta, [list]}, comments} = sort({:__block__, meta, [list]}, comments)
     {{:%{}, meta, list}, comments}
   end
 
+  # struct map
   defp sort({:%, m, [struct, map]}, comments) do
     {map, comments} = sort(map, comments)
     {{:%, m, [struct, map]}, comments}
