@@ -104,6 +104,7 @@ in `.formatter.exs` to fine tune your setup:
 | `:exclude`                       | Exclude the given modules. This is just a convenience function that filters from the `:only` list.                                                                                                         | `[]` (all modules included)                                         |
 | `:inefficient_function_rewrites` | Rewrite inefficient functions to more efficient form                                                                                                                                                       | `true`                                                              |
 | `:piped_function_exclusions`     | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro.                                                                    | `[]`                                                                |
+| `:sort_all_maps`                | Sort all maps in your codebase. This can be disabled by setting `sort_all_maps: false` in the config. Quokka will skip sort maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. | `true`                                                              |
 
 ## Credo inspired rewrites
 

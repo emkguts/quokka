@@ -57,3 +57,55 @@ a_var =
     Modules
   ]
 ```
+
+## Sort all maps
+
+By default, Quokka will sort all maps in your codebase. This can be disabled by setting `sort_all_maps: false` in the config. Quokka will skip sort maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `sort_all_maps` is true, a specific map can be skipped by adding `# quokka:skip-sort` on the line above the map.
+
+#### Examples
+
+```elixir
+# quokka:skip-sort
+%{c: 3, b: 2, a: 1}
+
+%{c: 3, b: 2, a: 1}
+
+%{
+  c: 3,
+  b: 2,
+  # this needs to come last
+  a: 1
+}
+
+# quokka:sort
+%{
+  c: 3,
+  b: 2,
+  # this needs to come last
+  a: 1
+}
+```
+
+would yield
+
+```elixir
+# quokka:skip-sort
+%{c: 3, b: 2, a: 1}
+
+%{a: 1, b: 2, c: 3}
+
+%{
+  c: 3,
+  b: 2,
+  # this needs to come last
+  a: 1
+}
+
+# quokka:sort
+%{
+  # this needs to come last
+  a: 1,
+  b: 2,
+  c: 3
+}
+```
