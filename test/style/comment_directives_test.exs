@@ -25,6 +25,16 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "skips sorting when config is set and there is a skip-sort directive" do
+      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+      assert_style(
+        """
+        # quokka:skip-sort
+        %{c: 2, b: 3, a: 4, d: 1}
+        """
+      )
+    end
+
 
     test "we dont just sort by accident" do
       assert_style "[:c, :b, :a]"

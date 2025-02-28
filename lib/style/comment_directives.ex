@@ -41,16 +41,29 @@ defmodule Quokka.Style.CommentDirectives do
         end
       end)
 
-    zipper = if Quokka.Config.sort_all_maps?(), do: sort_all_maps(zipper), else: zipper
+    zipper = if Quokka.Config.sort_all_maps?(), do: sort_all_maps(zipper, ctx), else: zipper
 
     {:halt, zipper, %{ctx | comments: comments}}
   end
 
-  defp sort_all_maps(zipper) do
+  defp sort_all_maps(zipper, ctx) do
+    {zipper, skip_sort_lines} =
+      Enum.reduce(
+        Enum.filter(ctx.comments, &(&1.text == "# quokka:skip-sort")),
+        {zipper, MapSet.new()},
+        fn comment, {z, lines} ->
+          {z, lines |> MapSet.put(comment.line) |> MapSet.put(comment.line + 1)}
+        end
+      )
+
     Zipper.traverse(zipper, fn z ->
       node = Zipper.node(z)
+      node_line = Style.meta(node)[:line]
 
-      case node do
+      # Skip sorting if the node has a skip-sort directive on its line or the line above
+      should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
+
+      case !should_skip && node do
         {:%{}, _, _} ->
           {sorted, _} = sort(node, [])
           Zipper.replace(z, sorted)
