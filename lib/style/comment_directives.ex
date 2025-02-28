@@ -113,6 +113,11 @@ defmodule Quokka.Style.CommentDirectives do
     {{:defstruct, meta, [list]}, comments}
   end
 
+  defp sort({:%{}, meta, [{:|, _, [var, keyword_list]}]}, comments) do
+    {{:__block__, meta, [keyword_list]}, comments} = sort({:__block__, meta, [keyword_list]}, comments)
+    {{:%{}, meta, [{:|, meta, [var, keyword_list]}]}, comments}
+  end
+
   defp sort({:%{}, meta, list}, comments) when is_list(list) do
     {{:__block__, meta, [list]}, comments} = sort({:__block__, meta, [list]}, comments)
     {{:%{}, meta, list}, comments}
