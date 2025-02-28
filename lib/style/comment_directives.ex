@@ -63,7 +63,8 @@ defmodule Quokka.Style.CommentDirectives do
       # Skip sorting if the node has a skip-sort directive on its line or the line above
       should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
 
-      case !should_skip && node do
+      # Skip sorting maps with comments to avoid disrupting comment placement. Can still force sorting with # quokka:sort
+      case !should_skip && !has_comments_inside?(node, ctx.comments) && node do
         {:%{}, _, _} ->
           {sorted, _} = sort(node, [])
           Zipper.replace(z, sorted)
@@ -76,6 +77,21 @@ defmodule Quokka.Style.CommentDirectives do
           z
       end
     end)
+  end
+
+  # Check if there are any comments within the line range of a node
+  defp has_comments_inside?(node, comments) do
+    start_line = Style.meta(node)[:line] || 0
+    end_line = Style.max_line(node) || start_line
+
+    # If the node spans multiple lines, check for comments within that range
+    if end_line > start_line do
+      Enum.any?(comments, fn comment ->
+        comment.line > start_line && comment.line < end_line
+      end)
+    else
+      false
+    end
   end
 
   # defstruct with a syntax-sugared keyword list hits here

@@ -15,6 +15,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
   describe "sort" do
     test "sorts all maps if the config is set" do
       Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+
       assert_style(
         """
         %{c: 2, b: 3, a: 4, d: 1}
@@ -25,16 +26,50 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
-    test "skips sorting when config is set and there is a skip-sort directive" do
+    test "skips sorting maps when config is set and there is a skip-sort directive" do
       Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
-      assert_style(
-        """
-        # quokka:skip-sort
-        %{c: 2, b: 3, a: 4, d: 1}
-        """
-      )
+
+      assert_style("""
+      # quokka:skip-sort
+      %{c: 2, b: 3, a: 4, d: 1}
+      """)
     end
 
+    test "skips sorting maps when config is set and there is a comment inside the map" do
+      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+
+      assert_style("""
+      %{
+        c: 1,
+        b: 2,
+        # this needs to come last
+        a: 3
+      }
+      """)
+    end
+
+    test "sorts maps when config is set, map has comment, and there is a sort directive" do
+      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+
+      assert_style("""
+      # quokka:sort
+      %{
+        c: 1,
+        b: 2,
+        # this needs to come last
+        a: 3
+      }
+      """,
+      """
+      # quokka:sort
+      # this needs to come last
+      %{
+        a: 3,
+        b: 2,
+        c: 1
+      }
+      """)
+    end
 
     test "we dont just sort by accident" do
       assert_style "[:c, :b, :a]"

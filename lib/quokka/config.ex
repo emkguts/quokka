@@ -95,7 +95,7 @@ defmodule Quokka.Config do
         piped_function_exclusions: config[:piped_function_exclusions] || [],
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
-        sort_all_maps: credo_opts[:sort_all_maps] || true,
+        sort_all_maps: config[:sort_all_maps] || true,
         sort_order: credo_opts[:sort_order] || :alpha,
         strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
         zero_arity_parens: credo_opts[:zero_arity_parens] || false
