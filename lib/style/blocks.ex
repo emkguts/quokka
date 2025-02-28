@@ -102,7 +102,9 @@ defmodule Quokka.Style.Blocks do
       # `with (head_statements) do: x (else ...)`
       do_block? ->
         # head statements can be the empty list, if it matters
-        {head_statements, [[{{:__block__, _, [:do]}, body} | _]]} = Enum.split_while(children, &(not Style.do_block?(&1)))
+        {head_statements, [[{{:__block__, _, [:do]}, body} | _]]} =
+          Enum.split_while(children, &(not Style.do_block?(&1)))
+
         [first | rest] = head_statements ++ [body]
         # replace this `with` statement with its headers + body
         zipper = zipper |> Zipper.replace(first) |> Zipper.insert_siblings(rest)

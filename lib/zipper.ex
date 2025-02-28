@@ -188,7 +188,9 @@ defmodule Quokka.Zipper do
       Enum.reduce(siblings, zipper, &Zipper.insert_left(&2, &1))
   """
   @spec prepend_siblings(zipper, [tree]) :: zipper
-  def prepend_siblings({node, nil}, siblings), do: {:__block__, [], siblings ++ [node]} |> zip() |> down() |> rightmost()
+  def prepend_siblings({node, nil}, siblings),
+    do: {:__block__, [], siblings ++ [node]} |> zip() |> down() |> rightmost()
+
   def prepend_siblings({tree, meta}, siblings), do: {tree, %{meta | l: Enum.reverse(siblings, meta.l)}}
 
   @doc """

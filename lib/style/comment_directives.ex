@@ -52,68 +52,48 @@ defmodule Quokka.Style.CommentDirectives do
     if Enum.empty?(autosort_types) do
       zipper
     else
-      {zipper, skip_sort_lines} =
-        Enum.reduce(
-          Enum.filter(ctx.comments, &(&1.text == "# quokka:skip-sort")),
-          {zipper, MapSet.new()},
-          fn comment, {z, lines} ->
-            {z, lines |> MapSet.put(comment.line) |> MapSet.put(comment.line + 1)}
-          end
-        )
+      skip_sort_lines = collect_skip_sort_lines(ctx.comments)
 
       Zipper.traverse(zipper, fn z ->
         node = Zipper.node(z)
         node_line = Style.meta(node)[:line]
 
-        # Skip sorting if the node has a skip-sort directive on its line or the line above
         should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
+        has_comments = has_comments_inside?(node, ctx.comments)
+        is_sortable = get_node_type(node) in autosort_types
 
-        # Skip sorting nodes with comments to avoid disrupting comment placement. Can still force sorting with # quokka:sort
-        case !should_skip && !has_comments_inside?(node, ctx.comments) && node do
-          {:%{}, _, _} ->
-            if :map in autosort_types do
-              {sorted, _} = sort(node, [])
-              Zipper.replace(z, sorted)
-            else
-              z
-            end
-
-          {:%, _, [_, {:%{}, _, _}]} ->
-            if :map in autosort_types do
-              {sorted, _} = sort(node, [])
-              Zipper.replace(z, sorted)
-            else
-              z
-            end
-
-          {:defstruct, _, _} ->
-            if :defstruct in autosort_types do
-              {sorted, _} = sort(node, [])
-              Zipper.replace(z, sorted)
-            else
-              z
-            end
-
-          _ ->
-            z
+        if should_skip || has_comments || !is_sortable do
+          z
+        else
+          {sorted, _} = sort(node, [])
+          Zipper.replace(z, sorted)
         end
       end)
     end
   end
 
-  # Check if there are any comments within the line range of a node
+  defp collect_skip_sort_lines(comments) do
+    comments
+    |> Enum.filter(&(&1.text == "# quokka:skip-sort"))
+    |> Enum.reduce(MapSet.new(), fn comment, lines ->
+      lines |> MapSet.put(comment.line) |> MapSet.put(comment.line + 1)
+    end)
+  end
+
+  defp get_node_type(node) do
+    case node do
+      {:%{}, _, _} -> :map
+      {:%, _, [_, {:%{}, _, _}]} -> :map
+      {:defstruct, _, _} -> :defstruct
+      _ -> nil
+    end
+  end
+
   defp has_comments_inside?(node, comments) do
     start_line = Style.meta(node)[:line] || 0
     end_line = Style.max_line(node) || start_line
 
-    # If the node spans multiple lines, check for comments within that range
-    if end_line > start_line do
-      Enum.any?(comments, fn comment ->
-        comment.line > start_line && comment.line < end_line
-      end)
-    else
-      false
-    end
+    end_line > start_line && Enum.any?(comments, &(&1.line > start_line && &1.line < end_line))
   end
 
   # defstruct with a syntax-sugared keyword list hits here
