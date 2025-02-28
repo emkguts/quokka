@@ -15,6 +15,7 @@ defmodule Quokka.Style.DefsTest do
 
   setup do
     stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
+    stub(Quokka.Config, :sort_all_maps?, fn -> false end)
 
     :ok
   end

@@ -16,6 +16,7 @@ defmodule Quokka.Style.PipesTest do
   setup do
     stub(Quokka.Config, :single_pipe_flag?, fn -> true end)
     stub(Quokka.Config, :refactor_pipe_chain_starts?, fn -> true end)
+    stub(Quokka.Config, :sort_all_maps?, fn -> false end)
 
     :ok
   end

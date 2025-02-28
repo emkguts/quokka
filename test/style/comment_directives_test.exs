@@ -13,6 +13,19 @@ defmodule Quokka.Style.CommentDirectivesTest do
   use Quokka.StyleCase, async: true
 
   describe "sort" do
+    test "sorts all maps if the config is set" do
+      Mimic.stub(Quokka.Config, :sort_all_maps?, fn -> true end)
+      assert_style(
+        """
+        %{c: 2, b: 3, a: 4, d: 1}
+        """,
+        """
+        %{a: 4, b: 3, c: 2, d: 1}
+        """
+      )
+    end
+
+
     test "we dont just sort by accident" do
       assert_style "[:c, :b, :a]"
     end

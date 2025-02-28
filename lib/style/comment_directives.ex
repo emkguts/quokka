@@ -41,7 +41,28 @@ defmodule Quokka.Style.CommentDirectives do
         end
       end)
 
+    zipper = if Quokka.Config.sort_all_maps?(), do: sort_all_maps(zipper), else: zipper
+
     {:halt, zipper, %{ctx | comments: comments}}
+  end
+
+  defp sort_all_maps(zipper) do
+    Zipper.traverse(zipper, fn z ->
+      node = Zipper.node(z)
+
+      case node do
+        {:%{}, _, _} ->
+          {sorted, _} = sort(node, [])
+          Zipper.replace(z, sorted)
+
+        {:%, _, [_, {:%{}, _, _}]} ->
+          {sorted, _} = sort(node, [])
+          Zipper.replace(z, sorted)
+
+        _ ->
+          z
+      end
+    end)
   end
 
   # defstruct with a syntax-sugared keyword list hits here
