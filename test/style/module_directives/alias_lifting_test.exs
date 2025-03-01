@@ -50,6 +50,52 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     )
   end
 
+  test "lifts aliases already aliased" do
+    assert_style(
+      """
+      defmodule A do
+        alias A.B.C
+
+        C.foo()
+
+        A.B.C.foo()
+      end
+      """,
+      """
+      defmodule A do
+        alias A.B.C
+
+        C.foo()
+
+        C.foo()
+      end
+      """
+    )
+
+    assert_style(
+      """
+      defmodule A do
+        alias A.B.C, as: D
+        alias D.E.F, as: C
+
+        C.foo()
+
+        A.B.C.foo()
+      end
+      """,
+      """
+      defmodule A do
+        alias A.B.C, as: D
+        alias D.E.F, as: C
+
+        C.foo()
+
+        A.B.C.foo()
+      end
+      """
+    )
+  end
+
   test "lifts from nested modules" do
     assert_style(
       """
