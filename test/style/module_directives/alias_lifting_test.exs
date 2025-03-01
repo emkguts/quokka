@@ -855,17 +855,28 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
       stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :use] end)
       stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
 
-      assert_style("""
-      defmodule MyApp.Schemas.MySchema do
-        alias MyApp.Schemas.MySchema
+      assert_style(
+        """
+        defmodule MyApp.Schemas.MySchema do
+          use MyApp.Schema,
+            derive: [
+              :id,
+              name: &MyApp.Schemas.MySchema.encode_name/1
+            ]
+        end
+        """,
+        """
+        defmodule MyApp.Schemas.MySchema do
+          alias MyApp.Schemas.MySchema
 
-        use MyApp.Schemas.Schema,
-          derive: [
-            :id,
-            name: &MySchema.encode_name/1
-          ]
-      end
-      """)
+          use MyApp.Schema,
+            derive: [
+              :id,
+              name: &MySchema.encode_name/1
+            ]
+        end
+        """
+      )
     end
 
     test "doesn't lift aliases when use is before alias" do
@@ -875,13 +886,13 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
       assert_style(
         """
         defmodule MyApp.Schemas.MySchema do
-          alias MyApp.Schemas.MySchema
-
           use MyApp.Schemas.Schema,
             derive: [
               :id,
-              name: &MySchema.encode_name/1
+              name: &MyApp.Schemas.MySchema.encode_name/1
             ]
+
+          A.B.C.foo()
         end
         """,
         """
@@ -892,7 +903,9 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
               name: &MyApp.Schemas.MySchema.encode_name/1
             ]
 
-          alias MyApp.Schemas.MySchema
+          alias A.B.C
+
+          C.foo()
         end
         """
       )

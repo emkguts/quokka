@@ -218,7 +218,7 @@ defmodule Quokka.Style.ModuleDirectives do
           {ast, acc} = lift_module_attrs(ast, acc)
           ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [ast]
 
-          # import and used might get hoisted above aliases, so need to dealias depending on the layout order
+          # import and use might get hoisted above aliases, so need to dealias depending on the layout order
           {before, _after} =
             Quokka.Config.strict_module_layout_order()
             |> Enum.split_while(&(&1 != :alias))
@@ -314,15 +314,25 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp lift_aliases(%{alias: aliases, require: requires, nondirectives: nondirectives} = acc) do
+  defp lift_aliases(%{alias: aliases, nondirectives: nondirectives} = acc) do
     # we can't use the dealias map built into state as that's what things look like before sorting
     # now that we've sorted, it could be different!
     dealiases = AliasEnv.define(aliases)
 
+    {_before, [_alias | after_alias]} =
+      Quokka.Config.strict_module_layout_order()
+      |> Enum.split_while(&(&1 != :alias))
+
     liftable =
-      if Quokka.Config.lift_alias?(),
-        do: find_liftable_aliases(requires ++ nondirectives, dealiases),
-        else: []
+      if Quokka.Config.lift_alias?() do
+        Map.take(acc, after_alias)
+        |> Map.values()
+        |> List.flatten()
+        |> Kernel.++(nondirectives)
+        |> find_liftable_aliases(dealiases)
+      else
+        []
+      end
 
     if Enum.any?(liftable) do
       # This is a silly hack that helps comments stay put.
@@ -337,9 +347,13 @@ defmodule Quokka.Style.ModuleDirectives do
         |> sort()
 
       # lifting could've given us a new order
-      requires = requires |> do_lift_aliases(liftable) |> sort()
+      lifted_directives =
+        Map.take(acc, after_alias) |> Map.new(fn {k, v} -> {k, do_lift_aliases(v, liftable) |> sort()} end)
+
       nondirectives = do_lift_aliases(nondirectives, liftable)
-      %{acc | alias: aliases, require: requires, nondirectives: nondirectives}
+
+      Map.merge(acc, lifted_directives)
+      |> Map.merge(%{nondirectives: nondirectives, alias: aliases})
     else
       acc
     end
