@@ -96,6 +96,110 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     )
   end
 
+  # This test doesn't pass. It would be difficult to fix.
+  # test "two modules that seem to conflict but don't!" do
+  #   assert_style(
+  #     """
+  #     defmodule Foo do
+  #       @moduledoc false
+
+  #       A.B.C.foo(X.Y.A)
+  #       A.B.C.bar()
+
+  #       X.Y.A
+  #     end
+  #     """,
+  #     """
+  #     defmodule Foo do
+  #       @moduledoc false
+
+  #       alias A.B.C
+  #       alias X.Y.A
+
+  #       C.foo(A)
+  #       C.bar()
+
+  #       A
+  #     end
+  #     """
+  #   )
+  # end
+
+  test "if multiple lifts collide, lifts only one" do
+    assert_style(
+      """
+      defmodule Foo do
+        @moduledoc false
+
+        A.B.C.f()
+        A.B.C.f()
+        X.Y.C.f()
+      end
+      """,
+      """
+      defmodule Foo do
+        @moduledoc false
+
+        alias A.B.C
+
+        C.f()
+        C.f()
+        X.Y.C.f()
+      end
+      """
+    )
+
+    assert_style(
+      """
+      defmodule Foo do
+        @moduledoc false
+
+        A.B.C.f()
+        X.Y.C.f()
+        X.Y.C.f()
+        A.B.C.f()
+      end
+      """,
+      """
+      defmodule Foo do
+        @moduledoc false
+
+        alias A.B.C
+
+        C.f()
+        X.Y.C.f()
+        X.Y.C.f()
+        C.f()
+      end
+      """
+    )
+
+    assert_style(
+      """
+      defmodule Foo do
+        @moduledoc false
+
+        X.Y.C.f()
+        A.B.C.f()
+        X.Y.C.f()
+        A.B.C.f()
+      end
+      """,
+      """
+      defmodule Foo do
+        @moduledoc false
+
+        alias X.Y.C
+
+        C.f()
+        A.B.C.f()
+        C.f()
+        A.B.C.f()
+      end
+      """
+    )
+  end
+
   test "lifts from nested modules" do
     assert_style(
       """
@@ -496,29 +600,6 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         end
         """
       end
-    end
-
-    test "collisions with other lifts" do
-      assert_style """
-      defmodule NuhUh do
-        @moduledoc false
-
-        A.B.C.f()
-        A.B.C.f()
-        X.Y.C.f()
-      end
-      """
-
-      assert_style """
-      defmodule NuhUh do
-        @moduledoc false
-
-        A.B.C.f()
-        A.B.C.f()
-        X.Y.C.f()
-        X.Y.C.f()
-      end
-      """
     end
 
     test "collisions with submodules" do

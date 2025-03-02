@@ -345,18 +345,16 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp find_liftable_aliases(ast, already_lifted) do
-    excluded = already_lifted |> Map.keys() |> Enum.into(Quokka.Config.lift_alias_excluded_lastnames())
+  defp find_liftable_aliases(ast, dealiases) do
+    excluded = dealiases |> Map.keys() |> Enum.into(Quokka.Config.lift_alias_excluded_lastnames())
 
-    lifts =
-      already_lifted
-      |> Map.values()
-      |> Enum.map(&List.first/1)
-      |> Map.new(&{&1, :collision_with_first})
+    firsts = MapSet.new(dealiases, fn {_last, [first | _]} -> first end)
 
     ast
     |> Zipper.zip()
-    |> Zipper.reduce_while(lifts, fn
+    # we're reducing a datastructure that looks like
+    # %{last => {aliases, seen_before?} | :some_collision_probelm}
+    |> Zipper.reduce_while(%{}, fn
       # we don't want to rewrite alias name `defx Aliases ... do` of these three keywords
       {{defx, _, args}, _} = zipper, lifts when defx in ~w(defmodule defimpl defprotocol)a ->
         # don't conflict with submodules, which elixir automatically aliases
@@ -389,33 +387,33 @@ defmodule Quokka.Style.ModuleDirectives do
 
           last = List.last(aliases)
 
-          excluded_alias? = last in excluded
-
-          already_lifted? = already_lifted[last] == aliases
-
-          deep_enough? = length(aliases) <= Quokka.Config.lift_alias_depth()
-
           lifts =
-            if not already_lifted? and (excluded_namespace? or excluded_alias? or deep_enough?) do
-              lifts
-            else
-              default = if already_lifted?, do: {aliases, Quokka.Config.lift_alias_frequency() + 1}, else: {aliases, 1}
+            cond do
+              # this alias existed before running format, so let's ensure it gets lifted
+              dealiases[last] == aliases ->
+                Map.put(lifts, last, {aliases, Quokka.Config.lift_alias_frequency() + 1})
 
-              Map.update(lifts, last, default, fn
-                {^aliases, count} -> {aliases, count + 1}
-                # if we have `Foo.Bar.Baz` and `Foo.Bar.Bop.Baz` both not aliased, we'll create a collision by lifting both
-                # grouping by last alias lets us detect these collisions
-                _ -> :collision_with_last
-              end)
+              # this alias would conflict with an existing alias, or the namespace is excluded, or the depth is too shallow
+              last in excluded or excluded_namespace? or length(aliases) <= Quokka.Config.lift_alias_depth() ->
+                lifts
+
+              # aliasing this would change the meaning of an existing alias
+              last > first and last in firsts ->
+                lifts
+
+              # Never seen this alias before
+              is_nil(lifts[last]) ->
+                Map.put(lifts, last, {aliases, 1})
+
+              # We've seen this before, add and do some bookkeeping for first-collisions
+              match?({^aliases, n} when is_integer(n), lifts[last]) ->
+                Map.put(lifts, last, {aliases, elem(lifts[last], 1) + 1})
+
+              # There is some type of collision
+              true ->
+                lifts
             end
 
-          # given:
-          #   C.foo()
-          #   A.B.C.foo()
-          #   A.B.C.foo()
-          #   C.foo()
-          #
-          # lifting A.B.C would create a collision with C.
           {:skip, zipper, Map.put(lifts, first, :collision_with_first)}
         else
           {:skip, zipper, lifts}
