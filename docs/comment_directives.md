@@ -60,7 +60,7 @@ a_var =
 
 ## Autosort
 
-Quokka can autosort maps and defstructs. To enable this feature, set `autosort: [:map, :defstruct]` in the config. Quokka will skip sort maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `sort_all_maps` is true, a specific map can be skipped by adding `# quokka:skip-sort` on the line above the map.
+Quokka can autosort maps and defstructs. To enable this feature, set `autosort: [:map, :defstruct]` in the config. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `sort_all_maps` is true, a specific map can be skipped by adding `# quokka:skip-sort` on the line above the map.
 
 #### Examples
 

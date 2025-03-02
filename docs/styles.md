@@ -262,29 +262,20 @@ defmacrop foo
 
 ## Elixir Deprecation Rewrites
 
-### 1.15+
-
-| Before                                       | After                              |
-| -------------------------------------------- | ---------------------------------- |
-| `Logger.warn`                                | `Logger.warning`                   |
-| `Path.safe_relative_to/2`                    | `Path.safe_relative/2`             |
-| `~R/my_regex/`                               | `~r/my_regex/`                     |
-| `Enum/String.slice/2` with decreasing ranges | add explicit steps to the range \* |
-| `Date.range/2` with decreasing range         | `Date.range/3` \*                  |
-| `IO.read/bin_read` with `:all` option        | replace `:all` with `:eof`         |
-
+| Before                                       | After                              | Elixir Version |
+| -------------------------------------------- | ---------------------------------- | ------------- |
+| `Logger.warn`                                | `Logger.warning`                   | 1.15+         |
+| `Path.safe_relative_to/2`                    | `Path.safe_relative/2`             | 1.15+         |
+| `~R/my_regex/`                               | `~r/my_regex/`                     | 1.15+         |
+| `Enum/String.slice/2` with decreasing ranges | add explicit steps to the range \* | 1.15+         |
+| `Date.range/2` with decreasing range         | `Date.range/3` \*                  | 1.15+         |
+| `IO.read/bin_read` with `:all` option        | replace `:all` with `:eof`         | 1.15+         |
+| `File.stream!(path, [encoding: :utf8, trim_bom: true], :line)` (`:line` `:bytes` deprecated) | `File.stream!(path, :line, encoding: :utf8, trim_bom: true)` | 1.16+         |
+| `:timer.units(x)`                            | `to_time(unit: x)`                 | 1.17+         |
+| `first..last = ...`                         | `first..last//_ = ...`             | 1.18+         |
+| `List.zip(list1, list2)`                    | `Enum.zip(list1, list2)`           | 1.18+         |
+| `%Foo{x \| y} => %{x \| y}`                 | `%{x \| y}`                        | 1.19+         |
 \* For both of the "decreasing range" changes, the rewrite can only be applied if the range is being passed as an argument to the function.
-
-### 1.16+
-
-File.stream! `:line` and `:bytes` deprecation
-
-```elixir
-# Before
-File.stream!(path, [encoding: :utf8, trim_bom: true], :line)
-# Styled
-File.stream!(path, :line, encoding: :utf8, trim_bom: true)
-```
 
 ## Putting variable matching on the right
 

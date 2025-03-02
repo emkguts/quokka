@@ -3,6 +3,56 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.1.0] - 2025-03-02
+
+### Improvements
+
+#### New options
+
+- `autosort`: Sort all maps and/or defstructs in your codebase. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`
+
+- `piped_function_exclusions` allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. Example:
+
+```elixir
+# Before
+subquery(
+  base_query()
+  |> select([:id, :name])
+  |> where([_, id], id > 100)
+  |> limit(1)
+)
+```
+would normally be rewritten to:
+
+```elixir
+  base_query()
+  |> select([:id, :name])
+  |> where([_, id], id > 100)
+  |> limit(1)
+  |> subquery()
+```
+
+but with the option set like this, it will not be rewritten:
+```elixir
+# .formatter.exs
+quokka: [
+  piped_function_exclusions: [:"Ecto.Query.subquery"]
+]
+```
+
+#### Deprecations
+
+- For elixir 1.18 and above, Quokka will rewrite `%Foo{x | y} => %{x | y}`
+- For elixir 1.17 and above, Quokka will replace `:timer.units(x)` with `to_time(unit: x)`
+
+
+### Fixes
+
+- Lift aliases that were already lifted
+- Lift aliases from inside module directives like `use` if the directive type comes after the alias.
+- `with` redundant body + non-arrow behind redundant clause
+
+
 ## [2.0.0] - 2025-02-20
 
 ### Improvements
