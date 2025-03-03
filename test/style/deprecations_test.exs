@@ -161,5 +161,9 @@ defmodule Quokka.Style.DeprecationsTest do
       assert_style "a |> x() |> :timer.minutes()"
       assert_style "a |> x() |> :timer.seconds()"
     end
+
+    test "combined with :timer.x deprecation rewrite" do
+      assert_style ":timer.minutes(60 * 4)", "to_timeout(hour: 4)"
+    end
   end
 end
