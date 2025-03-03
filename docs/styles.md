@@ -388,7 +388,7 @@ end
 
 ## Line Length
 
-This addresses [`Credo.Check.Readability.MaxLineLength`](https://hexdocs.pm/credo/Credo.Check.Readability.MaxLineLength.html). Quokka will respect the `:line_length` configuration (from `.credo.exs`) when determining whether to split lines. When possible, will compress code onto a single line if it fits within the configured length.
+This addresses [`Credo.Check.Readability.MaxLineLength`](https://hexdocs.pm/credo/Credo.Check.Readability.MaxLineLength.html). Quokka will respect the `:line_length` configuration (from `.credo.exs`, `.formatter.exs`) when determining whether to split lines. When possible, will compress code onto a single line if it fits within the configured length.
 
 ```elixir
 # Before - Multiple lines when it could fit on one
