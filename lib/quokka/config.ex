@@ -52,14 +52,15 @@ defmodule Quokka.Config do
     Range Record Regex Registry Set Stream String StringIO Supervisor System Task Time Tuple URI Version
   )a
 
-  def set(config) do
+  def set(formatter_opts) do
     :persistent_term.get(@key)
     :ok
   rescue
-    ArgumentError -> set!(config)
+    ArgumentError -> set!(formatter_opts)
   end
 
-  def set!(config \\ []) do
+  def set!(formatter_opts) do
+    quokka_config = formatter_opts[:quokka] || []
     credo_opts = extract_configs_from_credo()
 
     lift_alias_excluded_namespaces =
@@ -75,25 +76,25 @@ defmodule Quokka.Config do
       @key,
       # quokka:sort
       %{
-        autosort: config[:autosort] || [],
+        autosort: quokka_config[:autosort] || [],
         block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
-        directories_excluded: Map.get(config[:files] || %{}, :excluded, []),
-        directories_included: Map.get(config[:files] || %{}, :included, []),
-        exclude_styles: config[:exclude] || [],
-        inefficient_function_rewrites: Keyword.get(config, :inefficient_function_rewrites, true),
+        directories_excluded: Map.get(quokka_config[:files] || %{}, :excluded, []),
+        directories_included: Map.get(quokka_config[:files] || %{}, :included, []),
+        exclude_styles: quokka_config[:exclude] || [],
+        inefficient_function_rewrites: Keyword.get(quokka_config, :inefficient_function_rewrites, true),
         large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
         lift_alias: credo_opts[:lift_alias] || false,
         lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
         lift_alias_excluded_lastnames: MapSet.new(lift_alias_excluded_lastnames ++ @stdlib),
         lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
         lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
-        line_length: credo_opts[:line_length] || 98,
-        only_styles: config[:only] || [],
+        line_length: credo_opts[:line_length] || formatter_opts[:line_length] || 98,
+        only_styles: quokka_config[:only] || [],
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
         pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
-        piped_function_exclusions: config[:piped_function_exclusions] || [],
+        piped_function_exclusions: quokka_config[:piped_function_exclusions] || [],
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
         sort_order: credo_opts[:sort_order] || :alpha,

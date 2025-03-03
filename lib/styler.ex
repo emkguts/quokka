@@ -69,7 +69,7 @@ defmodule Quokka do
     file = formatter_opts[:file]
     styler_opts = formatter_opts[:quokka] || []
 
-    Quokka.Config.set(styler_opts)
+    Quokka.Config.set(formatter_opts)
 
     if Quokka.Config.allowed_directory?(file) do
       {ast, comments} =
