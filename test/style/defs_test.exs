@@ -242,9 +242,17 @@ defmodule Quokka.Style.DefsTest do
       end
       """)
     end
+  end
 
+  describe "no ops" do
     test "regression: @def module attribute" do
       assert_style("@def ~s(this should be okay)")
+    end
+
+    test "no explode on invalid def syntax" do
+      assert_style("def foo(), true")
+      assert_style("def foo(a), true")
+      assert_raise SyntaxError, fn -> assert_style("def foo(a) true") end
     end
   end
 end
