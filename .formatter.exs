@@ -8,5 +8,5 @@
     assert_style: 2
   ],
   plugins: [Quokka],
-  line_length: 98
+  line_length: 120
 ]

@@ -1,8 +1,10 @@
 defmodule Quokka.ConfigTest do
   use ExUnit.Case, async: false
+  use Mimic
 
   import Quokka.Config
 
+  alias Credo.Check.Readability.MaxLineLength
   alias Quokka.Style.Configs
   alias Quokka.Style.Deprecations
 
@@ -37,7 +39,26 @@ defmodule Quokka.ConfigTest do
   end
 
   test "respects the formatter_opts line_length configuration" do
+    Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ -> {:ok, %{checks: []}} end)
     assert :ok = set!(line_length: 999)
     assert Quokka.Config.get(:line_length) == 999
+  end
+
+  test "prioritize the minimal line_length .credo.exs and .formatter.exs (credo less)" do
+    Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ ->
+      {:ok, %{checks: [{MaxLineLength, [max_length: 100]}]}}
+    end)
+
+    assert :ok = set!(line_length: 200)
+    assert Quokka.Config.get(:line_length) == 100
+  end
+
+  test "prioritize the minimal line_length .credo.exs and .formatter.exs (formatter less)" do
+    Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ ->
+      {:ok, %{checks: [{MaxLineLength, [max_length: 300]}]}}
+    end)
+
+    assert :ok = set!(line_length: 200)
+    assert Quokka.Config.get(:line_length) == 200
   end
 end

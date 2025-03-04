@@ -10,6 +10,7 @@
 # governing permissions and limitations under the License.
 
 Mimic.copy(Quokka.Config)
+Mimic.copy(Credo.ConfigFile)
 Quokka.Config.set([])
 
 ExUnit.start(capture_log: true, formatters: [JUnitFormatter, ExUnit.CLIFormatter])

@@ -89,7 +89,7 @@ defmodule Quokka.Config do
         lift_alias_excluded_lastnames: MapSet.new(lift_alias_excluded_lastnames ++ @stdlib),
         lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
         lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
-        line_length: credo_opts[:line_length] || formatter_opts[:line_length] || 98,
+        line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
         only_styles: quokka_config[:only] || [],
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
