@@ -346,9 +346,14 @@ defmodule Quokka.Style.ModuleDirectives do
         |> Enum.concat(aliases)
         |> sort()
 
-      # lifting could've given us a new order
       lifted_directives =
-        Map.take(acc, after_alias) |> Map.new(fn {k, v} -> {k, do_lift_aliases(v, liftable) |> sort()} end)
+        Map.take(acc, after_alias)
+        |> Map.new(fn {directive, ast_nodes} ->
+          # lifting could've given us a new order for the given directive we're on, but we can't sort `use` since some,
+          # such as Mimic, depend on the behavior of a previously `use`d module
+          ast_nodes = do_lift_aliases(ast_nodes, liftable)
+          {directive, if(directive == :use, do: ast_nodes, else: sort(ast_nodes))}
+        end)
 
       nondirectives = do_lift_aliases(nondirectives, liftable)
 

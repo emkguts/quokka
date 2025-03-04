@@ -910,5 +910,40 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         """
       )
     end
+
+    test "doesn't sort use" do
+      stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :use] end)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
+
+      assert_style(
+        """
+        defmodule MyApp.Schemas.MySchema do
+          use MyApp.Schema,
+            derive: [
+              :id,
+              name: &MyApp.Schemas.MySchema.encode_name/1
+            ]
+
+          use IDependOnTheOtherUseBeingFirst
+
+          alias Foo
+        end
+        """,
+        """
+        defmodule MyApp.Schemas.MySchema do
+          alias Foo
+          alias MyApp.Schemas.MySchema
+
+          use MyApp.Schema,
+            derive: [
+              :id,
+              name: &MySchema.encode_name/1
+            ]
+
+          use IDependOnTheOtherUseBeingFirst
+        end
+        """
+      )
+    end
   end
 end
