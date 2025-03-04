@@ -44,7 +44,7 @@ defmodule Quokka.ConfigTest do
     assert Quokka.Config.get(:line_length) == 999
   end
 
-  test "prioritize the minimal line_length .credo.exs and .formatter.exs (credo less)" do
+  test "prioritize the minimum of line_length from .credo.exs and .formatter.exs (credo less)" do
     Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ ->
       {:ok, %{checks: [{MaxLineLength, [max_length: 100]}]}}
     end)
@@ -53,7 +53,7 @@ defmodule Quokka.ConfigTest do
     assert Quokka.Config.get(:line_length) == 100
   end
 
-  test "prioritize the minimal line_length .credo.exs and .formatter.exs (formatter less)" do
+  test "prioritize the minimum of line_length from .credo.exs and .formatter.exs (formatter less)" do
     Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ ->
       {:ok, %{checks: [{MaxLineLength, [max_length: 300]}]}}
     end)

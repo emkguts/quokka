@@ -3,6 +3,16 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.2.0] - 2025-03-04
+
+### Improvements
+
+- Check `.formatter.exs` for `line_length` config. Use the minimum of the credo and formatter `line_length`.
+
+### Fixes
+
+- Do not sort `use` directives. Some `use` directives depend on others coming first, so sorting them can break code. This bug was introduced in 2.1.0.
+
 ## [2.1.0] - 2025-03-02
 
 ### Improvements
