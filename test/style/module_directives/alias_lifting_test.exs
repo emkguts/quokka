@@ -850,7 +850,7 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     end
   end
 
-  describe "alias lifting within use" do
+  describe "alias lifting within directives" do
     test "lifts aliases when use is after alias" do
       stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :use] end)
       stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
@@ -911,6 +911,62 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
       )
     end
 
+    test "doesn't lift `use` itself unless it will be lifted anyways" do
+      stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :use] end)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
+
+      assert_style(
+        """
+        defmodule MyApp.Schemas.MySchema do
+          use A.B.C,
+            derive: [
+              :id,
+              name: &MyApp.Schemas.MySchema.encode_name/1
+            ]
+        end
+        """,
+        """
+        defmodule MyApp.Schemas.MySchema do
+          alias MyApp.Schemas.MySchema
+
+          use A.B.C,
+            derive: [
+              :id,
+              name: &MySchema.encode_name/1
+            ]
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule MyApp.Schemas.MySchema do
+          use A.B.C,
+            derive: [
+              :id,
+              name: &MyApp.Schemas.MySchema.encode_name/1
+            ]
+
+          A.B.C.foo()
+        end
+        """,
+        """
+        defmodule MyApp.Schemas.MySchema do
+          alias A.B.C
+          alias MyApp.Schemas.MySchema
+
+          use C,
+            derive: [
+              :id,
+              name: &MySchema.encode_name/1
+            ]
+
+          C.foo()
+        end
+        """
+      )
+    end
+
     test "doesn't sort use" do
       stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :use] end)
       stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
@@ -941,6 +997,35 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
             ]
 
           use IDependOnTheOtherUseBeingFirst
+        end
+        """
+      )
+    end
+
+    test "doesn't lift `import` itself unless it will be lifted anyways" do
+      stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :import] end)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
+
+      assert_style("""
+      defmodule MyApp.Schemas.MySchema do
+        import A.B.C
+      end
+      """)
+
+      assert_style(
+        """
+        defmodule MyApp.Schemas.MySchema do
+          import A.B.C
+          A.B.C.foo()
+        end
+        """,
+        """
+        defmodule MyApp.Schemas.MySchema do
+          alias A.B.C
+
+          import C
+
+          C.foo()
         end
         """
       )
