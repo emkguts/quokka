@@ -56,6 +56,7 @@ in `.formatter.exs` to fine tune your setup:
 [
   plugins: [Quokka],
   quokka: [
+    autosort: [:map, :defstruct],
     inefficient_function_rewrites: true | false,
     files: %{
       included: ["lib/", ...],
@@ -99,7 +100,7 @@ in `.formatter.exs` to fine tune your setup:
 
 | Option                           | Description                                                                                                                                                                                                | Default                                                             |
 | -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `:autosort`                      | Sort all maps and/or defstructs in your codebase. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. | `[]`                                                 |
+| `:autosort`                      | Sort all maps and/or defstructs in your codebase. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`.                                   | `[]`                                                                |
 | `:files`                         | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) |
 | `:only`                          | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups.                                                                                          | `[]` (all modules included)                                         |
 | `:exclude`                       | Exclude the given modules. This is just a convenience function that filters from the `:only` list.                                                                                                         | `[]` (all modules included)                                         |
