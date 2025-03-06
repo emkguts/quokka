@@ -3,6 +3,14 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.3.0] - 2025-03-06
+
+### Improvements
+
+Credo doesn't warn about alias lifting for `behaviour, use, import` directives (unless there are aliases inside opts). Therefore, to match credo:
+- Don't lift `behaviour` aliases at all.
+- Only lift `use` and `import` aliases if they were going to be lifted anyways (credo wouldn't yell either way, but it seems sensible to lift an alias if it's already lifted).
+
 ## [2.2.0] - 2025-03-04
 
 ### Improvements
