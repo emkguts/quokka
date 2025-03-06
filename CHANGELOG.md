@@ -3,6 +3,12 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.3.1] - 2025-03-06
+
+### Fixes
+
+- Fix alias lifting when a variable matches the directive. Before, if you named a variable `import` or `use` (why would you do that?), it would break the alias lifting.
+
 ## [2.3.0] - 2025-03-06
 
 ### Improvements
