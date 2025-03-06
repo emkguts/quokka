@@ -1059,5 +1059,15 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         """
       )
     end
+
+    test "doesn't break when variable matches directive" do
+      assert_style("""
+      defmodule Foo do
+        def delete(import) do
+          Repo.delete(import)
+        end
+      end
+      """)
+    end
   end
 end

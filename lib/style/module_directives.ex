@@ -437,7 +437,7 @@ defmodule Quokka.Style.ModuleDirectives do
           {:skip, zipper, lifts}
         end
 
-      {{directive, _, _}, _} = zipper, lifts when directive in [:use, :import, :behaviour] ->
+      {{directive, _, [{:__aliases__, _, _} | _]}, _} = zipper, lifts when directive in [:use, :import, :behaviour] ->
         {:cont, zipper |> Zipper.down() |> Zipper.rightmost(), lifts}
 
       zipper, lifts ->
