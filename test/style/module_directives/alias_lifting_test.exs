@@ -1030,5 +1030,34 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         """
       )
     end
+
+    test "doesn't lift `behaviour` itself" do
+      stub(Quokka.Config, :strict_module_layout_order, fn -> [:alias, :behaviour] end)
+      stub(Quokka.Config, :lift_alias_frequency, fn -> 0 end)
+
+      assert_style("""
+      defmodule MyApp.Schemas.MySchema do
+        @behaviour A.B.C
+      end
+      """)
+
+      assert_style(
+        """
+        defmodule MyApp.Schemas.MySchema do
+          @behaviour A.B.C
+          A.B.C.foo()
+        end
+        """,
+        """
+        defmodule MyApp.Schemas.MySchema do
+          alias A.B.C
+
+          @behaviour A.B.C
+
+          C.foo()
+        end
+        """
+      )
+    end
   end
 end

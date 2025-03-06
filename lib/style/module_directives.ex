@@ -348,11 +348,10 @@ defmodule Quokka.Style.ModuleDirectives do
 
       lifted_directives =
         Map.take(acc, after_alias)
-        |> Map.new(fn {directive, ast_nodes} ->
-          # lifting could've given us a new order for the given directive we're on, but we can't sort `use` since some,
-          # such as Mimic, depend on the behavior of a previously `use`d module
-          ast_nodes = do_lift_aliases(ast_nodes, liftable)
-          {directive, if(directive == :use, do: ast_nodes, else: sort(ast_nodes))}
+        |> Map.new(fn
+          {:behaviour, ast_nodes} -> {:behaviour, ast_nodes}
+          {:use, ast_nodes} -> {:use, do_lift_aliases(ast_nodes, liftable)}
+          {directive, ast_nodes} -> {directive, ast_nodes |> do_lift_aliases(liftable) |> sort()}
         end)
 
       nondirectives = do_lift_aliases(nondirectives, liftable)
@@ -438,7 +437,7 @@ defmodule Quokka.Style.ModuleDirectives do
           {:skip, zipper, lifts}
         end
 
-      {{directive, _, _}, _} = zipper, lifts when directive in [:use, :import] ->
+      {{directive, _, _}, _} = zipper, lifts when directive in [:use, :import, :behaviour] ->
         {:cont, zipper |> Zipper.down() |> Zipper.rightmost(), lifts}
 
       zipper, lifts ->
