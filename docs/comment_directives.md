@@ -60,7 +60,15 @@ a_var =
 
 ## Autosort
 
-Quokka can autosort maps and defstructs. To enable this feature, set `autosort: [:map, :defstruct]` in the config. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `sort_all_maps` is true, a specific map can be skipped by adding `# quokka:skip-sort` on the line above the map.
+Quokka can autosort maps, defstructs, and schemas. To enable this feature, set `autosort: [:map, :defstruct, :schema]` in the config. The order of schema sorting can be customized in the following way:
+
+```elixir
+autosort: [:map, schema: [:field, :belongs_to]]
+```
+
+The default order is: `[:belongs_to, :has_many, :has_one, :many_to_many, :field, :embeds_many, :embeds_one]`.
+
+Quokka will skip sorting entities that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `autosort` is enabled, a specific entity can be skipped by adding `# quokka:skip-sort` on the line above it.
 
 #### Examples
 
@@ -110,3 +118,44 @@ would yield
   c: 3
 }
 ```
+
+When `autosort: [:schema]` is enabled:
+
+```elixir
+defmodule MySchema do
+  use Ecto.Schema
+
+  schema "my_schema" do
+    field :name, :string
+    field :age, :integer
+    field :email, :string
+    has_many :posts, Post
+    has_one :profile, Profile
+    belongs_to :user, User
+    many_to_many :tags, Tag, join_through: "my_schema_tags"
+  end
+end
+```
+
+would yield:
+
+```elixir
+defmodule MySchema do
+  use Ecto.Schema
+
+  schema "my_schema" do
+    belongs_to(:user, User)
+
+    has_many(:posts, Post)
+
+    has_one(:profile, Profile)
+
+    many_to_many(:tags, Tag, join_through: "my_schema_tags")
+
+    field(:age, :integer)
+    field(:email, :string)
+    field(:name, :string)
+  end
+end
+```
+
