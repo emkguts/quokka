@@ -13,6 +13,175 @@ defmodule Quokka.Style.CommentDirectivesTest do
   use Quokka.StyleCase, async: true
 
   describe "autosort" do
+    test "autosorts schema fields" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+          schema "my_schema" do
+            field :name, :string
+            field :age, :integer
+            field :email, :string
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          schema "my_schema" do
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+          end
+        end
+        """
+      )
+    end
+
+    test "autosorts schema fields with associations" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+          schema "my_schema" do
+            field :name, :string
+            field :age, :integer
+            field :email, :string
+            has_many :posts, Post
+            has_one :profile, Profile
+            belongs_to :user, User
+            many_to_many :tags, Tag, join_through: "my_schema_tags"
+            embeds_many :comments, Comment
+            embeds_one :settings, Settings
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          schema "my_schema" do
+            belongs_to(:user, User)
+
+            embeds_many(:comments, Comment)
+
+            embeds_one(:settings, Settings)
+
+            has_many(:posts, Post)
+
+            has_one(:profile, Profile)
+
+            many_to_many(:tags, Tag, join_through: "my_schema_tags")
+
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+          end
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+          schema "my_schema" do
+            field :name, :string
+            field :age, :integer
+            field :email, :string
+            has_many :posts, Post
+            has_one :profile, Profile
+            weird_thing :foo
+            belongs_to :user, User
+            many_to_many :tags, Tag, join_through: "my_schema_tags"
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          schema "my_schema" do
+            belongs_to(:user, User)
+
+            has_many(:posts, Post)
+
+            has_one(:profile, Profile)
+
+            many_to_many(:tags, Tag, join_through: "my_schema_tags")
+
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+
+            weird_thing(:foo)
+          end
+        end
+        """
+      )
+    end
+
+    test "autosorts typed schema fields" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+          typed_schema "my_schema" do
+            field :name, :string
+            field :age, :integer
+            field :email, :string
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          typed_schema "my_schema" do
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+          end
+        end
+        """
+      )
+    end
+
+    test "autosorts embedded schema fields" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+          embedded_schema do
+            field :name, :string
+            field :age, :integer
+            field :email, :string
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          embedded_schema do
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+          end
+        end
+        """
+      )
+    end
+
     test "autosorts map update keys" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
