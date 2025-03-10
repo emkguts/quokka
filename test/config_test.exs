@@ -61,4 +61,19 @@ defmodule Quokka.ConfigTest do
     assert :ok = set!(line_length: 200)
     assert Quokka.Config.get(:line_length) == 200
   end
+
+  test "parses autosort in both formats" do
+    assert :ok = set!(quokka: [autosort: [:map, schema: [:field, :belongs_to]]])
+    assert [:map, :schema] == Quokka.Config.autosort()
+
+    assert :ok = set!(quokka: [autosort: [:map, :schema]])
+    assert [:map, :schema] == Quokka.Config.autosort()
+  end
+
+  test "sets autosort_schema_format correctly" do
+    assert :ok = set!(quokka: [autosort: [:map, schema: [:field, :belongs_to]]])
+
+    assert [:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one] ==
+             Quokka.Config.autosort_schema_order()
+  end
 end

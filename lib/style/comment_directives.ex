@@ -166,15 +166,7 @@ defmodule Quokka.Style.CommentDirectives do
 
   defp sort({schema_type, meta, [table_name, [{{:__block__, _, [:do]}, {:__block__, block_meta, fields}}]]}, comments)
        when schema_type in [:schema, :typed_schema, :embedded_schema] do
-    field_type_order = [
-      :belongs_to,
-      :embeds_many,
-      :embeds_one,
-      :has_many,
-      :has_one,
-      :many_to_many,
-      :field
-    ]
+    field_type_order = Quokka.Config.autosort_schema_order()
 
     grouped_fields =
       fields

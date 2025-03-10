@@ -52,6 +52,16 @@ defmodule Quokka.Config do
     Range Record Regex Registry Set Stream String StringIO Supervisor System Task Time Tuple URI Version
   )a
 
+  @default_schema_order [
+    :belongs_to,
+    :has_many,
+    :has_one,
+    :many_to_many,
+    :field,
+    :embeds_many,
+    :embeds_one
+  ]
+
   def set(formatter_opts) do
     :persistent_term.get(@key)
     :ok
@@ -72,11 +82,25 @@ defmodule Quokka.Config do
     default_order = [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require]
     strict_module_layout_order = credo_opts[:strict_module_layout_order] || default_order
 
+    autosort = quokka_config[:autosort] || []
+
+    autosort_schema_order =
+      autosort
+      |> Keyword.get(:schema, [])
+      |> then(&(&1 ++ (@default_schema_order -- &1)))
+
+    autosort =
+      Enum.map(autosort, fn
+        {:schema, _order} -> :schema
+        other -> other
+      end)
+
     :persistent_term.put(
       @key,
       # quokka:sort
       %{
-        autosort: quokka_config[:autosort] || [],
+        autosort: autosort,
+        autosort_schema_order: autosort_schema_order,
         block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
         directories_excluded: Map.get(quokka_config[:files] || %{}, :excluded, []),
@@ -142,6 +166,10 @@ defmodule Quokka.Config do
 
   def autosort() do
     get(:autosort)
+  end
+
+  def autosort_schema_order() do
+    get(:autosort_schema_order)
   end
 
   def block_pipe_flag?() do

@@ -68,10 +68,6 @@ defmodule Quokka.Style.CommentDirectivesTest do
           schema "my_schema" do
             belongs_to(:user, User)
 
-            embeds_many(:comments, Comment)
-
-            embeds_one(:settings, Settings)
-
             has_many(:posts, Post)
 
             has_one(:profile, Profile)
@@ -81,6 +77,10 @@ defmodule Quokka.Style.CommentDirectivesTest do
             field(:age, :integer)
             field(:email, :string)
             field(:name, :string)
+
+            embeds_many(:comments, Comment)
+
+            embeds_one(:settings, Settings)
           end
         end
         """
