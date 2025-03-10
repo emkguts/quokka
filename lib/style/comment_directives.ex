@@ -27,11 +27,7 @@ defmodule Quokka.Style.CommentDirectives do
       |> Enum.filter(&(&1.text == "# quokka:sort"))
       |> Enum.map(& &1.line)
       |> Enum.reduce({zipper, ctx.comments}, fn line, {zipper, comments} ->
-        found =
-          Zipper.find(zipper, fn node ->
-            node_line = Style.meta(node)[:line] || -1
-            node_line >= line
-          end)
+        found = Zipper.find(zipper, &(line + 1 == Style.meta(&1)[:line]))
 
         if found do
           {sorted, comments} = found |> Zipper.node() |> sort(comments)
@@ -43,7 +39,7 @@ defmodule Quokka.Style.CommentDirectives do
 
     zipper = apply_autosort(zipper, ctx)
 
-    {:halt, zipper, %{ctx | comments: comments}}
+    {:cont, zipper, %{ctx | comments: comments}}
   end
 
   defp apply_autosort(zipper, ctx) do

@@ -182,6 +182,54 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts even after comment directive" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule Schemas.DemographicSchema do
+          use MyApp.Schema,
+            # quokka:sort
+            derive: [
+              :sex,
+              :age,
+              :id
+            ]
+
+          typed_schema "demographic" do
+            has_many(:people, PersonSchema, foreign_key: :person_id)
+            belongs_to(:census, CensusSchema)
+            timestamps()
+            field(:sex, :string)
+            field(:age, :integer)
+          end
+        end
+        """,
+        """
+        defmodule Schemas.DemographicSchema do
+          use MyApp.Schema,
+            # quokka:sort
+            derive: [
+              :age,
+              :id,
+              :sex
+            ]
+
+          typed_schema "demographic" do
+            belongs_to(:census, CensusSchema)
+
+            has_many(:people, PersonSchema, foreign_key: :person_id)
+
+            field(:age, :integer)
+            field(:sex, :string)
+
+            timestamps()
+          end
+        end
+        """
+      )
+    end
+
     test "autosorts map update keys" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
