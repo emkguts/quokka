@@ -3,6 +3,12 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.4.0] - 2025-03-10
+
+### Improvements
+
+- Add option to autosort schemas. `:schema` is now a supported option in `autosort`. Furthermore, order can be specified as `autosort: [schema: [:field, :many_to_many, :has_many, ...]]`.
+
 ## [2.3.1] - 2025-03-06
 
 ### Fixes
