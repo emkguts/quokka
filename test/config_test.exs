@@ -71,9 +71,9 @@ defmodule Quokka.ConfigTest do
   end
 
   test "sets autosort_schema_format correctly" do
-    assert :ok = set!(quokka: [autosort: [:map, schema: [:field, :belongs_to]]])
+    assert :ok = set!(quokka: [autosort: [:map, schema: [:many_to_many, :embeds_one]]])
 
-    assert [:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one] ==
+    assert [:many_to_many, :embeds_one, :field, :belongs_to, :has_many, :has_one, :embeds_many] ==
              Quokka.Config.autosort_schema_order()
   end
 end

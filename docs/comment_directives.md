@@ -66,7 +66,7 @@ Quokka can autosort maps, defstructs, and schemas. To enable this feature, set `
 autosort: [:map, schema: [:field, :belongs_to]]
 ```
 
-The default order is: `[:belongs_to, :has_many, :has_one, :many_to_many, :field, :embeds_many, :embeds_one]`.
+The default order is: `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]`.
 
 Quokka will skip sorting entities that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `autosort` is enabled, a specific entity can be skipped by adding `# quokka:skip-sort` on the line above it.
 

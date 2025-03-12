@@ -3,6 +3,12 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.4.1] - 2025-03-11
+
+### Fixes
+
+- Change default schema autosort order to put fields first. When fields don't come first, this can cause errors because some association fields require the field already being defined.
+
 ## [2.4.0] - 2025-03-10
 
 ### Improvements

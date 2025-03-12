@@ -53,11 +53,11 @@ defmodule Quokka.Config do
   )a
 
   @default_schema_order [
+    :field,
     :belongs_to,
     :has_many,
     :has_one,
     :many_to_many,
-    :field,
     :embeds_many,
     :embeds_one
   ]

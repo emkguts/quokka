@@ -51,8 +51,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
           schema "my_schema" do
             field :name, :string
             field :age, :integer
-            field :email, :string
             has_many :posts, Post
+            field :email, :string
             has_one :profile, Profile
             belongs_to :user, User
             many_to_many :tags, Tag, join_through: "my_schema_tags"
@@ -66,6 +66,10 @@ defmodule Quokka.Style.CommentDirectivesTest do
           use Ecto.Schema
 
           schema "my_schema" do
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+
             belongs_to(:user, User)
 
             has_many(:posts, Post)
@@ -73,10 +77,6 @@ defmodule Quokka.Style.CommentDirectivesTest do
             has_one(:profile, Profile)
 
             many_to_many(:tags, Tag, join_through: "my_schema_tags")
-
-            field(:age, :integer)
-            field(:email, :string)
-            field(:name, :string)
 
             embeds_many(:comments, Comment)
 
@@ -107,6 +107,10 @@ defmodule Quokka.Style.CommentDirectivesTest do
           use Ecto.Schema
 
           schema "my_schema" do
+            field(:age, :integer)
+            field(:email, :string)
+            field(:name, :string)
+
             belongs_to(:user, User)
 
             has_many(:posts, Post)
@@ -114,10 +118,6 @@ defmodule Quokka.Style.CommentDirectivesTest do
             has_one(:profile, Profile)
 
             many_to_many(:tags, Tag, join_through: "my_schema_tags")
-
-            field(:age, :integer)
-            field(:email, :string)
-            field(:name, :string)
 
             weird_thing(:foo)
           end
@@ -216,12 +216,12 @@ defmodule Quokka.Style.CommentDirectivesTest do
             ]
 
           typed_schema "demographic" do
+            field(:age, :integer)
+            field(:sex, :string)
+
             belongs_to(:census, CensusSchema)
 
             has_many(:people, PersonSchema, foreign_key: :person_id)
-
-            field(:age, :integer)
-            field(:sex, :string)
 
             timestamps()
           end
