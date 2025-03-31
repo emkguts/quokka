@@ -542,15 +542,18 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
     end
 
     test "collisions with configured regexes" do
-      stub(Quokka.Config, :lift_alias_excluded_namespaces, fn -> MapSet.new([:Name]) end)
+      # "Elixir." is automatically prepended to namespaces and such namespaces should still be excluded from lifting
+      stub(Quokka.Config, :lift_alias_excluded_namespaces, fn -> MapSet.new([Elixir.Name1, Name2]) end)
 
       assert_style(
         """
         defmodule MyModule do
           alias Foo.Bar
 
-          Name.Y.Z.bar()
-          Name.Y.Z.bar()
+          Name1.Y.Z.bar()
+          Name1.Y.Z.bar()
+          Name2.Y.Z.bar()
+          Name2.Y.Z.bar()
           A.B.C.foo()
           A.B.C.foo()
           A.B.C.D.foo()
@@ -563,8 +566,10 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
           alias A.B.C.D
           alias Foo.Bar
 
-          Name.Y.Z.bar()
-          Name.Y.Z.bar()
+          Name1.Y.Z.bar()
+          Name1.Y.Z.bar()
+          Name2.Y.Z.bar()
+          Name2.Y.Z.bar()
           C.foo()
           C.foo()
           D.foo()

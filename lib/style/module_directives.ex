@@ -395,11 +395,20 @@ defmodule Quokka.Style.ModuleDirectives do
       {{:__aliases__, _, [first, _ | _] = aliases}, _} = zipper, lifts ->
         if Enum.all?(aliases, &is_atom/1) do
           alias_string = Enum.join(aliases, ".")
-
           excluded_namespace? =
             Quokka.Config.lift_alias_excluded_namespaces()
             |> MapSet.filter(fn namespace ->
-              String.starts_with?(alias_string, Atom.to_string(namespace) <> ".")
+              str_namespace = Atom.to_string(namespace)
+              str_namespace_to_exclude =
+                case str_namespace do
+                  "Elixir." <> rest_namespace ->
+                    rest_namespace
+
+                  _ ->
+                    str_namespace
+                end
+
+              String.starts_with?(alias_string, str_namespace_to_exclude <> ".")
             end)
             |> MapSet.size() > 0
 
