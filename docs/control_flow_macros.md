@@ -22,6 +22,14 @@ unless a, do: b
 if a, do: b
 ```
 
+It also removes `do: nil` when an `else` is present, inverting the head to maintain semantics
+
+```elixir
+if a, do: nil, else: b
+# styled:
+if !a, do: b
+```
+
 ### Negation Inversion
 
 This addresses [`Credo.Check.Refactor.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html). This is not configurable.
@@ -32,21 +40,9 @@ The following operators are considered "negators": `!`, `not`, `!=`, `!==`
 Examples:
 
 ```elixir
-
-
 # negated `if` statements with an `else` clause have their clauses inverted and negation removed
 if !x, do: y, else: z
 # Styled:
-if x, do: z, else: y
-
-# negated `unless` statements are rewritten to `if`
-unless x != y, do: z
-# B styled:
-if x == y, do: z
-
-# `unless` with `else` is verboten; these are always rewritten to `if` statements
-unless x, do: y, else: z
-# styled:
 if x, do: z, else: y
 ```
 
