@@ -3,6 +3,27 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.5.0] - 2025-04-01
+
+### Improvements
+
+- `if`: drop empty `do` bodies like `if a, do: nil, else: b` => `if !a, do: b`
+- `to_timeout/1` rewrites to use the next largest unit in some simple instances
+
+    ```elixir
+    # before
+    to_timeout(second: 60 * m)
+    to_timeout(day: 7)
+    # after
+    to_timeout(minute: m)
+    to_timeout(week: 1)
+    ```
+
+### Fixes
+
+- fixed crash when `Credo.Check.Design.AliasUsage` opts `excluded_namespaces` and `excluded_lastnames` were provided.
+- fixed quokka raising when encountering invalid function definition ast
+
 ## [2.4.1] - 2025-03-11
 
 ### Fixes

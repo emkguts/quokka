@@ -24,7 +24,7 @@ Add `:quokka` as a dependency to your project's `mix.exs`:
 ```elixir
 def deps do
   [
-    {:quokka, "~> 2.4.0", only: [:dev, :test], runtime: false},
+    {:quokka, "~> 2.5.0", only: [:dev, :test], runtime: false},
   ]
 end
 ```
