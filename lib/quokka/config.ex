@@ -108,8 +108,10 @@ defmodule Quokka.Config do
         large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
         lift_alias: credo_opts[:lift_alias] || false,
         lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
-        lift_alias_excluded_lastnames: MapSet.new(lift_alias_excluded_lastnames ++ @stdlib),
-        lift_alias_excluded_namespaces: MapSet.new(lift_alias_excluded_namespaces ++ @stdlib),
+        lift_alias_excluded_lastnames:
+          MapSet.new(Enum.map(lift_alias_excluded_lastnames, &String.to_atom/1) ++ @stdlib),
+        lift_alias_excluded_namespaces:
+          MapSet.new(Enum.map(lift_alias_excluded_namespaces, &String.to_atom/1) ++ @stdlib),
         lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
         line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
         only_styles: quokka_config[:only] || [],

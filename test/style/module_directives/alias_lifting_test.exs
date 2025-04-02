@@ -541,19 +541,16 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
                    """
     end
 
-    test "collisions with configured regexes" do
-      # "Elixir." is automatically prepended to namespaces and such namespaces should still be excluded from lifting
-      stub(Quokka.Config, :lift_alias_excluded_namespaces, fn -> MapSet.new([Elixir.Name1, Name2]) end)
+    test "excluded namespaces" do
+      stub(Quokka.Config, :lift_alias_excluded_namespaces, fn -> MapSet.new([:Name2, :File]) end)
 
       assert_style(
         """
         defmodule MyModule do
           alias Foo.Bar
 
-          Name1.Y.Z.bar()
-          Name1.Y.Z.bar()
-          Name2.Y.Z.bar()
-          Name2.Y.Z.bar()
+          Name2.M.N.bar()
+          Name2.M.N.bar()
           A.B.C.foo()
           A.B.C.foo()
           A.B.C.D.foo()
@@ -566,10 +563,8 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
           alias A.B.C.D
           alias Foo.Bar
 
-          Name1.Y.Z.bar()
-          Name1.Y.Z.bar()
-          Name2.Y.Z.bar()
-          Name2.Y.Z.bar()
+          Name2.M.N.bar()
+          Name2.M.N.bar()
           C.foo()
           C.foo()
           D.foo()
@@ -577,6 +572,65 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         end
         """
       )
+    end
+
+    test "std lib namespaces" do
+      assert_style(
+        """
+        defmodule MyModule do
+          alias Foo.Bar
+
+          File.M.N.bar()
+          File.M.N.bar()
+          A.B.C.foo()
+          A.B.C.foo()
+          A.B.C.D.foo()
+          A.B.C.D.foo()
+        end
+        """,
+        """
+        defmodule MyModule do
+          alias A.B.C
+          alias A.B.C.D
+          alias Foo.Bar
+
+          File.M.N.bar()
+          File.M.N.bar()
+          C.foo()
+          C.foo()
+          D.foo()
+          D.foo()
+        end
+        """
+      )
+    end
+
+    test "excluded lastnames" do
+      stub(Quokka.Config, :lift_alias_excluded_lastnames, fn -> MapSet.new([:Name2]) end)
+
+      assert_style """
+                   defmodule MyModule do
+                     Name2.Name3.Name4.bar()
+                     Name2.Name3.Name4.bar()
+                     A.B.Name2.bar()
+                     A.B.Name2.bar()
+                     A.B.C.foo()
+                     A.B.C.foo()
+                   end
+                   """,
+                   """
+                   defmodule MyModule do
+                     alias A.B.C
+                     alias Name2.Name3.Name4
+
+                     Name4.bar()
+                     Name4.bar()
+                     A.B.Name2.bar()
+                     A.B.Name2.bar()
+                     C.foo()
+                     C.foo()
+                   end
+                   """
     end
 
     test "collisions with std lib" do

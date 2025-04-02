@@ -4,6 +4,7 @@ defmodule Quokka.ConfigTest do
 
   import Quokka.Config
 
+  alias Credo.Check.Design.AliasUsage
   alias Credo.Check.Readability.MaxLineLength
   alias Quokka.Style.Configs
   alias Quokka.Style.Deprecations
@@ -75,5 +76,29 @@ defmodule Quokka.ConfigTest do
 
     assert [:many_to_many, :embeds_one, :field, :belongs_to, :has_many, :has_one, :embeds_many] ==
              Quokka.Config.autosort_schema_order()
+  end
+
+  test "sets lift_alias_excluded_lastnames correctly" do
+    Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ ->
+      {:ok, %{checks: [{AliasUsage, [excluded_lastnames: ["Name2"]]}]}}
+    end)
+
+    assert :ok = Quokka.Config.set!([])
+
+    MapSet.member?(Quokka.Config.lift_alias_excluded_lastnames(), "Name2")
+    # check that stdlib is included in the exclusions
+    MapSet.member?(Quokka.Config.lift_alias_excluded_lastnames(), "File")
+  end
+
+  test "sets lift_alias_excluded_namespaces correctly" do
+    Mimic.expect(Credo.ConfigFile, :read_or_default, fn _, _ ->
+      {:ok, %{checks: [{AliasUsage, [excluded_namespaces: ["Name2"]]}]}}
+    end)
+
+    assert :ok = Quokka.Config.set!([])
+
+    MapSet.member?(Quokka.Config.lift_alias_excluded_namespaces(), "Name2")
+    # check that stdlib is included in the exclusions
+    MapSet.member?(Quokka.Config.lift_alias_excluded_namespaces(), "File")
   end
 end

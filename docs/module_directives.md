@@ -150,8 +150,8 @@ alias Foo.Bar
 
 This addresses [`Credo.Check.Design.AliasUsage`](https://hexdocs.pm/credo/Credo.Check.Design.AliasUsage.html). The Credo configs supported by Quokka include:
 
-- `:lift_alias_excluded_namespaces`
-- `:lift_alias_excluded_lastnames`
+- `:excluded_namespaces`
+- `:excluded_lastnames`
 - `:if_nested_deeper_than`
 - `:if_called_more_often_than`
 
