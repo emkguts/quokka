@@ -51,6 +51,35 @@ defmodule Quokka.Style.PipesTest do
       )
     end
 
+    test "pipe chain start should work with excluded alias lifting namespaces" do
+      stub(Quokka.Config, :lift_alias_excluded_namespaces, fn -> MapSet.new([:Name]) end)
+
+      assert_style(
+        """
+        defmodule MyModule do
+          alias Foo.Bar
+
+          Name.M.N.bar(x)
+          |> Name.M.N.bar()
+
+          A.B.C.foo()
+        end
+        """,
+        """
+        defmodule MyModule do
+          alias A.B.C
+          alias Foo.Bar
+
+          x
+          |> Name.M.N.bar()
+          |> Name.M.N.bar()
+
+          C.foo()
+        end
+        """
+      )
+    end
+
     test "fixes nested pipes" do
       stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
