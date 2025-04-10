@@ -22,6 +22,17 @@ defmodule Quokka do
 
   @doc false
   def style({ast, comments}, file, opts) do
+    # Don't style empty modules
+    case ast do
+      {:defmodule, _, [_, [{{:__block__, _, [:do]}, {:__block__, _, []}}]]} ->
+        {ast, comments}
+
+      _ ->
+        apply_styles({ast, comments}, file, opts)
+    end
+  end
+
+  defp apply_styles({ast, comments}, file, opts) do
     on_error = opts[:on_error] || :log
     zipper = Zipper.zip(ast)
 

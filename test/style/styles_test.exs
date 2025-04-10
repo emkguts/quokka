@@ -16,6 +16,13 @@ defmodule Quokka.Style.StylesTest do
   use Quokka.StyleCase, async: true
   use Mimic
 
+  test "doesn't crash on defmodule with empty body" do
+    assert_style("""
+    defmodule Foo do
+    end
+    """)
+  end
+
   describe "pipes + defs" do
     test "pipes doesn't abuse meta and break defs" do
       stub(Quokka.Config, :zero_arity_parens?, fn -> true end)
