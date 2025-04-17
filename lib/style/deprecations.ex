@@ -47,22 +47,35 @@ defmodule Quokka.Style.Deprecations do
   defp style({:|>, m, [lhs, {{:., dm, [{:__aliases__, am, [:Path]}, :safe_relative_to]}, funm, args}]}),
     do: {:|>, m, [lhs, {{:., dm, [{:__aliases__, am, [:Path]}, :safe_relative]}, funm, args}]}
 
-  if Version.match?(System.version(), ">= 1.16.0-dev") do
-    # File.stream!(file, options, line_or_bytes) => File.stream!(file, line_or_bytes, options)
-    defp style({{:., _, [{_, _, [:File]}, :stream!]} = f, fm, [path, {:__block__, _, [modes]} = opts, lob]})
-         when is_list(modes),
-         do: {f, fm, [path, lob, opts]}
-
-    # Pipe version for File.stream!
-    defp style({:|>, m, [lhs, {{_, _, [{_, _, [:File]}, :stream!]} = f, fm, [{:__block__, _, [modes]} = opts, lob]}]})
-         when is_list(modes),
-         do: {:|>, m, [lhs, {f, fm, [lob, opts]}]}
+  # File.stream!(file, options, line_or_bytes) => File.stream!(file, line_or_bytes, options)
+  defp style({{:., _, [{_, _, [:File]}, :stream!]} = f, fm, [path, {:__block__, _, [modes]} = opts, lob]} = node)
+       when is_list(modes) do
+    if Version.match?(Quokka.Config.elixir_version(), ">= 1.16.0-dev") do
+      {f, fm, [path, lob, opts]}
+    else
+      node
+    end
   end
 
-  if Version.match?(System.version(), ">= 1.17.0-dev") do
-    for {erl, ex} <- [hours: :hour, minutes: :minute, seconds: :second] do
-      defp style({{:., _, [{:__block__, _, [:timer]}, unquote(erl)]}, fm, [x]}),
-        do: {:to_timeout, fm, [[{{:__block__, [format: :keyword, line: fm[:line]], [unquote(ex)]}, x}]]}
+  # Pipe version for File.stream!
+  defp style(
+         {:|>, m, [lhs, {{_, _, [{_, _, [:File]}, :stream!]} = f, fm, [{:__block__, _, [modes]} = opts, lob]}]} = node
+       )
+       when is_list(modes) do
+    if Version.match?(Quokka.Config.elixir_version(), ">= 1.16.0-dev") do
+      {:|>, m, [lhs, {f, fm, [lob, opts]}]}
+    else
+      node
+    end
+  end
+
+  for {erl, ex} <- [hours: :hour, minutes: :minute, seconds: :second] do
+    defp style({{:., _, [{:__block__, _, [:timer]}, unquote(erl)]}, fm, [x]} = node) do
+      if Version.match?(Quokka.Config.elixir_version(), ">= 1.17.0-dev") do
+        {:to_timeout, fm, [[{{:__block__, [format: :keyword, line: fm[:line]], [unquote(ex)]}, x}]]}
+      else
+        node
+      end
     end
   end
 

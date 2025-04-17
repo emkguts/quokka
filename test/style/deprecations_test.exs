@@ -134,7 +134,10 @@ defmodule Quokka.Style.DeprecationsTest do
   end
 
   describe "1.16+" do
-    @describetag skip: Version.match?(System.version(), "< 1.16.0-dev")
+    setup do
+      Mimic.stub(Quokka.Config, :elixir_version, fn -> "1.16.0" end)
+      :ok
+    end
 
     test "File.stream!(path, modes, line_or_bytes) to File.stream!(path, line_or_bytes, modes)" do
       assert_style(
@@ -150,7 +153,10 @@ defmodule Quokka.Style.DeprecationsTest do
   end
 
   describe "1.17+" do
-    @describetag skip: Version.match?(System.version(), "< 1.17.0-dev")
+    setup do
+      Mimic.stub(Quokka.Config, :elixir_version, fn -> "1.17.0" end)
+      :ok
+    end
 
     test "to_timeout/1 vs :timer.units(x)" do
       assert_style ":timer.hours(x)", "to_timeout(hour: x)"
