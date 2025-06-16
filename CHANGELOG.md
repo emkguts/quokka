@@ -3,6 +3,13 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [2.7.1] - 2025-06-16
+
+### Fixes
+
+- Don't rewrite length() inside guard statements
+- Don't add additional line to blank files (fixes issue Credo.Check.Readability.RedundantBlankLines for whitespace only files)
+
 ## [2.7.0] - 2025-06-15
 
 ### Improvements
