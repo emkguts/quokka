@@ -118,6 +118,9 @@ defmodule Quokka do
       |> Code.quoted_to_algebra(opts)
       |> Inspect.Algebra.format(line_length)
 
-    IO.iodata_to_binary([formatted, ?\n])
+    case formatted do
+      [] -> ""
+      _ -> IO.iodata_to_binary([formatted, ?\n])
+    end
   end
 end
