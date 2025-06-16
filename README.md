@@ -175,7 +175,7 @@ the check can be configured further for fine tuning.
 
 | Credo Check                                                                                                  | Rewrite Description                             | Documentation                                                         | Configurable |
 | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------- | ------------ |
-| [`.ExpensiveEmptyEnumCheck`](https://hexdocs.pm/credo/Credo.Check.Warning.ExpensiveEmptyEnumCheck.html)      | Rewrites slow checks of enum emptiness          | [Single Node](docs/single_node.md#empty-enum-checks)                  |              |
+| [`.ExpensiveEmptyEnumCheck`](https://hexdocs.pm/credo/Credo.Check.Warning.ExpensiveEmptyEnumCheck.html)      | Rewrites slow checks of enum emptiness          | [Single Node](docs/styles.md#empty-enum-checks)                  |              |
 
 <!-- tabs-close -->
 
