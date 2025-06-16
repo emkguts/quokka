@@ -29,12 +29,23 @@ defmodule Quokka.Style.SingleNode do
 
   @behaviour Quokka.Style
 
+  alias Quokka.Zipper
+
   @closing_delimiters [~s|"|, ")", "}", "|", "]", "'", ">", "/"]
 
   # `|> Timex.now()` => `|> Timex.now()`
   # skip over pipes into `Timex.now/1` so that we don't accidentally rewrite it as DateTime.utc_now/1
   def run({{:|>, _, [_, {{:., _, [{:__aliases__, _, [:Timex]}, :now]}, _, []}]}, _} = zipper, ctx),
     do: {:skip, zipper, ctx}
+
+  # Skip expensive empty enum check rewrites when inside guard clauses
+  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===] do
+    if in_guard?(zipper) do
+      {:cont, zipper, ctx}
+    else
+      {:cont, {style(node), meta}, ctx}
+    end
+  end
 
   def run({node, meta}, ctx), do: {:cont, {style(node), meta}, ctx}
 
@@ -384,4 +395,23 @@ defmodule Quokka.Style.SingleNode do
   defp add_underscores([a, b, c, d | rest], acc), do: add_underscores([d | rest], [?_, c, b, a | acc])
 
   defp add_underscores(reversed_list, acc), do: reversed_list |> Enum.reverse(acc) |> to_string()
+
+  # Check if the current node is inside a guard clause
+  defp in_guard?(zipper) do
+    in_guard?(zipper, false)
+  end
+
+  defp in_guard?(nil, found?), do: found?
+  
+  defp in_guard?(zipper, found?) do
+    case Zipper.node(zipper) do
+      # Function definition with guard
+      {:def, _, [{:when, _, _} | _]} -> true
+      {:defp, _, [{:when, _, _} | _]} -> true
+      # Guard expression itself
+      {:when, _, _} -> true
+      # Continue searching up the tree
+      _ -> in_guard?(Zipper.up(zipper), found?)
+    end
+  end
 end

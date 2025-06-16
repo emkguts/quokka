@@ -112,6 +112,86 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("MyModule.length(foo) == 0", "MyModule.length(foo) == 0")
       assert_style("MyModule.Enum.count(foo) == 0", "MyModule.Enum.count(foo) == 0")
     end
+
+    test "preserves length/count checks inside guard clauses" do
+      # Function guards with length
+      assert_style("""
+      def foo(list) when length(list) > 0 do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      defp bar(items) when is_list(items) and length(items) > 0 do
+        :ok
+      end
+      """)
+
+      # Function guards with Enum.count
+      assert_style("""
+      def baz(enum) when Enum.count(enum) > 0 do
+        :not_empty
+      end
+      """)
+
+      # Case statement guards
+      assert_style("""
+      case list do
+        items when length(items) > 0 -> :has_items
+        _ -> :empty
+      end
+      """)
+
+      # Multiple guard conditions
+      assert_style("""
+      def process(data) when is_list(data) and length(data) == 0 do
+        :empty_list
+      end
+      """)
+
+      # Guards with < operator
+      assert_style("""
+      def validate(items) when 0 < length(items) do
+        :valid
+      end
+      """)
+    end
+
+    test "rewrites length/count checks outside guard clauses" do
+      # Normal function bodies should still be rewritten
+      assert_style(
+        """
+        def foo(list) do
+          if length(list) > 0 do
+            :ok
+          end
+        end
+        """,
+        """
+        def foo(list) do
+          if not Enum.empty?(list) do
+            :ok
+          end
+        end
+        """
+      )
+
+      # Case expressions (not guards) should be rewritten
+      assert_style(
+        """
+        case length(items) > 0 do
+          true -> :has_items
+          false -> :empty
+        end
+        """,
+        """
+        case not Enum.empty?(items) do
+          true -> :has_items
+          false -> :empty
+        end
+        """
+      )
+    end
   end
 
   describe "Timex.now/0,1" do
