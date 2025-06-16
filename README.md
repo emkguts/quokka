@@ -4,7 +4,7 @@
 
 # Quokka
 
-<img src="docs/assets/quokka.png" alt="A happy quokka with style" width="300"/>
+<img src="docs/assets/quokka.jpg" alt="A happy quokka with style" width="300"/>
 
 Quokka is an Elixir formatter plugin that's combination of `mix format` and `mix credo`, except instead of telling you what's wrong, it just rewrites the code for you. Quokka is a fork of [Styler](https://github.com/adobe/elixir-styler) that checks the Credo config to determine which rules to rewrite. Many common, non-controversial Credo style rules are rewritten automatically, while the controversial Credo style rules are rewritten based on your Credo configuration so you can customize your style.
 
