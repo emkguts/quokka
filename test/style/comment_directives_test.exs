@@ -256,6 +256,69 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts ecto queries" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        defmodule Example do
+          import Ecto.Query
+
+          def union_query() do
+            query1 =
+              from u in "users",
+                select: %{
+                  name: u.name,
+                  email: u.email,
+                  active: true
+                }
+          end
+        end
+        """,
+        """
+        defmodule Example do
+          import Ecto.Query
+
+          def union_query() do
+            query1 =
+              from(u in "users",
+                select: %{
+                  active: true,
+                  email: u.email,
+                  name: u.name
+                }
+              )
+          end
+        end
+        """
+      )
+    end
+
+    test "skips autosort for ecto queries" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map, :exclude_ecto] end)
+
+      assert_style("""
+      defmodule Example do
+        import Ecto.Query
+
+        def union_query() do
+          query1 =
+            from(u in "users",
+              select: %{
+                name: u.name,
+                email: u.email,
+                active: true
+              }
+            )
+        end
+      end
+      """)
+
+      # does sort another map with `from`
+      assert_style("from = %{c: 1, b: 2, a: 3}", "from = %{a: 3, b: 2, c: 1}")
+      assert_style("%{to: 3, from: 1, where: 2}", "%{from: 1, to: 3, where: 2}")
+    end
+
     test "skips autosorting maps when there is a skip-sort directive" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
