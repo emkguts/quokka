@@ -93,8 +93,6 @@ defmodule Quokka.Config do
         other -> other
       end)
 
-    elixir_version = parse_elixir_version()
-
     :persistent_term.put(
       @key,
       # quokka:sort
@@ -105,7 +103,7 @@ defmodule Quokka.Config do
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
         directories_excluded: Map.get(quokka_config[:files] || %{}, :excluded, []),
         directories_included: Map.get(quokka_config[:files] || %{}, :included, []),
-        elixir_version: elixir_version,
+        elixir_version: parse_elixir_version(),
         exclude_styles: quokka_config[:exclude] || [],
         inefficient_function_rewrites: Keyword.get(quokka_config, :inefficient_function_rewrites, true),
         large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
@@ -323,24 +321,16 @@ defmodule Quokka.Config do
   end
 
   defp parse_elixir_version() do
-    mix_exs_path = Path.join(File.cwd!(), "mix.exs")
+    case Regex.run(~r/(?:==|>=|>|~>)?\s*(\d+(?:\.\d+(?:\.\d+(?:-\w+)?)?)?)\b/, Mix.Project.config()[:elixir]) do
+      [_, version] ->
+        case String.split(version, ".") do
+          [major] -> "#{major}.0.0"
+          [major, minor] -> "#{major}.#{minor}.0"
+          [major, minor, patch] -> "#{major}.#{minor}.#{patch}"
+        end
 
-    case File.read(mix_exs_path) do
-      {:ok, contents} -> extract_version_from_contents(contents)
-      _ -> System.version()
-    end
-  end
-
-  defp extract_version_from_contents(contents) do
-    with [_, requirement] <- Regex.run(~r/elixir:\s*"([^"]+)"/, contents),
-         [_, version] <- Regex.run(~r/(?:==|>=|>|~>)?\s*(\d+(?:\.\d+(?:\.\d+(?:-\w+)?)?)?)\b/, requirement) do
-      case String.split(version, ".") do
-        [major] -> "#{major}.0.0"
-        [major, minor] -> "#{major}.#{minor}.0"
-        [major, minor, patch] -> "#{major}.#{minor}.#{patch}"
-      end
-    else
-      _ -> System.version()
+      _ ->
+        System.version()
     end
   end
 end

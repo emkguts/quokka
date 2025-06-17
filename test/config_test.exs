@@ -103,54 +103,32 @@ defmodule Quokka.ConfigTest do
   end
 
   test "parses elixir version from mix.exs with different requirement formats" do
-    mix_exs_path = Path.join(File.cwd!(), "mix.exs")
-    original_content = File.read!(mix_exs_path)
-
     test_cases = [
-      {~s(elixir: "~> 1"), "1.0.0"},
-      {~s(elixir: "~> 1.15"), "1.15.0"},
-      {~s(elixir: ">= 1.16.0"), "1.16.0"},
-      {~s(elixir: "== 1.17.0"), "1.17.0"},
-      {~s(elixir: "> 1.18.0"), "1.18.0"},
-      {~s(elixir: ">= 1.15.0 and < 2.0.0"), "1.15.0"},
-      {~s(elixir: ">= 1.15.0-dev"), "1.15.0-dev"}
+      {~s("~> 1"), "1.0.0"},
+      {~s("~> 1.15"), "1.15.0"},
+      {~s(">= 1.16.0"), "1.16.0"},
+      {~s("== 1.17.0"), "1.17.0"},
+      {~s("> 1.18.0"), "1.18.0"},
+      {~s(">= 1.15.0 and < 2.0.0"), "1.15.0"},
+      {~s(">= 1.15.0-dev"), "1.15.0-dev"}
     ]
 
-    try do
-      Enum.each(test_cases, fn {requirement, expected} ->
-        File.write!(mix_exs_path, """
-        defmodule Test.MixProject do
-          use Mix.Project
-
-          def project do
-            [
-              app: :test,
-              version: "0.1.0",
-              #{requirement}
-            ]
-          end
-        end
-        """)
-
-        assert :ok = Quokka.Config.set!([])
-        assert expected == Quokka.Config.elixir_version()
+    Enum.each(test_cases, fn {requirement, expected} ->
+      Mimic.stub(Mix.Project, :config, fn ->
+        [elixir: requirement]
       end)
-    after
-      File.write!(mix_exs_path, original_content)
-    end
+
+      assert :ok = Quokka.Config.set!([])
+      assert expected == Quokka.Config.elixir_version()
+    end)
   end
 
   test "falls back to System.version() if mix.exs cannot be read" do
-    mix_exs_path = Path.join(File.cwd!(), "mix.exs")
-    original_content = File.read!(mix_exs_path)
+    Mimic.stub(Mix.Project, :config, fn ->
+      [elixir: "bogus"]
+    end)
 
-    try do
-      File.rm!(mix_exs_path)
-
-      assert :ok = Quokka.Config.set!([])
-      assert System.version() == Quokka.Config.elixir_version()
-    after
-      File.write!(mix_exs_path, original_content)
-    end
+    assert :ok = Quokka.Config.set!([])
+    assert System.version() == Quokka.Config.elixir_version()
   end
 end
