@@ -50,13 +50,26 @@ defmodule Quokka.Style.CommentDirectives do
       should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
       has_comments = has_comments_inside?(node, ctx.comments)
       is_sortable = get_node_type(node) in autosort_types
+      is_query = is_query?(node)
 
-      if should_skip || has_comments || !is_sortable do
-        {:cont, zipper, %{ctx | comments: comments}}
-      else
-        {sorted, _} = sort(node, [])
-        {:cont, Zipper.replace(zipper, sorted), %{ctx | comments: comments}}
+      cond do
+        is_query and Enum.member?(autosort_types, :exclude_ecto) ->
+          {:skip, zipper, %{ctx | comments: comments}}
+
+        should_skip || has_comments || !is_sortable ->
+          {:cont, zipper, %{ctx | comments: comments}}
+
+        true ->
+          {sorted, _} = sort(node, [])
+          {:cont, Zipper.replace(zipper, sorted), %{ctx | comments: comments}}
       end
+    end
+  end
+
+  defp is_query?(node) do
+    case node do
+      {:from, _, _} -> true
+      _ -> false
     end
   end
 
