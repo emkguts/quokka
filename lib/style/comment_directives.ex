@@ -37,34 +37,26 @@ defmodule Quokka.Style.CommentDirectives do
         end
       end)
 
-    zipper = apply_autosort(zipper, ctx)
-
-    {:cont, zipper, %{ctx | comments: comments}}
-  end
-
-  defp apply_autosort(zipper, ctx) do
     autosort_types = Quokka.Config.autosort()
 
     if Enum.empty?(autosort_types) do
-      zipper
+      {:skip, zipper, %{ctx | comments: comments}}
     else
       skip_sort_lines = collect_skip_sort_lines(ctx.comments)
 
-      Zipper.traverse(zipper, fn z ->
-        node = Zipper.node(z)
-        node_line = Style.meta(node)[:line]
+      node = Zipper.node(zipper)
+      node_line = Style.meta(node)[:line]
 
-        should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
-        has_comments = has_comments_inside?(node, ctx.comments)
-        is_sortable = get_node_type(node) in autosort_types
+      should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
+      has_comments = has_comments_inside?(node, ctx.comments)
+      is_sortable = get_node_type(node) in autosort_types
 
-        if should_skip || has_comments || !is_sortable do
-          z
-        else
-          {sorted, _} = sort(node, [])
-          Zipper.replace(z, sorted)
-        end
-      end)
+      if should_skip || has_comments || !is_sortable do
+        {:cont, zipper, %{ctx | comments: comments}}
+      else
+        {sorted, _} = sort(node, [])
+        {:cont, Zipper.replace(zipper, sorted), %{ctx | comments: comments}}
+      end
     end
   end
 
