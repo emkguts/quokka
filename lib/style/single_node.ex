@@ -239,6 +239,7 @@ defmodule Quokka.Style.SingleNode do
 
   @literal_zero_pattern quote do: {:__block__, _, [0]}
   @enum_count_pattern quote do: {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(enum)]}
+  @enum_count_with_fn_pattern quote do: {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(enum), var!(func)]}
   @length_pattern quote do: {:length, var!(m), [var!(enum)]}
 
   for {lhs, rhs} <- [
@@ -258,8 +259,24 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  for {lhs, rhs} <- [
+        # Enum.count(enum, fn) == 0 => not Enum.any?(enum, fn)
+        {@enum_count_with_fn_pattern, @literal_zero_pattern},
+        # 0 == Enum.count(enum, fn) => not Enum.any?(enum, fn)
+        {@literal_zero_pattern, @enum_count_with_fn_pattern}
+      ] do
+    defp style({op, _, [unquote(lhs), unquote(rhs)]} = node) when op in [:==, :===] do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {:not, m, [{{:., m, [{:__aliases__, m, [:Enum]}, :any?]}, m, [enum, func]}]},
+        else: node
+    end
+  end
+
   @pipe_to_length_pattern quote do: {:|>, var!(pm), [var!(lhs), {:length, var!(m), []}]}
   @pipe_to_count_pattern quote do: {:|>, var!(pm), [var!(lhs), {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, []}]}
+  @pipe_to_count_with_fn_pattern quote do:
+                                         {:|>, var!(pm),
+                                          [var!(lhs), {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(func)]}]}
 
   for {lhs, rhs} <- [
         # foo |> bar() |> length() == 0 => foo |> bar() |> Enum.empty?()
@@ -279,18 +296,60 @@ defmodule Quokka.Style.SingleNode do
   end
 
   for {lhs, rhs, op} <- [
+        # foo |> bar() |> Enum.count(&my_fn/1) > 0 => foo |> bar() |> Enum.any?(&my_fn/1)
+        {@pipe_to_count_with_fn_pattern, @literal_zero_pattern, :>},
+        # 0 < foo |> bar() |> Enum.count(&my_fn/1) => foo |> bar() |> Enum.any?(&my_fn/1)
+        {@literal_zero_pattern, @pipe_to_count_with_fn_pattern, :<},
+        # foo |> bar() |> Enum.count(fn v -> length(v) end) != 0 => foo |> bar() |> Enum.any?(fn v -> length(v) end)
+        {@pipe_to_count_with_fn_pattern, @literal_zero_pattern, :!=},
+        # 0 != foo |> bar() |> Enum.count(fn v -> length(v) end) => foo |> bar() |> Enum.any?(fn v -> length(v) end)
+        {@literal_zero_pattern, @pipe_to_count_with_fn_pattern, :!=}
+      ] do
+    defp style({unquote(op), _, [unquote(lhs), unquote(rhs)]} = node) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {:|>, pm, [lhs, {{:., m, [{:__aliases__, m, [:Enum]}, :any?]}, m, [func]}]},
+        else: node
+    end
+  end
+
+  for {lhs, rhs, op} <- [
         # Enum.count(enum) > 0 => not Enum.empty?(enum)
         {@enum_count_pattern, @literal_zero_pattern, :>},
+        # Enum.count(enum) != 0 => not Enum.empty?(enum)
+        {@enum_count_pattern, @literal_zero_pattern, :!=},
         # 0 < Enum.count(enum) => not Enum.empty?(enum)
         {@literal_zero_pattern, @enum_count_pattern, :<},
+        # 0 != Enum.count(enum) => not Enum.empty?(enum)
+        {@literal_zero_pattern, @enum_count_pattern, :!=},
         # length(enum) > 0 => not Enum.empty?(enum)
         {@length_pattern, @literal_zero_pattern, :>},
+        # length(enum) != 0 => not Enum.empty?(enum)
+        {@length_pattern, @literal_zero_pattern, :!=},
         # 0 < length(enum) => not Enum.empty?(enum)
-        {@literal_zero_pattern, @length_pattern, :<}
+        {@literal_zero_pattern, @length_pattern, :<},
+        # 0 != length(enum) => not Enum.empty?(enum)
+        {@literal_zero_pattern, @length_pattern, :!=}
       ] do
     defp style({unquote(op), _, [unquote(lhs), unquote(rhs)]} = node) do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {:not, m, [{{:., m, [{:__aliases__, m, [:Enum]}, :empty?]}, m, [enum]}]},
+        else: node
+    end
+  end
+
+  for {lhs, rhs, op} <- [
+        # Enum.count(enum, fn) > 0 => Enum.any?(enum, fn)
+        {@enum_count_with_fn_pattern, @literal_zero_pattern, :>},
+        # Enum.count(enum, fn) != 0 => Enum.any?(enum, fn)
+        {@enum_count_with_fn_pattern, @literal_zero_pattern, :!=},
+        # 0 < Enum.count(enum, fn) => Enum.any?(enum, fn)
+        {@literal_zero_pattern, @enum_count_with_fn_pattern, :<},
+        # 0 != Enum.count(enum, fn) => Enum.any?(enum, fn)
+        {@literal_zero_pattern, @enum_count_with_fn_pattern, :!=}
+      ] do
+    defp style({unquote(op), _, [unquote(lhs), unquote(rhs)]} = node) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {{:., m, [{:__aliases__, m, [:Enum]}, :any?]}, m, [enum, func]},
         else: node
     end
   end

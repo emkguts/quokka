@@ -84,6 +84,37 @@ defmodule Quokka.Style.SingleNodeTest do
   end
 
   describe "checking empty enums" do
+    test "Enum.count(enum, fn) == 0 => not Enum.any?(enum, fn)" do
+      assert_style("Enum.count(foo, &my_fn/1) == 0", "not Enum.any?(foo, &my_fn/1)")
+      assert_style("0 == Enum.count(foo, &my_fn/1)", "not Enum.any?(foo, &my_fn/1)")
+      assert_style("foo |> bar() |> Enum.count(fn v -> length(v) end) == 0")
+      assert_style("0 == foo |> bar() |> Enum.count(&my_fn/1)")
+    end
+
+    test "Enum.count(enum, fn) > 0 => Enum.any?(enum, fn)" do
+      assert_style("Enum.count(foo, &my_fn/1) > 0", "Enum.any?(foo, &my_fn/1)")
+      assert_style("0 < Enum.count(foo, &my_fn/1)", "Enum.any?(foo, &my_fn/1)")
+      assert_style("Enum.count(foo, fn v -> length(v) end) > 0", "Enum.any?(foo, fn v -> length(v) end)")
+
+      assert_style(
+        "foo |> bar() |> Enum.count(fn v -> length(v) end) > 0",
+        "foo |> bar() |> Enum.any?(fn v -> length(v) end)"
+      )
+
+      assert_style("0 < foo |> bar() |> Enum.count(&my_fn/1)", "foo |> bar() |> Enum.any?(&my_fn/1)")
+    end
+
+    test "Enum.count(enum, fn) != 0 => Enum.any?(enum, fn)" do
+      assert_style("Enum.count(foo, &my_fn/1) != 0", "Enum.any?(foo, &my_fn/1)")
+
+      assert_style(
+        "foo |> bar() |> Enum.count(fn v -> length(v) end) != 0",
+        "foo |> bar() |> Enum.any?(fn v -> length(v) end)"
+      )
+
+      assert_style("0 != foo |> bar() |> Enum.count(&my_fn/1)", "foo |> bar() |> Enum.any?(&my_fn/1)")
+    end
+
     test "length(enum) == 0 => Enum.empty?(enum)" do
       assert_style("length(foo) == 0", "Enum.empty?(foo)")
       assert_style("0 == length(foo)", "Enum.empty?(foo)")
@@ -103,14 +134,25 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("0 < length(foo)", "not Enum.empty?(foo)")
     end
 
+    test "length(enum) != 0 => not Enum.empty?(enum)" do
+      assert_style("length(foo) != 0", "not Enum.empty?(foo)")
+      assert_style("0 != length(foo)", "not Enum.empty?(foo)")
+    end
+
     test "Enum.count(enum) > 0 => not Enum.empty?(enum)" do
       assert_style("Enum.count(foo) > 0", "not Enum.empty?(foo)")
       assert_style("0 < Enum.count(foo)", "not Enum.empty?(foo)")
     end
 
+    test "Enum.count(enum) != 0 => not Enum.empty?(enum)" do
+      assert_style("Enum.count(foo) != 0", "not Enum.empty?(foo)")
+      assert_style("0 != Enum.count(foo)", "not Enum.empty?(foo)")
+    end
+
     test "does not monkey with other variants of length or count functions" do
       assert_style("MyModule.length(foo) == 0", "MyModule.length(foo) == 0")
       assert_style("MyModule.Enum.count(foo) == 0", "MyModule.Enum.count(foo) == 0")
+      assert_style("MyModule.Enum.count(foo, &my_fn/1) == 0", "MyModule.Enum.count(foo, &my_fn/1) == 0")
     end
 
     test "does not monkey with length in guards" do

@@ -58,9 +58,19 @@ if enum |> MyModule.transform() |> Enum.empty?(), do: "empty"
 if Enum.count(enum) > 0, do: "not empty"
 # Styled:
 if not Enum.empty?(enum), do: "not empty"
+
+# Given:
+if Enum.count(enum, &my_func) == 0, do: "none"
+# Styled:
+if not Enum.any?(enum, &my_func), do: "none"
+
+# Given:
+if 0 < foo |> bar() |> Enum.count(fn v -> baz(v) end), do: "not none"
+# Styled:
+if foo |> bar() |> Enum.any(fn v -> baz(v) end), do: "not none"
 ```
 
-Note that while Quokka will rewrite the calls to `length/1` or `Enum.count/1` even in pipes when the result is being checked for equality against zero, it will not rewrite pipes if they're being checked for being greater than zero. (Quokka avoids either wrapping the whole pipe chain in a `not` or piping into `Kernel.not/1`.)
+Note that while Quokka will rewrite the calls to `length/1` or `Enum.count/1` even in pipes when the result is being checked for equality against zero, it will not rewrite pipes if they're being checked for being greater than zero. Similarly, it will not rewrite pipes for `Enum.count/2` if its being checked against zero. (Quokka avoids either wrapping the whole pipe chain in a `not` or piping into `Kernel.not/1`.)
 
 ```elixir
 # Given:
