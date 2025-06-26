@@ -92,6 +92,8 @@ in `.formatter.exs` to fine tune your setup:
       | :module_directives
       | :pipes
       | :single_node
+      # Don't re-underscore large numbers with underscores. Ie, leave 100_00 as-is.
+      | :nums_with_underscores
     ],
     piped_function_exclusions: [:subquery, :"Repo.update", ...]
   ]

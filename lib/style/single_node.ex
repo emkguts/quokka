@@ -386,7 +386,13 @@ defmodule Quokka.Style.SingleNode do
     end)
   end
 
-  defp delimit(token), do: token |> String.to_charlist() |> remove_underscores([]) |> add_underscores([])
+  defp delimit(token) do
+    if Quokka.Config.exclude_nums_with_underscores?() and String.contains?(token, "_") do
+      token
+    else
+      token |> String.to_charlist() |> remove_underscores([]) |> add_underscores([])
+    end
+  end
 
   defp remove_underscores([?_ | rest], acc), do: remove_underscores(rest, acc)
   defp remove_underscores([digit | rest], acc), do: remove_underscores(rest, [digit | acc])

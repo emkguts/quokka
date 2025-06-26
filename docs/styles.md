@@ -26,8 +26,7 @@ This addresses [`Credo.Check.Readability.LargeNumbers`](https://hexdocs.pm/credo
 Style base 10 numbers with 5 or more digits to have a `_` every three digits.
 Formatter already does this except it doesn't rewrite "typos" like `100_000_0`.
 
-If you're concerned that this breaks your team's formatting for things like "cents" (like "$100" being written as `100_00`),
-consider using a library made for denoting currencies rather than raw elixir integers.
+If you're concerned that this breaks your team's formatting for things like "cents" (like "$100" being written as `100_00`), add `:nums_with_underscores` to the `:exclude` config.
 
 | Before             | After                                                 |
 | ------------------ | ----------------------------------------------------- |

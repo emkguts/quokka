@@ -115,6 +115,7 @@ defmodule Quokka.Config do
           MapSet.new(Enum.map(lift_alias_excluded_namespaces, &String.to_atom/1) ++ @stdlib),
         lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
         line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
+        nums_with_underscores: Keyword.get(quokka_config, :exclude, []) |> Enum.member?(:nums_with_underscores),
         only_styles: quokka_config[:only] || [],
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
@@ -215,6 +216,10 @@ defmodule Quokka.Config do
 
   def line_length() do
     get(:line_length)
+  end
+
+  def exclude_nums_with_underscores?() do
+    get(:nums_with_underscores)
   end
 
   def pipe_chain_start_excluded_functions() do

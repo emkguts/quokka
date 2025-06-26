@@ -560,6 +560,16 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("0o777_7777")
     end
 
+    test "respects quokka config exclude: :nums_with_underscores" do
+      stub(Quokka.Config, :exclude_nums_with_underscores?, fn -> true end)
+      assert_style("100_00", "100_00")
+      assert_style("1_0_0_0_0", "1_0_0_0_0")
+
+      stub(Quokka.Config, :exclude_nums_with_underscores?, fn -> false end)
+      assert_style("100_00", "10_000")
+      assert_style("1_0_0_0_0", "10_000")
+    end
+
     test "respects credo config :only_greater_than" do
       stub(Quokka.Config, :large_numbers_gt, fn -> 20_000 end)
       assert_style("20000", "20000")
