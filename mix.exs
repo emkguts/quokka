@@ -51,7 +51,10 @@ defmodule Quokka.MixProject do
   defp package() do
     [
       licenses: ["Apache-2.0"],
-      links: %{"GitHub" => @url}
+      links: %{
+        "Changelog" => "#{@url}/blob/main/CHANGELOG.md",
+        "GitHub" => @url
+      }
     ]
   end
 
