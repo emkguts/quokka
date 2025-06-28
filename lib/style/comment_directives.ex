@@ -50,7 +50,7 @@ defmodule Quokka.Style.CommentDirectives do
       should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
       has_comments = has_comments_inside?(node, ctx.comments)
       is_sortable = get_node_type(node) in autosort_types
-      is_query = is_query?(node)
+      is_query = is_ecto_from_query?(node)
 
       cond do
         is_query and Enum.member?(autosort_types, :exclude_ecto) ->
@@ -66,10 +66,19 @@ defmodule Quokka.Style.CommentDirectives do
     end
   end
 
-  defp is_query?(node) do
+  defp is_ecto_from_query?(node) do
     case node do
-      {:from, _, _} -> true
-      _ -> false
+      # Matches the remote call: `Ecto.Query.from(...)`
+      {{:., _, [{:__aliases__, _, [:Ecto, :Query]}, :from]}, _, _} ->
+        true
+
+      # Matches the local call `from ...` and checks for the `in` expression
+      # to ensure it's likely an Ecto query.
+      {:from, _, [{:in, _, _} | _]} ->
+        true
+
+      _ ->
+        false
     end
   end
 
