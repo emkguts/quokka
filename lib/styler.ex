@@ -91,6 +91,8 @@ defmodule Quokka do
       ast_to_string(ast, comments, formatter_opts)
     else
       input
+      |> Code.format_string!(formatter_opts)
+      |> formatted_iodata_to_binary()
     end
   end
 
@@ -113,11 +115,13 @@ defmodule Quokka do
     opts = [{:comments, comments}, {:escape, false} | formatter_opts]
     line_length = Quokka.Config.line_length()
 
-    formatted =
-      ast
-      |> Code.quoted_to_algebra(opts)
-      |> Inspect.Algebra.format(line_length)
+    ast
+    |> Code.quoted_to_algebra(opts)
+    |> Inspect.Algebra.format(line_length)
+    |> formatted_iodata_to_binary()
+  end
 
+  defp formatted_iodata_to_binary(formatted) do
     case formatted do
       [] -> ""
       _ -> IO.iodata_to_binary([formatted, ?\n])
