@@ -57,7 +57,6 @@ in `.formatter.exs` to fine tune your setup:
   plugins: [Quokka],
   quokka: [
     autosort: [:map, :defstruct, :schema],
-    inefficient_function_rewrites: true | false,
     files: %{
       included: ["lib/", ...],
       excluded: ["lib/example.ex", ...]
@@ -96,8 +95,10 @@ in `.formatter.exs` to fine tune your setup:
       | :nums_with_underscores
       # Don't autosort anything in an Ecto query
       | :autosort_ecto
-    ],
-    piped_function_exclusions: [:subquery, :"Repo.update", ...]
+      | :inefficient_functions
+      # Don't rewrite subquery(from u in users) --> from from u in users... |> subquery()
+      | piped_functions: [:subquery, :"Repo.update", ...]
+    ]
   ]
 ]
 ```
@@ -108,9 +109,9 @@ in `.formatter.exs` to fine tune your setup:
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas based | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
 | `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) |
 | `:only` | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups. | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node]` | `[]` (all modules included) |
-| `:exclude` | Rewrites to exclude. This is filters from the `:only` list, and includes additional exclusions (`:nums_with_underscores, :autosort_ecto`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :nums_with_underscores, :autosort_ecto]` | `[]` (all rewrites included) |
-| `:inefficient_function_rewrites` | Rewrite inefficient functions to more efficient form | `true \| false` | `true` |
-| `:piped_function_exclusions` | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. | `[:subquery, :"Repo.update", ...]` | `[]` |
+| `:exclude` | Rewrites to exclude. This is filters from the `:only` list, and includes additional exclusions (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions]` | `[]` (all rewrites included) |
+| `exclude: [:inefficient_functions]` | Rewrite inefficient functions to more efficient form |  |  |
+| `exclude: [piped_functions]` | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. | `[:subquery, :"Repo.update", ...]` | `[]` |
 
 ## Credo inspired rewrites
 

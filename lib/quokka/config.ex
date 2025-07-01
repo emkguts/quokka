@@ -31,6 +31,8 @@ defmodule Quokka.Config do
   alias Quokka.Style.Pipes
   alias Quokka.Style.SingleNode
 
+  require Logger
+
   @key __MODULE__
 
   # quokka:sort
@@ -93,6 +95,33 @@ defmodule Quokka.Config do
         other -> other
       end)
 
+    inefficient_function_rewrites =
+      case Keyword.get(quokka_config, :inefficient_function_rewrites) do
+        true ->
+          Logger.warning("inefficient_function_rewrites is deprecated. Use exclude: [:inefficient_functions] instead.")
+          true
+
+        false ->
+          Logger.warning("inefficient_function_rewrites is deprecated. Use exclude: [:inefficient_functions] instead.")
+          false
+
+        nil ->
+          not (Keyword.get(quokka_config, :exclude, []) |> Enum.member?(:inefficient_functions))
+      end
+
+    piped_function_exclusions =
+      case Keyword.get(quokka_config, :piped_function_exclusions) do
+        nil ->
+          Keyword.get(quokka_config, :exclude, []) |> Keyword.get(:piped_functions, [])
+
+        exclusions ->
+          Logger.warning(
+            "piped_function_exclusions is deprecated. Use exclude: [piped_functions: [:fun1, :fun2, ...]] instead."
+          )
+
+          exclusions
+      end
+
     :persistent_term.put(
       @key,
       # quokka:sort
@@ -106,7 +135,7 @@ defmodule Quokka.Config do
         directories_included: Map.get(quokka_config[:files] || %{}, :included, []),
         elixir_version: parse_elixir_version(),
         exclude_styles: quokka_config[:exclude] || [],
-        inefficient_function_rewrites: Keyword.get(quokka_config, :inefficient_function_rewrites, true),
+        inefficient_function_rewrites: inefficient_function_rewrites,
         large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
         lift_alias: credo_opts[:lift_alias] || false,
         lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
@@ -121,7 +150,7 @@ defmodule Quokka.Config do
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
         pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
-        piped_function_exclusions: quokka_config[:piped_function_exclusions] || [],
+        piped_function_exclusions: piped_function_exclusions,
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
         sort_order: credo_opts[:sort_order] || :alpha,

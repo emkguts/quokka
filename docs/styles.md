@@ -39,7 +39,7 @@ If you're concerned that this breaks your team's formatting for things like "cen
 
 ## Efficient Function Rewrites
 
-All these rewrites are configurable by setting the `:inefficient_function_rewrites` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.
+All these rewrites are configurable by setting the `exclude: [:inefficient_functions]` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.
 
 ### Empty enum checks
 
