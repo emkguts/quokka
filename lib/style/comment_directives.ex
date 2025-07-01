@@ -53,7 +53,7 @@ defmodule Quokka.Style.CommentDirectives do
       is_query = is_ecto_from_query?(node)
 
       cond do
-        is_query and Enum.member?(autosort_types, :exclude_ecto) ->
+        is_query and Quokka.Config.autosort_exclude_ecto?() ->
           {:skip, zipper, %{ctx | comments: comments}}
 
         should_skip || has_comments || !is_sortable ->

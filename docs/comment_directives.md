@@ -68,9 +68,9 @@ autosort: [:map, schema: [:field, :belongs_to]]
 
 The default order is: `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]`.
 
-Quokka will skip sorting entities that have comments inside them and entities within Ecto queries, since order can be important in this context. Sorting can still be forced with `# quokka:sort`. Finally, when `autosort` is enabled, a specific entity can be skipped by adding `# quokka:skip-sort` on the line above it.
+Quokka will skip sorting entities that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `autosort` is enabled, a specific entity can be skipped by adding `# quokka:skip-sort` on the line above it.
 
-Sorting within Ecto queries can be disabled by specifying `autosort: [:exclude_ecto]`. If your codebase makes use of `union` queries, this option may be desirable, since `union` matches on position and not on name.
+Sorting within Ecto queries can be disabled by specifying `exclude: [:autosort_ecto]`. If your codebase makes use of `union` queries, this option may be desirable, since `union` matches on position and not on name.
 
 **Note on Ecto Query Detection**: Quokka uses pattern matching to identify Ecto queries and will skip autosorting maps within:
 - Remote calls to `Ecto.Query.from(...)`

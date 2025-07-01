@@ -295,7 +295,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "skips autosort for ecto queries" do
-      Mimic.stub(Quokka.Config, :autosort, fn -> [:map, :exclude_ecto] end)
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+      Mimic.stub(Quokka.Config, :autosort_exclude_ecto?, fn -> true end)
 
       assert_style("""
       defmodule Example do
@@ -329,7 +330,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "skips autosort for remote Ecto.Query.from calls" do
-      Mimic.stub(Quokka.Config, :autosort, fn -> [:map, :exclude_ecto] end)
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+      Mimic.stub(Quokka.Config, :autosort_exclude_ecto?, fn -> true end)
 
       # Should not sort maps in remote Ecto.Query.from calls
       assert_style("""
@@ -348,7 +350,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "does not skip autosort for non-Ecto from functions" do
-      Mimic.stub(Quokka.Config, :autosort, fn -> [:map, :exclude_ecto] end)
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+      Mimic.stub(Quokka.Config, :autosort_exclude_ecto?, fn -> true end)
 
       # Should sort maps in non-Ecto from functions (false positive prevention)
       assert_style(
@@ -392,7 +395,8 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "correctly identifies Ecto queries with various patterns" do
-      Mimic.stub(Quokka.Config, :autosort, fn -> [:map, :exclude_ecto] end)
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+      Mimic.stub(Quokka.Config, :autosort_exclude_ecto?, fn -> true end)
 
       # Should not sort - standard Ecto query with 'in' clause
       assert_style("""

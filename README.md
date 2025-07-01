@@ -94,6 +94,8 @@ in `.formatter.exs` to fine tune your setup:
       | :single_node
       # Don't re-underscore large numbers with underscores. Ie, leave 100_00 as-is.
       | :nums_with_underscores
+      # Don't autosort anything in an Ecto query
+      | :autosort_ecto
     ],
     piped_function_exclusions: [:subquery, :"Repo.update", ...]
   ]

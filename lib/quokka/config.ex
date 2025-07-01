@@ -98,6 +98,7 @@ defmodule Quokka.Config do
       # quokka:sort
       %{
         autosort: autosort,
+        autosort_exclude_ecto: quokka_config |> Keyword.get(:exclude, []) |> Enum.member?(:autosort_ecto),
         autosort_schema_order: autosort_schema_order,
         block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
@@ -172,6 +173,10 @@ defmodule Quokka.Config do
 
   def autosort_schema_order() do
     get(:autosort_schema_order)
+  end
+
+  def autosort_exclude_ecto?() do
+    get(:autosort_exclude_ecto)
   end
 
   def block_pipe_flag?() do
