@@ -39,9 +39,9 @@ defmodule Quokka.Style.SingleNode do
     do: {:skip, zipper, ctx}
 
   # Skip expensive empty enum check rewrites when inside guard clauses
-  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===] do
+  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===, :!=] do
     if in_guard?(zipper) do
-      {:cont, zipper, ctx}
+      {:cont, {style_guard(node), meta}, ctx}
     else
       {:cont, {style(node), meta}, ctx}
     end
@@ -460,6 +460,29 @@ defmodule Quokka.Style.SingleNode do
   defp add_underscores([a, b, c, d | rest], acc), do: add_underscores([d | rest], [?_, c, b, a | acc])
 
   defp add_underscores(reversed_list, acc), do: reversed_list |> Enum.reverse(acc) |> to_string()
+
+  # Guard-specific rewrites for length/1 comparisons
+  # length(enum) == 0 => enum == []
+  defp style_guard({:==, m, [{:length, _, [enum]}, {:__block__, _, [0]}]}), do: {:==, m, [enum, {:__block__, m, [[]]}]}
+
+  defp style_guard({:==, m, [{:__block__, _, [0]}, {:length, _, [enum]}]}), do: {:==, m, [{:__block__, m, [[]]}, enum]}
+
+  # length(enum) != 0 => is_list(enum) and enum != []
+  defp style_guard({:!=, m, [{:length, _, [enum]}, {:__block__, _, [0]}]}),
+    do: {:and, m, [{:is_list, m, [enum]}, {:!=, m, [enum, {:__block__, m, [[]]}]}]}
+
+  defp style_guard({:!=, m, [{:__block__, _, [0]}, {:length, _, [enum]}]}),
+    do: {:and, m, [{:is_list, m, [enum]}, {:!=, m, [{:__block__, m, [[]]}, enum]}]}
+
+  # length(enum) > 0 => is_list(enum) and enum != []
+  defp style_guard({:>, m, [{:length, _, [enum]}, {:__block__, _, [0]}]}),
+    do: {:and, m, [{:is_list, m, [enum]}, {:!=, m, [enum, {:__block__, m, [[]]}]}]}
+
+  defp style_guard({:<, m, [{:__block__, _, [0]}, {:length, _, [enum]}]}),
+    do: {:and, m, [{:is_list, m, [enum]}, {:!=, m, [{:__block__, m, [[]]}, enum]}]}
+
+  # Fallback - no transformation
+  defp style_guard(node), do: node
 
   # Check if the current node is inside a guard clause
   defp in_guard?(zipper) do

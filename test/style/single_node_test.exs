@@ -155,7 +155,7 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("MyModule.Enum.count(foo, &my_fn/1) == 0", "MyModule.Enum.count(foo, &my_fn/1) == 0")
     end
 
-    test "does not monkey with length in guards" do
+    test "rewrites length in guards to guard-friendly expressions" do
       assert_style(
         """
         defmodule MyModule do
@@ -172,12 +172,12 @@ defmodule Quokka.Style.SingleNodeTest do
         """,
         """
         defmodule MyModule do
-          def foo(bar) when length(bar) == 0 do
+          def foo(bar) when bar == [] do
             :ok
           end
 
           defmodule Nested do
-            def baz(bop) when length(bop) > 0 do
+            def baz(bop) when is_list(bop) and bop != [] do
               :ok
             end
           end
@@ -186,17 +186,31 @@ defmodule Quokka.Style.SingleNodeTest do
       )
 
       # Function guards with length
-      assert_style("""
-      def foo(list) when length(list) > 0 do
-        :ok
-      end
-      """)
+      assert_style(
+        """
+        def foo(list) when length(list) > 0 do
+          :ok
+        end
+        """,
+        """
+        def foo(list) when is_list(list) and list != [] do
+          :ok
+        end
+        """
+      )
 
-      assert_style("""
-      defp bar(items) when is_list(items) and length(items) > 0 do
-        :ok
-      end
-      """)
+      assert_style(
+        """
+        defp bar(items) when is_list(items) and length(items) > 0 do
+          :ok
+        end
+        """,
+        """
+        defp bar(items) when is_list(items) and (is_list(items) and items != []) do
+          :ok
+        end
+        """
+      )
 
       # Function guards with Enum.count
       assert_style("""
@@ -206,26 +220,90 @@ defmodule Quokka.Style.SingleNodeTest do
       """)
 
       # Case statement guards
-      assert_style("""
-      case list do
-        items when length(items) > 0 -> :has_items
-        _ -> :empty
-      end
-      """)
+      assert_style(
+        """
+        case list do
+          items when length(items) > 0 -> :has_items
+          _ -> :empty
+        end
+        """,
+        """
+        case list do
+          items when is_list(items) and items != [] -> :has_items
+          _ -> :empty
+        end
+        """
+      )
 
       # Multiple guard conditions
-      assert_style("""
-      def process(data) when is_list(data) and length(data) == 0 do
-        :empty_list
-      end
-      """)
+      assert_style(
+        """
+        def process(data) when is_list(data) and length(data) == 0 do
+          :empty_list
+        end
+        """,
+        """
+        def process(data) when is_list(data) and data == [] do
+          :empty_list
+        end
+        """
+      )
 
       # Guards with < operator
-      assert_style("""
-      def validate(items) when 0 < length(items) do
-        :valid
-      end
-      """)
+      assert_style(
+        """
+        def validate(items) when 0 < length(items) do
+          :valid
+        end
+        """,
+        """
+        def validate(items) when is_list(items) and [] != items do
+          :valid
+        end
+        """
+      )
+
+      # Test length(enum) != 0 in guards
+      assert_style(
+        """
+        def process(data) when length(data) != 0 do
+          :non_empty
+        end
+        """,
+        """
+        def process(data) when is_list(data) and data != [] do
+          :non_empty
+        end
+        """
+      )
+
+      # Test 0 != length(enum) in guards  
+      assert_style(
+        """
+        def process(data) when 0 != length(data) do
+          :non_empty
+        end
+        """,
+        """
+        def process(data) when is_list(data) and [] != data do
+          :non_empty
+        end
+        """
+      )
+
+      # Test 0 == length(enum) in guards
+      assert_style(
+        """
+        def process(data) when 0 == length(data) do
+          :empty
+        end
+        """,
+        """
+        def process(data) when [] == data do
+          :empty
+        end
+        """
+      )
     end
 
     test "rewrites length/count checks outside guard clauses" do
@@ -264,7 +342,7 @@ defmodule Quokka.Style.SingleNodeTest do
         """,
         """
         defmodule MyModule do
-          def foo(list) when length(list) > 0 do
+          def foo(list) when is_list(list) and list != [] do
             perform_side_effect(list)
 
             if not Enum.empty?(list) do
@@ -279,14 +357,15 @@ defmodule Quokka.Style.SingleNodeTest do
           end
 
           def whiz(a, b, c, d, e)
-              when (length(a) > 0 and is_list(b)) or (is_list(c) and length(c) > 0) or (is_map(d) and length(e) == 3) do
+              when (is_list(a) and a != [] and is_list(b)) or (is_list(c) and (is_list(c) and c != [])) or
+                     (is_map(d) and length(e) == 3) do
             if not Enum.empty?(bop) do
               :ok
             end
           end
 
           defmodule Nested do
-            def bar(list) when length(list) == 0 do
+            def bar(list) when list == [] do
               if Enum.empty?(list) do
                 :ok
               end
