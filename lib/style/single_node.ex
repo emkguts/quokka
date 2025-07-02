@@ -212,6 +212,15 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # assert Repo.one(query) => assert Repo.exists?(query)
+  defp style({:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
+      {:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}
+    else
+      node
+    end
+  end
+
   # `Credo.Check.Readability.PreferImplicitTry`
   defp style({def, dm, [head, [{_, {:try, _, [try_children]}}]]}) when def in ~w(def defp)a,
     do: style({def, dm, [head, try_children]})
@@ -276,7 +285,10 @@ defmodule Quokka.Style.SingleNode do
   @pipe_to_count_pattern quote do: {:|>, var!(pm), [var!(lhs), {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, []}]}
   @pipe_to_count_with_fn_pattern quote do:
                                          {:|>, var!(pm),
-                                          [var!(lhs), {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(func)]}]}
+                                          [
+                                            var!(lhs),
+                                            {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(func)]}
+                                          ]}
 
   for {lhs, rhs} <- [
         # foo |> bar() |> length() == 0 => foo |> bar() |> Enum.empty?()

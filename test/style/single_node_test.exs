@@ -277,7 +277,7 @@ defmodule Quokka.Style.SingleNodeTest do
         """
       )
 
-      # Test 0 != length(enum) in guards  
+      # Test 0 != length(enum) in guards
       assert_style(
         """
         def process(data) when 0 != length(data) do
@@ -757,6 +757,55 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style "to_timeout(hour: n * m)"
       assert_style "to_timeout(whatever)"
       assert_style "to_timeout(hour: 24 * 1, second: 60 * 4)"
+    end
+  end
+
+  describe "assert Repo.one/1 rewrites" do
+    test "rewrites Repo.one in assertions to Repo.exists?" do
+      # Make sure legitimate comparisons are not rewritten
+      assert_style("assert Repo.one(query) == %{some: :struct}")
+
+      assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
+      assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
+
+      assert_style(
+        "assert DB.Repo.one(from(u in User, where: u.active))",
+        "assert DB.Repo.exists?(from(u in User, where: u.active))"
+      )
+    end
+
+    test "preserves arguments and complex queries" do
+      assert_style(
+        "assert Repo.one(from(u in User, where: u.id == ^id, select: u.id))",
+        "assert Repo.exists?(from(u in User, where: u.id == ^id, select: u.id))"
+      )
+
+      assert_style(
+        "assert MyApp.Repo.one(query, timeout: 5000)",
+        "assert MyApp.Repo.exists?(query, timeout: 5000)"
+      )
+    end
+
+    test "does not rewrite non-Repo modules ending in different names" do
+      assert_style("assert User.one(query)")
+      assert_style("assert MyModule.one(query)")
+      assert_style("assert Enum.one(query)")
+    end
+
+    test "does not rewrite non-assert contexts" do
+      assert_style("Repo.one(query)")
+      assert_style("refute Repo.one(query)")
+      assert_style("if Repo.one(query), do: :ok")
+    end
+
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+      assert_style("assert Repo.one(query)")
+      assert_style("assert MyApp.Repo.one(query)")
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+      assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
+      assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
     end
   end
 end
