@@ -77,6 +77,7 @@ defmodule Quokka.MixProject do
         "docs/module_directives.md": [title: "Module Directives (use, alias, ...)"],
         "docs/pipes.md": [title: "Pipe Chains"],
         "docs/styles.md": [title: "Basic Styles"],
+        "docs/tests.md": [title: "Test Styling"],
         "README.md": [title: "Quokka"],
         LICENSE: [title: "License"]
       ]

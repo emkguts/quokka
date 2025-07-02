@@ -25,7 +25,7 @@ defmodule Quokka.ConfigTest do
     assert Configs in Quokka.Config.get_styles()
 
     # Check that the excluded config is not present
-    assert Deprecations not in Quokka.Config.get_styles()
+    refute Deprecations in Quokka.Config.get_styles()
   end
 
   test "respects the `:only` and `:exclude` configuration" do

@@ -81,6 +81,8 @@ in `.formatter.exs` to fine tune your setup:
       # Inefficient function rewrites, large numbers get underscores, etc.
       # Basically anything that doesn't fit into the categories above
       | :single_node
+      # Rewrites test assertions to be more efficient and idiomatic
+      | :tests
     ],
     exclude: [
       :blocks
@@ -91,6 +93,7 @@ in `.formatter.exs` to fine tune your setup:
       | :module_directives
       | :pipes
       | :single_node
+      | :tests
       # Don't re-underscore large numbers with underscores. Ie, leave 100_00 as-is.
       | :nums_with_underscores
       # Don't autosort anything in an Ecto query
@@ -108,8 +111,8 @@ in `.formatter.exs` to fine tune your setup:
 | `:autosort` | Sort all maps and/or defstructs in your codebase. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. | `:map, :defstruct, :schema` | `[]` |
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
 | `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |
-| `:only` | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups. | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node]` | `[]` (all modules included) |
-| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions]` | `[]` (all rewrites included) |
+| `:only` | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups. | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests]` | `[]` (all modules included) |
+| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions]` | `[]` (all rewrites included) |
 | `exclude: [:inefficient_functions]` | Rewrite inefficient functions to more efficient form |  |  |
 | `exclude: [piped_functions]` | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. | `[:subquery, :"Repo.update", ...]` | `[]` |
 
@@ -183,6 +186,14 @@ the check can be configured further for fine tuning.
 | [`.ExpensiveEmptyEnumCheck`](https://hexdocs.pm/credo/Credo.Check.Warning.ExpensiveEmptyEnumCheck.html)      | Rewrites slow checks of enum emptiness          | [Styles](docs/styles.md#empty-enum-checks)                  |              |
 
 <!-- tabs-close -->
+
+## Additional Quokka Rewrites
+
+Beyond Credo-inspired checks, Quokka provides additional style improvements:
+
+| Feature | Description | Documentation |
+|---------|-------------|---------------|
+| Test Styling | Rewrites tests to be efficent and idiomatic | [Test Assertions](docs/tests.md) |
 
 ## License
 

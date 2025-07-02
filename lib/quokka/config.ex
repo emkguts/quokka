@@ -30,6 +30,7 @@ defmodule Quokka.Config do
   alias Quokka.Style.ModuleDirectives
   alias Quokka.Style.Pipes
   alias Quokka.Style.SingleNode
+  alias Quokka.Style.Tests
 
   require Logger
 
@@ -44,7 +45,8 @@ defmodule Quokka.Config do
     deprecations: Deprecations,
     module_directives: ModuleDirectives,
     pipes: Pipes,
-    single_node: SingleNode
+    single_node: SingleNode,
+    tests: Tests
   }
 
   @stdlib ~w(
