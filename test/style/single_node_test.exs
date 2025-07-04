@@ -795,7 +795,7 @@ defmodule Quokka.Style.SingleNodeTest do
     test "does not rewrite non-assert contexts" do
       assert_style("Repo.one(query)")
       assert_style("refute Repo.one(query)")
-      assert_style("if Repo.one(query), do: :ok")
+      assert_style("if Repo.one(query), do: :ok", "if Repo.exists?(query), do: :ok")
     end
 
     test "respects inefficient_functions config" do
@@ -806,6 +806,306 @@ defmodule Quokka.Style.SingleNodeTest do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
       assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
       assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
+    end
+  end
+
+  describe "conditional Repo.one/1 rewrites" do
+    test "rewrites Repo.one in if statements" do
+      assert_style(
+        """
+        if Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if MyApp.Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if MyApp.Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if DB.Repo.one(from(u in User, where: u.active)) do
+          :ok
+        end
+        """,
+        """
+        if DB.Repo.exists?(from(u in User, where: u.active)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "rewrites Repo.one in unless statements" do
+      assert_style(
+        """
+        unless Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if !Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless MyApp.Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless DB.Repo.one(from(u in User, where: u.active)) do
+          :ok
+        end
+        """,
+        """
+        if !DB.Repo.exists?(from(u in User, where: u.active)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "rewrites Repo.one in complex conditional expressions" do
+      assert_style(
+        """
+        if Repo.one(query) && other_condition do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(query) && other_condition do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if other_condition || Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if other_condition || Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless !Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "preserves arguments and complex queries in conditionals" do
+      assert_style(
+        """
+        if Repo.one(from(u in User, where: u.id == ^id, select: u.id)) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(u in User, where: u.id == ^id, select: u.id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless MyApp.Repo.one(query, timeout: 5000) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.exists?(query, timeout: 5000) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "does not rewrite non-Repo modules in conditionals" do
+      assert_style("""
+      if User.one(query) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Enum.one(query) do
+        :ok
+      end
+      """)
+    end
+
+    test "respects inefficient_functions config for conditionals" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      assert_style("""
+      if Repo.one(query) do
+        :ok
+      end
+      """)
+
+      assert_style(
+        """
+        unless MyApp.Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.one(query) do
+          :ok
+        end
+        """
+      )
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        if Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless MyApp.Repo.one(query) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.exists?(query) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "handles multiple Repo.one calls in conditionals" do
+      assert_style(
+        """
+        if Repo.one(query1) && Repo.one(query2) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(query1) && Repo.exists?(query2) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless Repo.one(query1) || MyApp.Repo.one(query2) do
+          :ok
+        end
+        """,
+        """
+        if !(Repo.exists?(query1) || MyApp.Repo.exists?(query2)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "handles piped Repo.one calls in conditionals" do
+      assert_style(
+        """
+        if from(stuff) |> Repo.one() do
+          :ok
+        end
+        """,
+        """
+        if from(stuff) |> Repo.exists?() do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if query |> MyApp.Repo.one() do
+          :ok
+        end
+        """,
+        """
+        if query |> MyApp.Repo.exists?() do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000) do
+          :ok
+        end
+        """,
+        """
+        if from(u in User, where: u.active) |> DB.Repo.exists?(timeout: 5000) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if query |> transform() |> Repo.one() && other_condition do
+          :ok
+        end
+        """,
+        """
+        if query |> transform() |> Repo.exists?() && other_condition do
+          :ok
+        end
+        """
+      )
     end
   end
 end
