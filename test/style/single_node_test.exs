@@ -798,6 +798,29 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("if Repo.one(query), do: :ok", "if Repo.exists?(query), do: :ok")
     end
 
+    test "handles piped Repo.one calls in assertions" do
+      assert_style(
+        "assert from(stuff) |> Repo.one()",
+        "assert from(stuff) |> Repo.exists?()"
+      )
+
+      assert_style(
+        "assert query |> MyApp.Repo.one()",
+        "assert query |> MyApp.Repo.exists?()"
+      )
+
+      assert_style(
+        "assert from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000)",
+        "assert from(u in User, where: u.active) |> DB.Repo.exists?(timeout: 5000)"
+      )
+
+      # Complex piped expressions
+      assert_style(
+        "assert query |> transform() |> Repo.one()",
+        "assert query |> transform() |> Repo.exists?()"
+      )
+    end
+
     test "respects inefficient_functions config" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
       assert_style("assert Repo.one(query)")
