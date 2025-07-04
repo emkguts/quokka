@@ -274,6 +274,26 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # assert Repo.get(Schema, id) => assert Repo.exists?(from(s in Schema, where: s.id == ^id))
+  defp style({:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :get]}, funm, [schema, id | rest]}]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
+      query = build_from_query(schema, id)
+      {:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, [query | rest]}]}
+    else
+      node
+    end
+  end
+
+  # refute Repo.get(Schema, id) => refute Repo.exists?(from(s in Schema, where: s.id == ^id))
+  defp style({:refute, rm, [{{:., dm, [{:__aliases__, alias_meta, modules}, :get]}, funm, [schema, id | rest]}]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
+      query = build_from_query(schema, id)
+      {:refute, rm, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, [query | rest]}]}
+    else
+      node
+    end
+  end
+
   # `Credo.Check.Readability.PreferImplicitTry`
   defp style({def, dm, [head, [{_, {:try, _, [try_children]}}]]}) when def in ~w(def defp)a,
     do: style({def, dm, [head, try_children]})
@@ -487,9 +507,71 @@ defmodule Quokka.Style.SingleNode do
           node
         end
 
+      {{:., dm, [{:__aliases__, alias_metadata, modules}, :get]}, function_metadata, [schema, id | rest]} = node ->
+        if List.last(modules) == :Repo do
+          query = build_from_query(schema, id)
+          {{:., dm, [{:__aliases__, alias_metadata, modules}, :exists?]}, function_metadata, [query | rest]}
+        else
+          node
+        end
+
       node ->
         node
     end)
+  end
+
+  # Helper function to build Ecto query from Repo.get(Schema, id) to from(s in Schema, where: s.id == ^id)
+  defp build_from_query(schema, id) do
+    var_name = schema_to_variable_name(schema)
+
+    line =
+      case id do
+        {_, meta, _} when is_list(meta) -> meta[:line] || 1
+        _ -> 1
+      end
+
+    # Build the AST for: from(var in Schema, where: var.id == ^id)
+    {:from, [closing: [line: line], line: line],
+     [
+       {:in, [line: line], [add_line_meta(var_name, line), schema]},
+       [
+         {
+           {:__block__, [format: :keyword, line: line], [:where]},
+           {:==, [line: line],
+            [
+              {{:., [line: line], [add_line_meta(var_name, line), :id]}, [no_parens: true, line: line], []},
+              build_pin_expression(id, line)
+            ]}
+         }
+       ]
+     ]}
+  end
+
+  # Build pin expression handling both variables and literals
+  defp build_pin_expression({:__block__, _, [literal]}, line) when is_binary(literal) do
+    # For string literals, don't pin them
+    {:__block__, [delimiter: "\"", line: line], [literal]}
+  end
+
+  defp build_pin_expression(id, line) do
+    # For variables and other expressions, pin them
+    {:^, [line: line], [id]}
+  end
+
+  # Add line metadata to a variable node
+  defp add_line_meta({var, meta, context}, line) do
+    {var, [{:line, line} | meta], context}
+  end
+
+  # Convert schema module name to variable name (e.g., Post -> p, User -> u)
+  defp schema_to_variable_name({:__aliases__, _, modules}) do
+    module_name = List.last(modules)
+    schema_to_variable_name(module_name)
+  end
+
+  defp schema_to_variable_name(schema) when is_atom(schema) do
+    var_name = schema |> Atom.to_string() |> String.downcase() |> String.at(0) |> String.to_atom()
+    {var_name, [], nil}
   end
 
   defp replace_into({:., dm, [{_, am, _} = enum, _]}, collectable, rest) do

@@ -1188,4 +1188,396 @@ defmodule Quokka.Style.SingleNodeTest do
       )
     end
   end
+
+  describe "assert Repo.get/3 rewrites" do
+    test "rewrites Repo.get in assertions to Repo.exists?" do
+      # Make sure legitimate comparisons are not rewritten
+      assert_style("assert Repo.get(Post, id) == %{some: :struct}")
+      assert_style("assert %Post{id: ^id} = Repo.get(Post, id)")
+      assert_style("assert Repo.get(Post, id) |> Map.get(:my_key)")
+      assert_style("assert Repo.get(Post, id).some_field")
+
+      assert_style("assert Repo.get(Post, id)", "assert Repo.exists?(from(p in Post, where: p.id == ^id))")
+      assert_style("assert MyApp.Repo.get(Post, id)", "assert MyApp.Repo.exists?(from(p in Post, where: p.id == ^id))")
+
+      assert_style(
+        "assert DB.Repo.get(User, id, prefix: :foo)",
+        "assert DB.Repo.exists?(from(u in User, where: u.id == ^id), prefix: :foo)"
+      )
+    end
+
+    test "preserves arguments and complex queries" do
+      assert_style(
+        "assert Repo.get(User, \"abc-123\" <> some_binary)",
+        "assert Repo.exists?(from(u in User, where: u.id == ^(\"abc-123\" <> some_binary)))"
+      )
+
+      assert_style(
+        "assert Repo.get(User, \"abc-123\", prefix: :foo)",
+        "assert Repo.exists?(from(u in User, where: u.id == \"abc-123\"), prefix: :foo)"
+      )
+
+      assert_style(
+        "assert MyApp.Repo.get(User, \"abc-123\", timeout: 5000, prefix: :foo)",
+        "assert MyApp.Repo.exists?(from(u in User, where: u.id == \"abc-123\"), timeout: 5000, prefix: :foo)"
+      )
+    end
+
+    test "does not rewrite non-Repo modules ending in different names" do
+      assert_style("assert User.get(Post)")
+      assert_style("assert User.get(Post, id)")
+      assert_style("assert User.get(Post, \"abc-123\")")
+      assert_style("assert User.get(Post, \"abc-123\", timeout: 5000)")
+      assert_style("assert MyModule.get(Post)")
+      assert_style("assert MyModule.get(Post, id)")
+      assert_style("assert MyModule.get(Post, \"abc-123\", timeout: 5000)")
+      assert_style("assert Enum.get(Post, id)")
+      assert_style("assert Enum.get(Post, \"abc-123\", timeout: 5000)")
+    end
+
+    test "does not rewrite non-assert/refute contexts" do
+      assert_style("Repo.get(Post, id)")
+      assert_style("thing = Repo.get(Post, id)")
+    end
+
+    test "handles piped Repo.get calls in assertions" do
+      # If someone tries to pipe a query into Repo.get, it should remain unchanged.
+      # Piped Repo.get calls are not common in practice since Repo.get takes 2-3 args
+      # These tests verify the system doesn't break if someone pipes into Repo.get
+      assert_style("assert Post |> Repo.get(id)")
+      assert_style("assert Post |> MyApp.Repo.get(id)")
+      assert_style("assert Post |> DB.Repo.get(id, timeout: 5000)")
+      assert_style("assert query |> transform() |> Repo.get(id)")
+    end
+
+    test "rewrites Repo.get in refute statements to Repo.exists?" do
+      # Make sure legitimate comparisons are not rewritten
+      assert_style("refute Repo.get(Post, id) |> Map.get(:my_key)")
+      assert_style("refute Repo.get(Post, id).some_field")
+
+      assert_style("refute Repo.get(Post, id)", "refute Repo.exists?(from(p in Post, where: p.id == ^id))")
+      assert_style("refute MyApp.Repo.get(Post, id)", "refute MyApp.Repo.exists?(from(p in Post, where: p.id == ^id))")
+
+      assert_style(
+        "refute DB.Repo.get(User, id)",
+        "refute DB.Repo.exists?(from(u in User, where: u.id == ^id))"
+      )
+
+      # Preserves arguments and complex queries
+      assert_style(
+        "refute Repo.get(User, \"abc-123\")",
+        "refute Repo.exists?(from(u in User, where: u.id == \"abc-123\"))"
+      )
+
+      assert_style(
+        "refute MyApp.Repo.get(User, id, timeout: 5000)",
+        "refute MyApp.Repo.exists?(from(u in User, where: u.id == ^id), timeout: 5000)"
+      )
+    end
+
+    test "handles piped Repo.get calls in refute statements" do
+      # If someone tries to pipe a query into Repo.get, it should remain unchanged.
+      # Piped Repo.get calls are not common in practice since Repo.get takes 2-3 args
+      # These tests verify the system doesn't break if someone pipes into Repo.get
+      assert_style("refute Post |> Repo.get(id)")
+      assert_style("refute Post |> MyApp.Repo.get(id)")
+      assert_style("refute Post |> DB.Repo.get(id, timeout: 5000)")
+      assert_style("refute query |> transform() |> Repo.get(id)")
+    end
+
+    test "does not rewrite non-Repo modules in refute statements" do
+      assert_style("refute User.get(Post, id)")
+      assert_style("refute MyModule.get(Post, id)")
+      assert_style("refute Enum.get(Post, id)")
+    end
+
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+      assert_style("assert Repo.get(Post, id)")
+      assert_style("assert MyApp.Repo.get(Post, id, timeout: 5000)")
+      assert_style("refute Repo.get(Post, id)")
+      assert_style("refute MyApp.Repo.get(Post, id)")
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+      assert_style("assert Repo.get(Post, id)", "assert Repo.exists?(from(p in Post, where: p.id == ^id))")
+      assert_style("assert MyApp.Repo.get(Post, id)", "assert MyApp.Repo.exists?(from(p in Post, where: p.id == ^id))")
+      assert_style("refute Repo.get(Post, id)", "refute Repo.exists?(from(p in Post, where: p.id == ^id))")
+      assert_style("refute MyApp.Repo.get(Post, id)", "refute MyApp.Repo.exists?(from(p in Post, where: p.id == ^id))")
+    end
+  end
+
+  describe "conditional Repo.get/3 rewrites" do
+    test "rewrites Repo.get in if statements" do
+      assert_style(
+        """
+        if Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if MyApp.Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if MyApp.Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if DB.Repo.get(User, id) do
+          :ok
+        end
+        """,
+        """
+        if DB.Repo.exists?(from(u in User, where: u.id == ^id)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "rewrites Repo.get in unless statements" do
+      assert_style(
+        """
+        unless Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if !Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless MyApp.Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless DB.Repo.get(User, id) do
+          :ok
+        end
+        """,
+        """
+        if !DB.Repo.exists?(from(u in User, where: u.id == ^id)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "rewrites Repo.get in complex conditional expressions" do
+      assert_style(
+        """
+        if Repo.get(Post, id) && other_condition do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(p in Post, where: p.id == ^id)) && other_condition do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        if other_condition || Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if other_condition || Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless !Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "preserves arguments and complex queries in conditionals" do
+      assert_style(
+        """
+        if Repo.get(User, id, prefix: :foo) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(u in User, where: u.id == ^id), prefix: :foo) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless MyApp.Repo.get(User, id, timeout: 5000) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.exists?(from(u in User, where: u.id == ^id), timeout: 5000) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "does not rewrite non-Repo modules in conditionals" do
+      assert_style("""
+      if User.get(Post, id) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Enum.get(Post, id) do
+        :ok
+      end
+      """)
+    end
+
+    test "respects inefficient_functions config for conditionals" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      assert_style("""
+      if Repo.get(Post, id) do
+        :ok
+      end
+      """)
+
+      assert_style(
+        """
+        unless MyApp.Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.get(Post, id) do
+          :ok
+        end
+        """
+      )
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        if Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless MyApp.Repo.get(Post, id) do
+          :ok
+        end
+        """,
+        """
+        if !MyApp.Repo.exists?(from(p in Post, where: p.id == ^id)) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "handles multiple Repo.get calls in conditionals" do
+      assert_style(
+        """
+        if Repo.get(Post, id1) && Repo.get(User, id2) do
+          :ok
+        end
+        """,
+        """
+        if Repo.exists?(from(p in Post, where: p.id == ^id1)) && Repo.exists?(from(u in User, where: u.id == ^id2)) do
+          :ok
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless Repo.get(Post, id1) || MyApp.Repo.get(User, id2) do
+          :ok
+        end
+        """,
+        """
+        if !(Repo.exists?(from(p in Post, where: p.id == ^id1)) || MyApp.Repo.exists?(from(u in User, where: u.id == ^id2))) do
+          :ok
+        end
+        """
+      )
+    end
+
+    test "handles piped Repo.get calls in conditionals" do
+      # Note: Piped Repo.get calls are not common in practice since Repo.get takes 2-3 args
+      # These tests verify the system doesn't break if someone pipes into Repo.get
+      # Since piped calls to Repo.get are unusual, they should remain unchanged
+      assert_style("""
+      if Post |> Repo.get(id) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if User |> MyApp.Repo.get(id) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Post |> DB.Repo.get(id) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if query |> transform() |> Repo.get(id) && other_condition do
+        :ok
+      end
+      """)
+    end
+  end
 end
