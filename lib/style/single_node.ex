@@ -233,6 +233,27 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # refute Repo.one(query) => refute Repo.exists?(query)
+  defp style({:refute, rm, [{{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
+      {:refute, rm, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}
+    else
+      node
+    end
+  end
+
+  # refute query |> Repo.one() => refute query |> Repo.exists?()
+  defp style(
+         {:refute, rm, [{:|>, pipe_meta, [lhs, {{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]}]} =
+           node
+       ) do
+    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
+      {:refute, rm, [{:|>, pipe_meta, [lhs, {{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}]}
+    else
+      node
+    end
+  end
+
   # if Repo.one(query) do => if Repo.exists?(query) do
   defp style({:if, im, [condition, body]} = node) do
     if Quokka.Config.inefficient_function_rewrites?() do

@@ -792,10 +792,9 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("assert Enum.one(query)")
     end
 
-    test "does not rewrite non-assert contexts" do
+    test "does not rewrite non-assert/refute contexts" do
       assert_style("Repo.one(query)")
-      assert_style("refute Repo.one(query)")
-      assert_style("if Repo.one(query), do: :ok", "if Repo.exists?(query), do: :ok")
+      assert_style("thing = Repo.one(query)")
     end
 
     test "handles piped Repo.one calls in assertions" do
@@ -821,14 +820,68 @@ defmodule Quokka.Style.SingleNodeTest do
       )
     end
 
+    test "rewrites Repo.one in refute statements to Repo.exists?" do
+      assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
+      assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
+
+      assert_style(
+        "refute DB.Repo.one(from(u in User, where: u.active))",
+        "refute DB.Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      # Preserves arguments and complex queries
+      assert_style(
+        "refute Repo.one(from(u in User, where: u.id == ^id, select: u.id))",
+        "refute Repo.exists?(from(u in User, where: u.id == ^id, select: u.id))"
+      )
+
+      assert_style(
+        "refute MyApp.Repo.one(query, timeout: 5000)",
+        "refute MyApp.Repo.exists?(query, timeout: 5000)"
+      )
+    end
+
+    test "handles piped Repo.one calls in refute statements" do
+      assert_style(
+        "refute from(stuff) |> Repo.one()",
+        "refute from(stuff) |> Repo.exists?()"
+      )
+
+      assert_style(
+        "refute query |> MyApp.Repo.one()",
+        "refute query |> MyApp.Repo.exists?()"
+      )
+
+      assert_style(
+        "refute from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000)",
+        "refute from(u in User, where: u.active) |> DB.Repo.exists?(timeout: 5000)"
+      )
+
+      # Complex piped expressions
+      assert_style(
+        "refute query |> transform() |> Repo.one()",
+        "refute query |> transform() |> Repo.exists?()"
+      )
+    end
+
+    test "does not rewrite non-Repo modules in refute statements" do
+      assert_style("refute User.one(query)")
+      assert_style("refute MyModule.one(query)")
+      assert_style("refute Enum.one(query)")
+    end
+
     test "respects inefficient_functions config" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
       assert_style("assert Repo.one(query)")
       assert_style("assert MyApp.Repo.one(query)")
+      assert_style("refute Repo.one(query)")
+      assert_style("refute MyApp.Repo.one(query)")
 
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
       assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
       assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
+      assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
+      assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
     end
   end
 
