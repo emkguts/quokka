@@ -764,6 +764,7 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in assertions to Repo.exists?" do
       # Make sure legitimate comparisons are not rewritten
       assert_style("assert Repo.one(query) == %{some: :struct}")
+      assert_style("assert Repo.one(query) |> Map.get(:my_key)")
 
       assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
       assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
@@ -821,6 +822,9 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "rewrites Repo.one in refute statements to Repo.exists?" do
+      # Make sure legitimate comparisons are not rewritten
+      assert_style("refute Repo.one(query) |> Map.get(:my_key)")
+
       assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
       assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
 
