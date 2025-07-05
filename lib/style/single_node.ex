@@ -479,18 +479,27 @@ defmodule Quokka.Style.SingleNode do
 
   # Helper function to rewrite Repo.one calls in expressions
   defp rewrite_repo_one_in_conditional(ast) do
-    Macro.prewalk(ast, fn
-      {{:., dm, [{:__aliases__, alias_metadata, modules}, :one]}, function_metadata, args} = node ->
-        if List.last(modules) == :Repo do
-          {{:., dm, [{:__aliases__, alias_metadata, modules}, :exists?]}, function_metadata, args}
-        else
-          node
-        end
+    # If the condition is a pattern match, don't rewrite any Repo.one calls inside it
+    if is_pattern_match?(ast) do
+      ast
+    else
+      Macro.prewalk(ast, fn
+        {{:., dm, [{:__aliases__, alias_metadata, modules}, :one]}, function_metadata, args} = node ->
+          if List.last(modules) == :Repo do
+            {{:., dm, [{:__aliases__, alias_metadata, modules}, :exists?]}, function_metadata, args}
+          else
+            node
+          end
 
-      node ->
-        node
-    end)
+        node ->
+          node
+      end)
+    end
   end
+
+  # Check if the AST represents a pattern match (assignment)
+  defp is_pattern_match?({:=, _, _}), do: true
+  defp is_pattern_match?(_), do: false
 
   defp replace_into({:., dm, [{_, am, _} = enum, _]}, collectable, rest) do
     case Quokka.Config.inefficient_function_rewrites?() and collectable do
