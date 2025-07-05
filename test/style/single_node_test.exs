@@ -764,6 +764,7 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in assertions to Repo.exists?" do
       # Make sure legitimate comparisons are not rewritten
       assert_style("assert Repo.one(query) == %{some: :struct}")
+      assert_style("assert %{id: ^my_id} = Repo.one(query)")
       assert_style("assert Repo.one(query) |> Map.get(:my_key)")
 
       assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
@@ -796,6 +797,9 @@ defmodule Quokka.Style.SingleNodeTest do
     test "does not rewrite non-assert/refute contexts" do
       assert_style("Repo.one(query)")
       assert_style("thing = Repo.one(query)")
+      assert_style("%{id: id} = Repo.one(query)")
+      assert_style("%{id: ^id} = Repo.one(query)")
+      assert_style("%{id: 123} = Repo.one(query)")
     end
 
     test "handles piped Repo.one calls in assertions" do
@@ -1132,6 +1136,46 @@ defmodule Quokka.Style.SingleNodeTest do
         end
         """
       )
+    end
+
+    test "does not rewrite Repo.get in conditionals when matching to its result" do
+      assert_style("""
+      if my_var = Repo.one(Post) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if my_var = Repo.one(Post) && another_condition? do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if ^my_var = Repo.one(Post) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if %{name: "foo"} = Repo.one(Post) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Repo.one(Post, timeout: 5000) = my_var do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Repo.one(from(p in Post, where: p.id == ^id), timeout: 5000) = my_var do
+        :ok
+      else
+        :error
+      end
+      """)
     end
 
     test "handles piped Repo.one calls in conditionals" do
