@@ -305,8 +305,11 @@ defmodule Quokka.Config do
   defp read_credo_config() do
     exec = Credo.Execution.build()
     dir = File.cwd!()
-    {:ok, config} = Credo.ConfigFile.read_or_default(exec, dir)
-    config
+
+    case Credo.ConfigFile.read_or_default(exec, dir) do
+      {:ok, config} -> config
+      {:error, _} -> %{checks: []}
+    end
   end
 
   defp extract_configs_from_credo() do
