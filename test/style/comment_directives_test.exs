@@ -256,6 +256,53 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts maps with numeric keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      # Integer keys
+      assert_style(
+        """
+        %{10 => "ten", 1 => "one", 2 => "two", 20 => "twenty"}
+        """,
+        """
+        %{1 => "one", 2 => "two", 10 => "ten", 20 => "twenty"}
+        """
+      )
+
+      # Float keys
+      assert_style(
+        """
+        %{10.5 => "ten-five", 1.5 => "one-five", 2.0 => "two", 20.1 => "twenty-one"}
+        """,
+        """
+        %{1.5 => "one-five", 2.0 => "two", 10.5 => "ten-five", 20.1 => "twenty-one"}
+        """
+      )
+
+      # Mixed numeric keys
+      assert_style(
+        """
+        %{10 => "ten", 1.5 => "one-five", 2 => "two", 20.0 => "twenty"}
+        """,
+        """
+        %{1.5 => "one-five", 2 => "two", 10 => "ten", 20.0 => "twenty"}
+        """
+      )
+    end
+
+    test "autosorts maps with mixed atom and string keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{:b => 1, "a" => 2, :c => 3}
+        """,
+        """
+        %{"a" => 2, :b => 1, :c => 3}
+        """
+      )
+    end
+
     test "autosorts ecto queries" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
