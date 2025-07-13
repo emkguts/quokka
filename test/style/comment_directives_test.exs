@@ -316,6 +316,66 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts maps with numeric range keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{
+          1 => "first",
+          (13..17) => "thirteen to seventeen",
+          (18..22) => "eighteen to twenty-two", 
+          2 => "second",
+          (23..24) => "twenty-three to twenty-four",
+          (25..29) => "twenty-five to twenty-nine",
+          (3..5) => "three to five",
+          (30..36) => "thirty to thirty-six"
+        }
+        """,
+        """
+        %{
+          1 => "first",
+          2 => "second",
+          (3..5) => "three to five",
+          (13..17) => "thirteen to seventeen",
+          (18..22) => "eighteen to twenty-two",
+          (23..24) => "twenty-three to twenty-four",
+          (25..29) => "twenty-five to twenty-nine",
+          (30..36) => "thirty to thirty-six"
+        }
+        """
+      )
+    end
+
+    test "autosorts maps with mixed numeric keys, ranges, and string keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{
+          "zebra" => "last string",
+          1 => "first number",
+          (10..15) => "ten to fifteen",
+          "apple" => "first string",
+          5 => "fifth number",
+          (2..4) => "two to four",
+          :atom_key => "atom value"
+        }
+        """,
+        """
+        %{
+          1 => "first number",
+          (2..4) => "two to four",
+          5 => "fifth number",
+          (10..15) => "ten to fifteen",
+          "apple" => "first string",
+          "zebra" => "last string",
+          :atom_key => "atom value"
+        }
+        """
+      )
+    end
+
     test "autosorts ecto queries" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 

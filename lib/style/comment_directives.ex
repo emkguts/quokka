@@ -122,9 +122,13 @@ defmodule Quokka.Style.CommentDirectives do
 
   defp numeric_key?({{:__block__, _, [key]}, _}) when is_number(key), do: true
   defp numeric_key?({key, _}) when is_number(key), do: true
+  defp numeric_key?({{:.., _, [{:__block__, _, [start]}, {:__block__, _, [_stop]}]}, _}) when is_number(start), do: true
+  defp numeric_key?({{:.., _, [start, _stop]}, _}) when is_number(start), do: true
   defp numeric_key?(_), do: false
 
   defp extract_key({{:__block__, _, [key]}, _}), do: key
+  defp extract_key({{:.., _, [{:__block__, _, [start]}, {:__block__, _, [_stop]}]}, _}), do: start
+  defp extract_key({{:.., _, [start, _stop]}, _}), do: start
   defp extract_key({key, _}), do: key
 
   # defstruct with a syntax-sugared keyword list hits here
