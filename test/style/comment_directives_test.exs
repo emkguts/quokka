@@ -303,6 +303,19 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts maps with mixed numeric and atom keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{1 => "one", :c => "c", 1.5 => "one and a half", :b => "b", :a => "a", 10 => "ten", 2 => "two"}
+        """,
+        """
+        %{1 => "one", 1.5 => "one and a half", 2 => "two", 10 => "ten", :a => "a", :b => "b", :c => "c"}
+        """
+      )
+    end
+
     test "autosorts ecto queries" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 

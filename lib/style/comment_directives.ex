@@ -111,15 +111,13 @@ defmodule Quokka.Style.CommentDirectives do
   # Sorts a list with numeric-aware comparison for map keys
   # Preserves existing behavior of sorting mixed atom/string keys alphabetically
   defp numeric_aware_sort(list) do
-    # Check if all elements have numeric keys
-    if Enum.all?(list, &numeric_key?/1) do
-      # Sort numerically by the numeric key (handles both integers and floats)
-      Enum.sort_by(list, &extract_key/1)
-    else
-      # Fall back to string-based sorting to handle mixed atom/string keys
-      # This ensures {:b, _} and {"b", _} sort together
-      Enum.sort_by(list, &Macro.to_string/1)
-    end
+    # Split into numeric and non-numeric keys, sort each group appropriately
+    {numeric_items, non_numeric_items} = Enum.split_with(list, &numeric_key?/1)
+
+    sorted_numeric = Enum.sort_by(numeric_items, &extract_key/1)
+    sorted_non_numeric = Enum.sort_by(non_numeric_items, &Macro.to_string/1)
+
+    sorted_numeric ++ sorted_non_numeric
   end
 
   defp numeric_key?({{:__block__, _, [key]}, _}) when is_number(key), do: true
