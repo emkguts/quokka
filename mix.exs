@@ -52,7 +52,7 @@ defmodule Quokka.MixProject do
     [
       licenses: ["Apache-2.0"],
       links: %{
-        "Changelog" => "#{@url}/blob/main/CHANGELOG.md",
+        "Changelog" => "https://hexdocs.pm/quokka/changelog.html",
         "GitHub" => @url
       }
     ]
