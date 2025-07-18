@@ -58,6 +58,47 @@ defmodule Quokka.Style.TestsTest do
     end
   end
 
+  describe "refute not -> asset rewrites" do
+    test "basic not expression" do
+      assert_style "refute not user.active", "assert user.active"
+      assert_style "refute not valid?", "assert valid?"
+      assert_style "refute not Process.alive?(pid)", "assert Process.alive?(pid)"
+    end
+
+    test "not with parentheses" do
+      assert_style "refute not(user.active)", "assert user.active"
+      assert_style "refute not(valid?())", "assert valid?()"
+    end
+
+    test "complex not expressions" do
+      assert_style "refute not (x > 5 and y < 10)", "assert x > 5 and y < 10"
+    end
+
+    test "membership testing with not in" do
+      assert_style "refute elem not in my_list", "assert elem in my_list"
+      assert_style "refute not (user in banned_users)", "assert user in banned_users"
+      assert_style "refute !(key in forbidden_keys)", "assert key in forbidden_keys"
+    end
+  end
+
+  describe "refute ! -> assert rewrites" do
+    test "basic bang expression" do
+      assert_style "refute !user.active", "assert user.active"
+      assert_style "refute !valid?", "assert valid?"
+      assert_style "refute !result", "assert result"
+    end
+
+    test "bang with parentheses" do
+      assert_style "refute !(user.active)", "assert user.active"
+      assert_style "refute !valid?()", "assert valid?()"
+    end
+
+    test "complex bang expressions" do
+      assert_style "refute !(x > 5)", "assert x > 5"
+      assert_style "refute !Enum.empty?(list)", "assert Enum.empty?(list)"
+    end
+  end
+
   # TODO: These test cases are commented out because the transformations
   # are not semantically equivalent (see lib/style/tests.ex for details).
   # May bring these back in the future somehow, because most of the time,
