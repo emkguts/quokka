@@ -9,22 +9,28 @@
 
 defmodule Quokka.Style.Tests do
   @moduledoc """
-  Rewrites test assertions to use `refute` where appropriate.
+  Rewrites test assertions to use `refute` and `assert` where appropriate.
 
   ## Transformations
 
   - `assert not expr` becomes `refute expr`
   - `assert !expr` becomes `refute expr`
+  - `refute not expr` becomes `assert expr`
+  - `refute !expr` becomes `assert expr`
 
   ## Examples
 
       # Before
       assert not user.active?
       assert !valid?
+      refute not user.inactive?
+      refute !invalid?
 
       # After
       refute user.active?
       refute valid?
+      assert user.inactive?
+      assert invalid?
   """
 
   @behaviour Quokka.Style
@@ -42,6 +48,17 @@ defmodule Quokka.Style.Tests do
     end
   end
 
+  def run({{:refute, meta, [arg]}, _} = zipper, ctx) do
+    case rewrite_refute_assertion(arg) do
+      {:assert, new_arg} ->
+        new_node = {:assert, meta, [new_arg]}
+        {:cont, Zipper.replace(zipper, new_node), ctx}
+
+      :no_change ->
+        {:cont, zipper, ctx}
+    end
+  end
+
   def run(zipper, ctx), do: {:cont, zipper, ctx}
 
   # assert not expr -> refute expr
@@ -49,6 +66,18 @@ defmodule Quokka.Style.Tests do
 
   # assert !expr -> refute expr
   defp rewrite_assertion({:!, _meta, [expr]}), do: {:refute, expr}
+
+  # No rewrite needed
+  defp rewrite_assertion(_), do: :no_change
+
+  # refute not expr -> assert expr
+  defp rewrite_refute_assertion({:not, _meta, [expr]}), do: {:assert, expr}
+
+  # refute !expr -> assert expr
+  defp rewrite_refute_assertion({:!, _meta, [expr]}), do: {:assert, expr}
+
+  # No rewrite needed
+  defp rewrite_refute_assertion(_), do: :no_change
 
   # TODO: These transformations are not semantically equivalent and are commented out
   # because assert expr == nil only passes when expr is nil, while refute expr
@@ -73,7 +102,4 @@ defmodule Quokka.Style.Tests do
 
   # # assert expr === false -> refute expr
   # defp rewrite_assertion({:===, _meta, [expr, {:__block__, _, [false]}]}), do: {:refute, expr}
-
-  # No rewrite needed
-  defp rewrite_assertion(_), do: :no_change
 end
