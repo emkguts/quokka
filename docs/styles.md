@@ -182,6 +182,32 @@ DateTime.compare(start, end_date) == :lt
 DateTime.before?(start, end_date)
 ```
 
+### Anonymous Function Capture Rewrites
+
+Rewrites inefficient anonymous function captures to more efficient function capture syntax. This rewrite only applies to simple function captures where the captured function is called with only a single argument (`&n`) and no other arguments or transformations.
+
+```elixir
+# Before
+&my_function(&1)
+# Styled
+&my_function/1
+
+# Before
+&SomeModule.func(&2)
+# Styled
+&SomeModule.func/2
+
+# Before
+Enum.filter(my_enum, &my_function(&1))
+# Styled
+Enum.filter(my_enum, &my_function/1)
+
+# Before
+list |> Enum.map(&String.upcase(&1))
+# Styled
+list |> Enum.map(&String.upcase/1)
+```
+
 ## Filter count
 
 This addresses [`Credo.Check.Refactor.FilterCount`](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html). This is not configurable.
