@@ -1232,4 +1232,36 @@ defmodule Quokka.Style.SingleNodeTest do
       )
     end
   end
+
+  describe "anonymous function capture rewrites" do
+    test "rewrites &anon_func(&n) to &anon_func/n" do
+      assert_style("&my_function(&1)", "&my_function/1")
+      assert_style("&SomeModule.func(&1)", "&SomeModule.func/1")
+      assert_style("&my_function(&2)", "&my_function/2")
+      assert_style("&SomeModule.func(&2)", "&SomeModule.func/2")
+    end
+
+    test "works in various contexts" do
+      assert_style("var |> func(&anon_func(&1))", "var |> func(&anon_func/1)")
+      assert_style("my_func1(&my_func2(&2))", "my_func1(&my_func2/2)")
+      assert_style("Enum.map(list, &String.upcase(&1))", "Enum.map(list, &String.upcase/1)")
+    end
+
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+      assert_style("&func(&1)")
+      assert_style("&func(&2)")
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+      assert_style("&func(&1)", "&func/1")
+      assert_style("&func(&2)", "&func/2")
+    end
+
+    test "does not rewrite more complex captures" do
+      assert_style("&func(&1, &2)")
+      assert_style("&func(&1 + 1)")
+      assert_style("&func(some_arg, &1)")
+      assert_style("&(&1 + &2)")
+    end
+  end
 end
