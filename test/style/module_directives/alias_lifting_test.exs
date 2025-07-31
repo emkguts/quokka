@@ -633,6 +633,77 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
                    """
     end
 
+    test "namespaces that don't match the only regex (single regex)" do
+      stub(Quokka.Config, :lift_alias_only, fn -> ~r/A\.B\.C/ end)
+
+      assert_style(
+        """
+        defmodule MyModule do
+          alias Foo.Bar
+
+          Name2.M.N.bar()
+          Name2.M.N.bar()
+          A.B.C.foo()
+          A.B.C.foo()
+          A.B.C.D.foo()
+          A.B.C.D.foo()
+        end
+        """,
+        """
+        defmodule MyModule do
+          alias A.B.C
+          alias A.B.C.D
+          alias Foo.Bar
+
+          Name2.M.N.bar()
+          Name2.M.N.bar()
+          C.foo()
+          C.foo()
+          D.foo()
+          D.foo()
+        end
+        """
+      )
+    end
+
+    test "namespaces that don't match the only regex (multiple regexes)" do
+      stub(Quokka.Config, :lift_alias_only, fn -> [~r/A\.B\.C/, ~r/Name1/] end)
+
+      assert_style(
+        """
+        defmodule MyModule do
+          alias Foo.Bar
+
+          Name2.M.N.bar()
+          Name2.M.N.bar()
+          Name1.M.N.bar()
+          Name1.M.N.bar()
+          A.B.C.foo()
+          A.B.C.foo()
+          A.B.C.D.foo()
+          A.B.C.D.foo()
+        end
+        """,
+        """
+        defmodule MyModule do
+          alias A.B.C
+          alias A.B.C.D
+          alias Foo.Bar
+          alias Name1.M.N
+
+          Name2.M.N.bar()
+          Name2.M.N.bar()
+          N.bar()
+          N.bar()
+          C.foo()
+          C.foo()
+          D.foo()
+          D.foo()
+        end
+        """
+      )
+    end
+
     test "collisions with std lib" do
       assert_style """
       defmodule DontYouDare do

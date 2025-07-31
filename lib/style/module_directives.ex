@@ -396,6 +396,17 @@ defmodule Quokka.Style.ModuleDirectives do
         if Enum.all?(aliases, &is_atom/1) do
           alias_string = Enum.join(aliases, ".")
 
+          included_namespace? =
+            case Quokka.Config.lift_alias_only() do
+              nil ->
+                true
+
+              only ->
+                only
+                |> List.wrap()
+                |> Enum.any?(&Regex.match?(&1, alias_string))
+            end
+
           excluded_namespace? =
             Quokka.Config.lift_alias_excluded_namespaces()
             |> MapSet.filter(fn namespace ->
@@ -417,6 +428,10 @@ defmodule Quokka.Style.ModuleDirectives do
 
               # aliasing this would change the meaning of an existing alias
               last > first and last in firsts ->
+                lifts
+
+              # if only is set, don't lift aliases that don't match the only regex
+              not included_namespace? ->
                 lifts
 
               # Never seen this alias before
