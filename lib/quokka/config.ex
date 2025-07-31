@@ -146,6 +146,7 @@ defmodule Quokka.Config do
         lift_alias_excluded_namespaces:
           MapSet.new(Enum.map(lift_alias_excluded_namespaces, &String.to_atom/1) ++ @stdlib),
         lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
+        lift_alias_only: credo_opts[:lift_alias_only],
         line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
         nums_with_underscores: Keyword.get(quokka_config, :exclude, []) |> Enum.member?(:nums_with_underscores),
         only_styles: quokka_config[:only] || [],
@@ -246,6 +247,10 @@ defmodule Quokka.Config do
     get(:lift_alias_excluded_namespaces)
   end
 
+  def lift_alias_only() do
+    get(:lift_alias_only)
+  end
+
   def lift_alias_frequency() do
     get(:lift_alias_frequency)
   end
@@ -328,6 +333,7 @@ defmodule Quokka.Config do
         |> Map.put(:lift_alias_frequency, opts[:if_called_more_often_than])
         |> Map.put(:lift_alias_excluded_namespaces, opts[:excluded_namespaces])
         |> Map.put(:lift_alias_excluded_lastnames, opts[:excluded_lastnames])
+        |> Map.put(:lift_alias_only, opts[:only])
 
       {BlockPipe, opts}, acc when is_list(opts) ->
         acc
