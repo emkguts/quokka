@@ -1277,4 +1277,60 @@ defmodule Quokka.Style.PipesTest do
       )
     end
   end
+
+  describe "Map.delete and Map.drop" do
+    test "converts consecutive Map.delete calls to Map.drop" do
+      assert_style(
+        "foo |> Map.delete(key1) |> Map.delete(key2)",
+        "Map.drop(foo, [key1, key2])"
+      )
+
+      assert_style(
+        "foo |> Map.delete(key1) |> Map.delete(key2) |> bar()",
+        "foo |> Map.drop([key1, key2]) |> bar()"
+      )
+
+      assert_style(
+        "foo |> Map.delete(key1) |> Map.delete(key2) |> Map.delete(key3) |> Map.delete(key4)",
+        "Map.drop(foo, [key1, key2, key3, key4])"
+      )
+    end
+
+    test "does not rewrite non-consecutive Map.delete calls" do
+      assert_style("foo |> Map.delete(key1) |> bar() |> Map.delete(key2)")
+    end
+
+    test "Map.delete followed by Map.drop" do
+      assert_style(
+        "foo |> Map.delete(key1) |> Map.drop([key2, key3]) |> bar()",
+        "foo |> Map.drop([key1, key2, key3]) |> bar()"
+      )
+    end
+
+    test "Map.drop followed by Map.delete" do
+      assert_style(
+        "foo |> Map.drop([key1, key2]) |> Map.delete(key3) |> bar()",
+        "foo |> Map.drop([key1, key2, key3]) |> bar()"
+      )
+    end
+
+    test "Map.drop followed by Map.drop" do
+      assert_style(
+        "foo |> Map.drop([key1, key2]) |> Map.drop([key3, key4]) |> Map.drop([key5, key6]) |> bar()",
+        "foo |> Map.drop([key1, key2, key3, key4, key5, key6]) |> bar()"
+      )
+    end
+
+    test "Map.drop and Map.delete sandwiched together" do
+      assert_style(
+        "foo |> Map.drop([key1, key2]) |> Map.delete(key3) |> Map.drop([key4, key5]) |> bar()",
+        "foo |> Map.drop([key1, key2, key3, key4, key5]) |> bar()"
+      )
+
+      assert_style(
+        "foo |> Map.delete(key1) |> Map.drop([key2, key3]) |> Map.delete(key4) |> Map.drop([key5, key6]) |> bar()",
+        "foo |> Map.drop([key1, key2, key3, key4, key5, key6]) |> bar()"
+      )
+    end
+  end
 end
