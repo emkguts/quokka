@@ -365,7 +365,9 @@ defmodule Quokka.Config do
   end
 
   defp parse_elixir_version() do
-    case Regex.run(~r/(?:==|>=|>|~>)?\s*(\d+(?:\.\d+(?:\.\d+(?:-\w+)?)?)?)\b/, Mix.Project.config()[:elixir]) do
+    project_elixir = Keyword.get(Mix.Project.config(), :elixir) || ""
+
+    case Regex.run(~r/(?:==|>=|>|~>)?\s*(\d+(?:\.\d+(?:\.\d+(?:-\w+)?)?)?)\b/, project_elixir) do
       [_, version] ->
         case String.split(version, ".") do
           [major] -> "#{major}.0.0"
