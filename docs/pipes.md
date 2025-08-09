@@ -112,6 +112,13 @@ a |> b() |> Stream.map(fun) |> Stream.run()
 # Styled:
 a |> b() |> Enum.each(fun)
 a |> b() |> Enum.each(fun)
+
+# Given:
+a |> Enum.filter(fun) |> List.first() |> ...
+a |> Enum.filter(fun) |> List.first(default) |> ...
+# Styled:
+a |> Enum.find(fun) |> ...
+a |> Enum.find(default, fun) |> ...
 ```
 
 ### Unpiping Single Pipes

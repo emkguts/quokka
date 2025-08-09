@@ -336,6 +336,19 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, {reverse, [line: meta[:line]], [enum]}]}
   end
 
+  # `lhs |> Enum.filter(fun) |> List.first([default])` => `lhs |> Enum.find([default], fun)`
+  defp fix_pipe(
+         pipe_chain(
+           pm,
+           lhs,
+           {{:., dm, [{_, _, [:Enum]} = enum, :filter]}, meta, [fun]},
+           {{:., _, [{_, _, [:List]}, :first]}, _, default}
+         )
+       ) do
+    line = meta[:line]
+    {:|>, pm, [lhs, {{:., dm, [enum, :find]}, [line: line], Style.set_line(default, line) ++ [fun]}]}
+  end
+
   # `lhs |> Enum.reverse() |> Kernel.++(enum)` => `lhs |> Enum.reverse(enum)`
   defp fix_pipe(
          pipe_chain(
