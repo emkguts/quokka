@@ -202,14 +202,20 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp organize_directives(parent, moduledoc \\ nil) do
+    {before, _after} = Enum.split_while(Quokka.Config.strict_module_layout_order(), &(&1 != :alias))
+
     acc =
       parent
       |> Zipper.children()
       |> Enum.reduce(@acc, fn
         {:@, _, [{attr_directive, _, _}]} = ast, acc when attr_directive in @attr_directives ->
-          # attr_directives are moved above aliases, so we need to dealias them
-          {ast, acc} = acc.dealiases |> AliasEnv.expand(ast) |> lift_module_attrs(acc)
-          %{acc | attr_directive => [ast | acc[attr_directive]]}
+          # attr_directives might get hoisted above aliases, so need to dealias depending on the layout order
+          if Enum.member?(before, attr_directive) do
+            {ast, acc} = acc.dealiases |> AliasEnv.expand(ast) |> lift_module_attrs(acc)
+            %{acc | attr_directive => [ast | acc[attr_directive]]}
+          else
+            %{acc | attr_directive => [ast | acc[attr_directive]]}
+          end
 
         {:@, _, [{attr, _, _}]} = ast, acc ->
           %{acc | nondirectives: [ast | acc.nondirectives], attrs: MapSet.put(acc.attrs, attr)}
@@ -219,10 +225,6 @@ defmodule Quokka.Style.ModuleDirectives do
           ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [ast]
 
           # import and use might get hoisted above aliases, so need to dealias depending on the layout order
-          {before, _after} =
-            Quokka.Config.strict_module_layout_order()
-            |> Enum.split_while(&(&1 != :alias))
-
           needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
 
           ast = if needs_dealiasing, do: AliasEnv.expand(acc.dealiases, ast), else: ast

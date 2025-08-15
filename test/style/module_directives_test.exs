@@ -263,6 +263,29 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """
       )
     end
+
+    test "does not dealias attr directives if not needed" do
+      stub(Quokka.Config, :strict_module_layout_order, fn ->
+        [
+          :alias,
+          :behaviour,
+          :moduledoc,
+          :shortdoc,
+        ]
+      end)
+
+      assert_style("""
+      defmodule Foo do
+        alias Foo.Bar
+
+        @behaviour Bar
+
+        @moduledoc "This module \#{Bar}"
+
+        @shortdoc "This module \#{Bar}"
+      end
+      """)
+    end
   end
 
   describe "strange parents!" do
