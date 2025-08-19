@@ -270,7 +270,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
           :alias,
           :behaviour,
           :moduledoc,
-          :shortdoc,
+          :shortdoc
         ]
       end)
 
