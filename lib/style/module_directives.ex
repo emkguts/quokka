@@ -299,7 +299,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
     directives =
       Quokka.Config.strict_module_layout_order()
-      |> Enum.map(&acc[&1])
+      |> Enum.map(&Map.get(acc, &1, []))
       |> Stream.concat()
       |> fix_line_numbers(List.first(nondirectives))
 
