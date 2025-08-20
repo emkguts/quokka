@@ -197,8 +197,43 @@ defmodule Quokka.Style.CommentDirectives do
     {{:@, m, [{a, am, [assignment]}]}, comments}
   end
 
+  defp sort({:embedded_schema, meta, [[{{:__block__, _, [:do]}, {:__block__, block_meta, fields}}]]}, comments) do
+    {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:line])
+    {{:embedded_schema, meta, [[{{:__block__, [], [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
+  end
+
   defp sort({schema_type, meta, [table_name, [{{:__block__, _, [:do]}, {:__block__, block_meta, fields}}]]}, comments)
-       when schema_type in [:schema, :typed_schema, :embedded_schema] do
+       when schema_type in [:schema, :typed_schema] do
+    {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:line])
+    {{schema_type, meta, [table_name, [{{:__block__, [], [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
+  end
+
+  defp sort({key, value}, comments) do
+    {value, comments} = sort(value, comments)
+    {{key, value}, comments}
+  end
+
+  # sorts arbitrary ast nodes within a `do end` list
+  defp sort({f, m, args} = node, comments) do
+    if m[:do] && m[:end] && match?([{{:__block__, _, [:do]}, {:__block__, _, _}}], List.last(args)) do
+      {[{{:__block__, m1, [:do]}, {:__block__, m2, nodes}}], args} = List.pop_at(args, -1)
+
+      {nodes, comments} =
+        nodes
+        |> numeric_aware_sort()
+        |> Style.order_line_meta_and_comments(comments, m[:line])
+
+      args = List.insert_at(args, -1, [{{:__block__, m1, [:do]}, {:__block__, m2, nodes}}])
+
+      {{f, m, args}, comments}
+    else
+      {node, comments}
+    end
+  end
+
+  defp sort(x, comments), do: {x, comments}
+
+  defp sort_schema_fields(fields, comments, meta_line) do
     field_type_order = Quokka.Config.autosort_schema_order()
 
     grouped_fields =
@@ -242,33 +277,6 @@ defmodule Quokka.Style.CommentDirectives do
       end)
       |> Kernel.++(other_fields)
 
-    {sorted_fields, comments} = Style.order_line_meta_and_comments(sorted_fields, comments, meta[:line])
-
-    {{schema_type, meta, [table_name, [{{:__block__, [], [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
+    Style.order_line_meta_and_comments(sorted_fields, comments, meta_line)
   end
-
-  defp sort({key, value}, comments) do
-    {value, comments} = sort(value, comments)
-    {{key, value}, comments}
-  end
-
-  # sorts arbitrary ast nodes within a `do end` list
-  defp sort({f, m, args} = node, comments) do
-    if m[:do] && m[:end] && match?([{{:__block__, _, [:do]}, {:__block__, _, _}}], List.last(args)) do
-      {[{{:__block__, m1, [:do]}, {:__block__, m2, nodes}}], args} = List.pop_at(args, -1)
-
-      {nodes, comments} =
-        nodes
-        |> numeric_aware_sort()
-        |> Style.order_line_meta_and_comments(comments, m[:line])
-
-      args = List.insert_at(args, -1, [{{:__block__, m1, [:do]}, {:__block__, m2, nodes}}])
-
-      {{f, m, args}, comments}
-    else
-      {node, comments}
-    end
-  end
-
-  defp sort(x, comments), do: {x, comments}
 end

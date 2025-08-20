@@ -182,6 +182,44 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "autosorts embedded schema with fields before embeds" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+          embedded_schema do
+            embeds_one(:sender, Address)
+            embeds_one(:receiver, Address)
+            field(:weight, :float)
+            field(:cost, :float)
+            field(:customer_name, :string)
+            embeds_many(:items, Item)
+            embeds_many(:carriers, Carrier)
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          embedded_schema do
+            field(:cost, :float)
+            field(:customer_name, :string)
+            field(:weight, :float)
+
+            embeds_many(:carriers, Carrier)
+            embeds_many(:items, Item)
+
+            embeds_one(:receiver, Address)
+            embeds_one(:sender, Address)
+          end
+        end
+        """
+      )
+    end
+
     test "autosorts even after comment directive" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
 
@@ -324,7 +362,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
         %{
           1 => "first",
           (13..17) => "thirteen to seventeen",
-          (18..22) => "eighteen to twenty-two", 
+          (18..22) => "eighteen to twenty-two",
           2 => "second",
           (23..24) => "twenty-three to twenty-four",
           (25..29) => "twenty-five to twenty-nine",
