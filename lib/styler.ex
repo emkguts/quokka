@@ -50,7 +50,7 @@ defmodule Quokka do
             if on_error == :log do
               error = Exception.format(:error, exception, __STACKTRACE__)
               Mix.shell().error("#{error}\n#{IO.ANSI.reset()}Skipping style and continuing on")
-              {zipper, context}
+              {zipper, comments}
             else
               reraise exception, __STACKTRACE__
             end
