@@ -1237,8 +1237,26 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites &anon_func(&n) to &anon_func/n" do
       assert_style("&my_function(&1)", "&my_function/1")
       assert_style("&SomeModule.func(&1)", "&SomeModule.func/1")
+      assert_style("&some_variable.(&1)", "some_variable")
       assert_style("&my_function(&2)", "&my_function/2")
       assert_style("&SomeModule.func(&2)", "&SomeModule.func/2")
+
+      assert_style(
+        """
+        admin? = fn %{user_id: user_id} ->
+          user_id == 1
+        end
+
+        Enum.any?(users, &admin?.(&1))
+        """,
+        """
+        admin? = fn %{user_id: user_id} ->
+          user_id == 1
+        end
+
+        Enum.any?(users, admin?)
+        """
+      )
     end
 
     test "works in various contexts" do

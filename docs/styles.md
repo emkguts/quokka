@@ -198,6 +198,11 @@ Rewrites inefficient anonymous function captures to more efficient function capt
 &SomeModule.func/2
 
 # Before
+&some_var.(&1)
+# Styled
+some_var
+
+# Before
 Enum.filter(my_enum, &my_function(&1))
 # Styled
 Enum.filter(my_enum, &my_function/1)

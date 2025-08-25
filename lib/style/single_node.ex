@@ -475,6 +475,12 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # Rewrite &variable.(&1) to just the variable
+  defp style({:&, _meta, [{{:., _dot_meta, [{_var_name, _var_meta, _} = var]}, _fun_meta, [{:&, _, [arg_num]}]}]})
+       when is_integer(arg_num) do
+    var
+  end
+
   defp style({:&, meta, [{fun, fun_meta, [{:&, _, [arg_num]}]}]} = node) when is_integer(arg_num) do
     if Quokka.Config.inefficient_function_rewrites?() do
       fun_name =
