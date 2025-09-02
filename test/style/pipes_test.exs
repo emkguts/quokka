@@ -1366,4 +1366,60 @@ defmodule Quokka.Style.PipesTest do
       )
     end
   end
+
+  describe "Keyword.delete and Keyword.drop" do
+    test "converts consecutive Keyword.delete calls to Keyword.drop" do
+      assert_style(
+        "foo |> Keyword.delete(key1) |> Keyword.delete(key2)",
+        "Keyword.drop(foo, [key1, key2])"
+      )
+
+      assert_style(
+        "foo |> Keyword.delete(key1) |> Keyword.delete(key2) |> bar()",
+        "foo |> Keyword.drop([key1, key2]) |> bar()"
+      )
+
+      assert_style(
+        "foo |> Keyword.delete(key1) |> Keyword.delete(key2) |> Keyword.delete(key3) |> Keyword.delete(key4)",
+        "Keyword.drop(foo, [key1, key2, key3, key4])"
+      )
+    end
+
+    test "does not rewrite non-consecutive Keyword.delete calls" do
+      assert_style("foo |> Keyword.delete(key1) |> bar() |> Keyword.delete(key2)")
+    end
+
+    test "Keyword.delete followed by Keyword.drop" do
+      assert_style(
+        "foo |> Keyword.delete(key1) |> Keyword.drop([key2, key3]) |> bar()",
+        "foo |> Keyword.drop([key1, key2, key3]) |> bar()"
+      )
+    end
+
+    test "Keyword.drop followed by Keyword.delete" do
+      assert_style(
+        "foo |> Keyword.drop([key1, key2]) |> Keyword.delete(key3) |> bar()",
+        "foo |> Keyword.drop([key1, key2, key3]) |> bar()"
+      )
+    end
+
+    test "Keyword.drop followed by Keyword.drop" do
+      assert_style(
+        "foo |> Keyword.drop([key1, key2]) |> Keyword.drop([key3, key4]) |> Keyword.drop([key5, key6]) |> bar()",
+        "foo |> Keyword.drop([key1, key2, key3, key4, key5, key6]) |> bar()"
+      )
+    end
+
+    test "Keyword.drop and Keyword.delete sandwiched together" do
+      assert_style(
+        "foo |> Keyword.drop([key1, key2]) |> Keyword.delete(key3) |> Keyword.drop([key4, key5]) |> bar()",
+        "foo |> Keyword.drop([key1, key2, key3, key4, key5]) |> bar()"
+      )
+
+      assert_style(
+        "foo |> Keyword.delete(key1) |> Keyword.drop([key2, key3]) |> Keyword.delete(key4) |> Keyword.drop([key5, key6]) |> bar()",
+        "foo |> Keyword.drop([key1, key2, key3, key4, key5, key6]) |> bar()"
+      )
+    end
+  end
 end

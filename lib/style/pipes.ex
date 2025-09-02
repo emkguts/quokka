@@ -402,79 +402,83 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, rhs]}
   end
 
-  # `lhs |> Map.delete(key1) |> Map.delete(key2)` => `lhs |> Map.drop([key1, key2])`
-  defp fix_pipe(
-         pipe_chain(
-           pm,
-           lhs,
-           {{:., dm, [{_, _, [:Map]}, :delete]}, meta, [key1]},
-           {{:., _, [{_, _, [:Map]}, :delete]}, _, [key2]}
-         )
-       ) do
-    if Quokka.Config.inefficient_function_rewrites?() do
-      keys = {:__block__, meta, [[key1, key2]]}
-      drop_call = {{:., dm, [{:__aliases__, dm, [:Map]}, :drop]}, meta, [keys]}
-      # recurse to handle the case of Map.delete followed by Map.drop
-      fix_pipe({:|>, pm, [lhs, drop_call]})
-    else
-      {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [:Map]}, :delete]}, meta, [key1]}]}
+  for m <- [:Map, :Keyword] do
+    # `lhs |> Map/Keyword.delete(key1) |> Map/Keyword.delete(key2)` => `lhs |> Map/Keyword.drop([key1, key2])`
+    defp fix_pipe(
+           pipe_chain(
+             pm,
+             lhs,
+             {{:., dm, [{_, _, [unquote(m)]}, :delete]}, meta, [key1]},
+             {{:., _, [{_, _, [unquote(m)]}, :delete]}, _, [key2]}
+           )
+         ) do
+      if Quokka.Config.inefficient_function_rewrites?() do
+        keys = {:__block__, meta, [[key1, key2]]}
+        drop_call = {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [keys]}
+        # recurse to handle the case of Map/Keyword.delete followed by Map/Keyword.drop
+        fix_pipe({:|>, pm, [lhs, drop_call]})
+      else
+        {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :delete]}, meta, [key1]}]}
+      end
     end
-  end
 
-  # `lhs |> Map.delete(key1) |> Map.drop([key2, key3])` => `lhs |> Map.drop([key1, key2, key3])`
-  defp fix_pipe(
-         pipe_chain(
-           pm,
-           lhs,
-           {{:., dm, [{_, _, [:Map]}, :delete]}, meta, [key1]},
-           {{:., _, [{_, _, [:Map]}, :drop]}, _, [{:__block__, _, [existing_keys]}]}
-         )
-       ) do
-    if Quokka.Config.inefficient_function_rewrites?() do
-      keys = {:__block__, meta, [[key1 | existing_keys]]}
-      drop_call = {{:., dm, [{:__aliases__, dm, [:Map]}, :drop]}, meta, [keys]}
-      # recursively continue simplifying Map.delete/Map.drop chains
-      fix_pipe({:|>, pm, [lhs, drop_call]})
-    else
-      {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [:Map]}, :delete]}, meta, [key1]}]}
+    # `lhs |> Map/Keyword.delete(key1) |> Map/Keyword.drop([key2, key3])` => `lhs |> Map/Keyword.drop([key1, key2, key3])`
+    defp fix_pipe(
+           pipe_chain(
+             pm,
+             lhs,
+             {{:., dm, [{_, _, [unquote(m)]}, :delete]}, meta, [key1]},
+             {{:., _, [{_, _, [unquote(m)]}, :drop]}, _, [{:__block__, _, [existing_keys]}]}
+           )
+         ) do
+      if Quokka.Config.inefficient_function_rewrites?() do
+        keys = {:__block__, meta, [[key1 | existing_keys]]}
+        drop_call = {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [keys]}
+        # recursively continue simplifying Map/Keyword.delete or Map/Keyword.drop chains
+        fix_pipe({:|>, pm, [lhs, drop_call]})
+      else
+        {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :delete]}, meta, [key1]}]}
+      end
     end
-  end
 
-  # `lhs |> Map.drop([key1, key2]) |> Map.delete(key3)` => `lhs |> Map.drop([key1, key2, key3])`
-  defp fix_pipe(
-         pipe_chain(
-           pm,
-           lhs,
-           {{:., dm, [{_, _, [:Map]}, :drop]}, meta, [{:__block__, _, [existing_keys]}]},
-           {{:., _, [{_, _, [:Map]}, :delete]}, _, [key3]}
-         )
-       ) do
-    if Quokka.Config.inefficient_function_rewrites?() do
-      keys = {:__block__, meta, [existing_keys ++ [key3]]}
-      drop_call = {{:., dm, [{:__aliases__, dm, [:Map]}, :drop]}, meta, [keys]}
-      # recursively continue simplifying Map.delete/Map.drop chains
-      fix_pipe({:|>, pm, [lhs, drop_call]})
-    else
-      {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [:Map]}, :drop]}, meta, [{:__block__, meta, [existing_keys]}]}]}
+    # `lhs |> Map/Keyword.drop([key1, key2]) |> Map/Keyword.delete(key3)` => `lhs |> Map/Keyword.drop([key1, key2, key3])`
+    defp fix_pipe(
+           pipe_chain(
+             pm,
+             lhs,
+             {{:., dm, [{_, _, [unquote(m)]}, :drop]}, meta, [{:__block__, _, [existing_keys]}]},
+             {{:., _, [{_, _, [unquote(m)]}, :delete]}, _, [key3]}
+           )
+         ) do
+      if Quokka.Config.inefficient_function_rewrites?() do
+        keys = {:__block__, meta, [existing_keys ++ [key3]]}
+        drop_call = {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [keys]}
+        # recursively continue simplifying Map/Keyword.delete or Map/Keyword.drop chains
+        fix_pipe({:|>, pm, [lhs, drop_call]})
+      else
+        {:|>, pm,
+         [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [{:__block__, meta, [existing_keys]}]}]}
+      end
     end
-  end
 
-  # `lhs |> Map.drop([key1, key2]) |> Map.drop([key3, key4])` => `lhs |> Map.drop([key1, key2, key3, key4])`
-  defp fix_pipe(
-         pipe_chain(
-           pm,
-           lhs,
-           {{:., dm, [{_, _, [:Map]}, :drop]}, meta, [{:__block__, _, [existing_keys1]}]},
-           {{:., _, [{_, _, [:Map]}, :drop]}, _, [{:__block__, _, [existing_keys2]}]}
-         )
-       ) do
-    if Quokka.Config.inefficient_function_rewrites?() do
-      keys = {:__block__, meta, [existing_keys1 ++ existing_keys2]}
-      drop_call = {{:., dm, [{:__aliases__, dm, [:Map]}, :drop]}, meta, [keys]}
-      # recursively continue simplifying Map.delete/Map.drop chains
-      fix_pipe({:|>, pm, [lhs, drop_call]})
-    else
-      {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [:Map]}, :drop]}, meta, [{:__block__, meta, [existing_keys1]}]}]}
+    # `lhs |> Map/Keyword.drop([key1, key2]) |> Map/Keyword.drop([key3, key4])` => `lhs |> Map/Keyword.drop([key1, key2, key3, key4])`
+    defp fix_pipe(
+           pipe_chain(
+             pm,
+             lhs,
+             {{:., dm, [{_, _, [unquote(m)]}, :drop]}, meta, [{:__block__, _, [existing_keys1]}]},
+             {{:., _, [{_, _, [unquote(m)]}, :drop]}, _, [{:__block__, _, [existing_keys2]}]}
+           )
+         ) do
+      if Quokka.Config.inefficient_function_rewrites?() do
+        keys = {:__block__, meta, [existing_keys1 ++ existing_keys2]}
+        drop_call = {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [keys]}
+        # recursively continue simplifying Map/Keyword.delete or Map/Keyword.drop chains
+        fix_pipe({:|>, pm, [lhs, drop_call]})
+      else
+        {:|>, pm,
+         [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [{:__block__, meta, [existing_keys1]}]}]}
+      end
     end
   end
 
