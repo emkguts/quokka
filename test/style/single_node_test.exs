@@ -1233,6 +1233,50 @@ defmodule Quokka.Style.SingleNodeTest do
     end
   end
 
+  describe "Map.get/3 with nil default rewrites" do
+    test "rewrites Map.get(map, key, nil) to Map.get(map, key)" do
+      assert_style("Map.get(map, :key, nil)", "Map.get(map, :key)")
+      assert_style("Map.get(map, \"key\", nil)", "Map.get(map, \"key\")")
+      assert_style("Map.get(map, key, nil)", "Map.get(map, key)")
+
+      assert_style("map |> Map.get(:key, nil)", "map |> Map.get(:key)")
+      assert_style("map |> Map.get(\"key\", nil)", "map |> Map.get(\"key\")")
+      assert_style("map |> Map.get(key, nil)", "map |> Map.get(key)")
+    end
+
+    test "preserves Map.get with non-nil defaults" do
+      assert_style("Map.get(map, key, default)")
+      assert_style("Map.get(map, key, \"default\")")
+      assert_style("Map.get(map, key, :default)")
+
+      assert_style("map |> Map.get(key, default)")
+      assert_style("map |> Map.get(key, \"default\")")
+      assert_style("map |> Map.get(key, :default)")
+    end
+  end
+
+  describe "Keyword.get/3 with nil default rewrites" do
+    test "rewrites Keyword.get(kw, key, nil) to Keyword.get(kw, key)" do
+      assert_style("Keyword.get(kw, :key, nil)", "Keyword.get(kw, :key)")
+      assert_style("Keyword.get(kw, \"key\", nil)", "Keyword.get(kw, \"key\")")
+      assert_style("Keyword.get(kw, key, nil)", "Keyword.get(kw, key)")
+
+      assert_style("kw |> Keyword.get(:key, nil)", "kw |> Keyword.get(:key)")
+      assert_style("kw |> Keyword.get(\"key\", nil)", "kw |> Keyword.get(\"key\")")
+      assert_style("kw |> Keyword.get(key, nil)", "kw |> Keyword.get(key)")
+    end
+
+    test "preserves Keyword.get with non-nil defaults" do
+      assert_style("Keyword.get(kw, key, default)")
+      assert_style("Keyword.get(kw, key, \"default\")")
+      assert_style("Keyword.get(kw, key, :default)")
+
+      assert_style("kw |> Keyword.get(key, default)")
+      assert_style("kw |> Keyword.get(key, \"default\")")
+      assert_style("kw |> Keyword.get(key, :default)")
+    end
+  end
+
   describe "anonymous function capture rewrites" do
     test "rewrites &anon_func(&n) to &anon_func/n" do
       assert_style("&my_function(&1)", "&my_function/1")

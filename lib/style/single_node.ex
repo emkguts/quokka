@@ -142,7 +142,7 @@ defmodule Quokka.Style.SingleNode do
   end
 
   for m <- [:Map, :Keyword] do
-    # lhs |> Map.merge(%{key: value}) => lhs |> Map.put(:key, value)
+    # lhs |> Map/Keyword.merge(%{key: value}) => lhs |> Map/Keyword.put(key, value)
     defp style(
            {:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [{:%{}, _, [{key, value}]}]}]} = node
          ) do
@@ -151,28 +151,28 @@ defmodule Quokka.Style.SingleNode do
         else: node
     end
 
-    # lhs |> Map.merge(key: value) => lhs |> Map.put(:key, value)
+    # lhs |> Map/Keyword.merge(key: value) => lhs |> Map/Keyword.put(key, value)
     defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [[{key, value}]]}]} = node) do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {:|>, pm, [lhs, {{:., dm, [module, :put]}, m, [key, value]}]},
         else: node
     end
 
-    # Map.merge(foo, %{one_key: :bar}) => Map.put(foo, :one_key, :bar)
+    # Map/Keyword.merge(lhs, %{key: value}) => Map/Keyword.put(lhs, key, value)
     defp style({{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [lhs, {:%{}, _, [{key, value}]}]} = node) do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {{:., dm, [module, :put]}, m, [lhs, key, value]},
         else: node
     end
 
-    # Map.merge(foo, one_key: :bar) => Map.put(foo, :one_key, :bar)
+    # Map/Keyword.merge(lhs, key: value) => Map/Keyword.put(lhs, key, value)
     defp style({{:., dm, [{_, _, [unquote(m)]} = module, :merge]}, m, [lhs, [{key, value}]]} = node) do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {{:., dm, [module, :put]}, m, [lhs, key, value]},
         else: node
     end
 
-    # lhs |> Map.drop([key]) => lhs |> Map.delete(key)
+    # lhs |> Map/Keyword.drop([key]) => lhs |> Map/Keyword.delete(key)
     defp style({{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [{:__block__, _, [[{op, _, _} = key]]}]} = node)
          when op != :| do
       if Quokka.Config.inefficient_function_rewrites?(),
@@ -180,7 +180,7 @@ defmodule Quokka.Style.SingleNode do
         else: node
     end
 
-    # Map.drop(foo, [one_key]) => Map.delete(foo, one_key)
+    # Map/Keyword.drop(lhs, [one_key]) => Map.delete(lhs, one_key)
     defp style(
            {{:., dm, [{_, _, [unquote(m)]} = module, :drop]}, m, [lhs, {:__block__, _, [[{op, _, _} = key]]}]} = node
          )
@@ -188,6 +188,20 @@ defmodule Quokka.Style.SingleNode do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {{:., dm, [module, :delete]}, m, [lhs, key]},
         else: node
+    end
+
+    # Map/Keyword.get(lhs, key, nil) => Map/Keyword.get(lhs, key)
+    defp style({{:., dm, [{_, _, [unquote(m)]} = module, :get]}, m, [lhs, key, {:__block__, _, [nil]}]}) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {{:., dm, [module, :get]}, m, [lhs, key]},
+        else: {{:., dm, [module, :get]}, m, [lhs, key, {:__block__, m, [nil]}]}
+    end
+
+    # lhs |> Map/Keyword.get(key, nil) => lhs |> Map/Keyword.get(key)
+    defp style({:|>, pm, [lhs, {{:., dm, [{_, _, [unquote(m)]} = module, :get]}, m, [key, {:__block__, _, [nil]}]}]}) do
+      if Quokka.Config.inefficient_function_rewrites?(),
+        do: {:|>, pm, [lhs, {{:., dm, [module, :get]}, m, [key]}]},
+        else: {:|>, pm, [lhs, {{:., dm, [module, :get]}, m, [key, {:__block__, m, [nil]}]}]}
     end
   end
 

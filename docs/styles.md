@@ -43,7 +43,7 @@ All these rewrites are configurable by setting the `exclude: [:inefficient_funct
 
 ### Empty enum checks
 
-This addresses [`Credo.Check.Warning.ExpensiveEmptyEnumCheck`](https://hexdocs.pm/credo/Credo.Check.Warning.ExpensiveEmptyEnumCheck.html).  This is not configurable.
+This addresses [`Credo.Check.Warning.ExpensiveEmptyEnumCheck`](https://hexdocs.pm/credo/Credo.Check.Warning.ExpensiveEmptyEnumCheck.html). This is not configurable.
 
 Rewrites look like this:
 
@@ -136,6 +136,22 @@ Map.delete(map, key)
 Keyword.drop(kw, [key])
 # Styled
 Keyword.delete(kw, key)
+```
+
+### Map/Keyword.get(lhs, key, nil) -> Map/Keyword.get(lhs, key)
+
+In the same vein as the `merge` style above, `[Map|Keyword].drop/2` with a single key to drop are rewritten to use `delete/2`
+
+```elixir
+# Before
+Map.get(map, key, nil)
+# Styled
+Map.get(map, key)
+
+# Before
+Keyword.get(kw, key, nil)
+# Styled
+Keyword.get(kw, key)
 ```
 
 ### `Enum.reverse/1` and concatenation -> `Enum.reverse/2`
@@ -256,7 +272,6 @@ Enum.join(["a", "b", "c"], ", ", &String.upcase/1)
 
 Quokka will rewrite functions whose entire body is a try/do to instead use the implicit try syntax. Addresses [`Credo.Check.Readability.PreferImplicitTry`](https://hexdocs.pm/credo/Credo.Check.Readability.PreferImplicitTry.html). This is not configurable.
 
-
 The following example illustrates the most complex case, but Quokka happily handles just basic try do/rescue bodies just as easily.
 
 ### Before
@@ -329,19 +344,20 @@ defmacrop foo
 
 ## Elixir Deprecation Rewrites
 
-| Before                                       | After                              | Elixir Version |
-| -------------------------------------------- | ---------------------------------- | ------------- |
-| `Logger.warn`                                | `Logger.warning`                   | 1.15+         |
-| `Path.safe_relative_to/2`                    | `Path.safe_relative/2`             | 1.15+         |
-| `~R/my_regex/`                               | `~r/my_regex/`                     | 1.15+         |
-| `Enum/String.slice/2` with decreasing ranges | add explicit steps to the range \* | 1.15+         |
-| `Date.range/2` with decreasing range         | `Date.range/3` \*                  | 1.15+         |
-| `IO.read/bin_read` with `:all` option        | replace `:all` with `:eof`         | 1.15+         |
-| `File.stream!(path, [encoding: :utf8, trim_bom: true], :line)` (`:line` `:bytes` deprecated) | `File.stream!(path, :line, encoding: :utf8, trim_bom: true)` | 1.16+         |
-| `:timer.units(x)`                            | `to_time(unit: x)`                 | 1.17+         |
-| `first..last = ...`                         | `first..last//_ = ...`             | 1.18+         |
-| `List.zip(list1, list2)`                    | `Enum.zip(list1, list2)`           | 1.18+         |
-| `%Foo{x \| y} => %{x \| y}`                 | `%{x \| y}`                        | 1.19+         |
+| Before                                                                                       | After                                                        | Elixir Version |
+| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | -------------- |
+| `Logger.warn`                                                                                | `Logger.warning`                                             | 1.15+          |
+| `Path.safe_relative_to/2`                                                                    | `Path.safe_relative/2`                                       | 1.15+          |
+| `~R/my_regex/`                                                                               | `~r/my_regex/`                                               | 1.15+          |
+| `Enum/String.slice/2` with decreasing ranges                                                 | add explicit steps to the range \*                           | 1.15+          |
+| `Date.range/2` with decreasing range                                                         | `Date.range/3` \*                                            | 1.15+          |
+| `IO.read/bin_read` with `:all` option                                                        | replace `:all` with `:eof`                                   | 1.15+          |
+| `File.stream!(path, [encoding: :utf8, trim_bom: true], :line)` (`:line` `:bytes` deprecated) | `File.stream!(path, :line, encoding: :utf8, trim_bom: true)` | 1.16+          |
+| `:timer.units(x)`                                                                            | `to_time(unit: x)`                                           | 1.17+          |
+| `first..last = ...`                                                                          | `first..last//_ = ...`                                       | 1.18+          |
+| `List.zip(list1, list2)`                                                                     | `Enum.zip(list1, list2)`                                     | 1.18+          |
+| `%Foo{x \| y} => %{x \| y}`                                                                  | `%{x \| y}`                                                  | 1.19+          |
+
 \* For both of the "decreasing range" changes, the rewrite can only be applied if the range is being passed as an argument to the function.
 
 ## Putting variable matching on the right
