@@ -206,7 +206,7 @@ defmodule Quokka.Style.SingleNodeTest do
         end
         """,
         """
-        defp bar(items) when is_list(items) and (is_list(items) and items != []) do
+        defp bar(items) when is_list(items) and items != [] do
           :ok
         end
         """
@@ -304,6 +304,34 @@ defmodule Quokka.Style.SingleNodeTest do
         end
         """
       )
+
+      # Test is_list with != 0 - should optimize
+      assert_style(
+        """
+        def process(data) when is_list(data) and length(data) != 0 do
+          :non_empty
+        end
+        """,
+        """
+        def process(data) when is_list(data) and data != [] do
+          :non_empty
+        end
+        """
+      )
+
+      # Test is_list with == 0 - should optimize  
+      assert_style(
+        """
+        def process(data) when is_list(data) and 0 == length(data) do
+          :empty
+        end
+        """,
+        """
+        def process(data) when is_list(data) and [] == data do
+          :empty
+        end
+        """
+      )
     end
 
     test "rewrites length/count checks outside guard clauses" do
@@ -357,8 +385,7 @@ defmodule Quokka.Style.SingleNodeTest do
           end
 
           def whiz(a, b, c, d, e)
-              when (is_list(a) and a != [] and is_list(b)) or (is_list(c) and (is_list(c) and c != [])) or
-                     (is_map(d) and length(e) == 3) do
+              when (is_list(a) and a != [] and is_list(b)) or (is_list(c) and c != []) or (is_map(d) and length(e) == 3) do
             if not Enum.empty?(bop) do
               :ok
             end
