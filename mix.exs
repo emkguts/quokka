@@ -43,6 +43,7 @@ defmodule Quokka.MixProject do
   defp deps() do
     [
       {:credo, "~> 1.7", runtime: true},
+      {:deps_changelog, "~> 0.3", only: :dev, runtime: false},
       {:ex_doc, "~> 0.31", runtime: false, only: :dev},
       {:mimic, "~> 1.7", only: :test}
     ]
