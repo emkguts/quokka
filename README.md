@@ -179,6 +179,7 @@ the check can be configured further for fine tuning.
 | [`.PipeChainStart`](https://hexdocs.pm/credo/Credo.Check.Refactor.PipeChainStart.html)                       | Optimizes pipe chain start              | [Pipe Chains](docs/pipes.md#pipe-start)                               |              |
 | [`.RedundantWithClauseResult`](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html) | Removes redundant with clause results   | [Control Flow Macros](docs/control_flow_macros.md#with)               |              |
 | [`.UnlessWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.UnlessWithElse.html)                       | Simplifies unless with else             | [Control Flow Macros](docs/control_flow_macros.md#if-and-unless)      |              |
+| [`.UtcNowTruncate`](https://hexdocs.pm/credo/Credo.Check.Refactor.UtcNowTruncate.html)                       | Simplifies truncating (Naive)DateTime   | [Pipe Chains](docs/pipes.md#piped-function-optimizations)             |              |
 | [`.WithClauses`](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html)                             | Optimizes with clauses                  | [Control Flow Macros](docs/control_flow_macros.md#with)               |              |
 
 ### Credo.Check.Warning

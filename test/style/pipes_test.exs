@@ -1422,4 +1422,65 @@ defmodule Quokka.Style.PipesTest do
       )
     end
   end
+
+  describe "UtcNowTruncate" do
+    test "rewrites DateTime.utc_now() |> DateTime.truncate(:second)" do
+      stub(Quokka.Config, :utc_now_truncate?, fn -> true end)
+      assert_style("DateTime.utc_now() |> DateTime.truncate(:second)", "DateTime.utc_now(:second)")
+      assert_style("NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)", "NaiveDateTime.utc_now(:second)")
+
+      assert_style(
+        "NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:microsecond)",
+        "NaiveDateTime.utc_now(:microsecond)"
+      )
+    end
+
+    test "rewrites pipeless function composition" do
+      stub(Quokka.Config, :utc_now_truncate?, fn -> true end)
+
+      assert_style("DateTime.truncate(DateTime.utc_now(), :microsecond)", "DateTime.utc_now(:microsecond)")
+
+      assert_style(
+        "NaiveDateTime.truncate(NaiveDateTime.utc_now(), :millisecond)",
+        "NaiveDateTime.utc_now(:millisecond)"
+      )
+    end
+
+    test "does not attempt to rewrite odd cases of double truncation " do
+      stub(Quokka.Config, :utc_now_truncate?, fn -> true end)
+
+      assert_style(
+        "DateTime.utc_now(:second) |> DateTime.truncate(:millisecond)",
+        ":second |> DateTime.utc_now() |> DateTime.truncate(:millisecond)"
+      )
+
+      assert_style(
+        ":millisecond |> NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:microsecond)",
+        ":millisecond |> NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:microsecond)"
+      )
+    end
+
+    test "does not rewrite other modules" do
+      stub(Quokka.Config, :utc_now_truncate?, fn -> true end)
+      assert_style("Timex.truncate(Timex.utc_now(), :second)")
+
+      assert_style(
+        "MyModule.utc_now() |> MyModule.truncate(:millisecond)",
+        "MyModule.truncate(MyModule.utc_now(), :millisecond)"
+      )
+    end
+
+    test "does not rewrite if utc_now_truncate? is false" do
+      stub(Quokka.Config, :utc_now_truncate?, fn -> false end)
+      assert_style("DateTime.utc_now() |> DateTime.truncate(:second)", "DateTime.truncate(DateTime.utc_now(), :second)")
+
+      assert_style(
+        "NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)",
+        "NaiveDateTime.truncate(NaiveDateTime.utc_now(), :second)"
+      )
+
+      assert_style("DateTime.truncate(DateTime.utc_now(), :microsecond)")
+      assert_style("NaiveDateTime.truncate(NaiveDateTime.utc_now(), :millisecond)")
+    end
+  end
 end

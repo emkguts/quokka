@@ -291,6 +291,10 @@ defmodule Quokka.Config do
     get(:piped_function_exclusions)
   end
 
+  def utc_now_truncate?() do
+    get(:utc_now_truncate)
+  end
+
   def zero_arity_parens?() do
     get(:zero_arity_parens)
   end
@@ -364,6 +368,9 @@ defmodule Quokka.Config do
 
       {StrictModuleLayout, opts}, acc when is_list(opts) ->
         Map.put(acc, :strict_module_layout_order, opts[:order])
+
+      {UtcNowTruncate, opts}, acc when is_list(opts) ->
+        Map.put(acc, :utc_now_truncate, true)
 
       _, acc ->
         acc
