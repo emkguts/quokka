@@ -38,6 +38,11 @@ defmodule Quokka.Style.SingleNode do
   def run({{:|>, _, [_, {{:., _, [{:__aliases__, _, [:Timex]}, :now]}, _, []}]}, _} = zipper, ctx),
     do: {:skip, zipper, ctx}
 
+  # `|> Timex.today()` => `|> Timex.today()`
+  # skip over pipes into `Timex.today/1` so that we don't accidentally rewrite it as Date.utc_today/1
+  def run({{:|>, _, [_, {{:., _, [{:__aliases__, _, [:Timex]}, :today]}, _, []}]}, _} = zipper, ctx),
+    do: {:skip, zipper, ctx}
+
   # Skip expensive empty enum check rewrites when inside guard clauses
   def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===, :!=] do
     if in_guard?(zipper) do
@@ -209,6 +214,13 @@ defmodule Quokka.Style.SingleNode do
   defp style({{:., dm, [{:__aliases__, am, [:Timex]}, :now]}, funm, []} = node) do
     if Quokka.Config.inefficient_function_rewrites?(),
       do: {{:., dm, [{:__aliases__, am, [:DateTime]}, :utc_now]}, funm, []},
+      else: node
+  end
+
+  # Timex.today() => Date.utc_today()
+  defp style({{:., dm, [{:__aliases__, am, [:Timex]}, :today]}, funm, []} = node) do
+    if Quokka.Config.inefficient_function_rewrites?(),
+      do: {{:., dm, [{:__aliases__, am, [:Date]}, :utc_today]}, funm, []},
       else: node
   end
 
