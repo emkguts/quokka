@@ -222,7 +222,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
         {directive, _, _} = ast, acc when directive in @directives ->
           {ast, acc} = lift_module_attrs(ast, acc)
-          ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [ast]
+          ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [sort_multi_children(ast)]
 
           # import and use might get hoisted above aliases, so need to dealias depending on the layout order
           needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
@@ -524,19 +524,32 @@ defmodule Quokka.Style.ModuleDirectives do
 
   defp expand(other), do: [other]
 
+  # When multi directives are not expanded, maintain brace form but sort inner items
+  defp sort_multi_children({directive, dm, [{{:., m, [{left_type, _, _} = left, :{}]}, meta, right}]})
+       when directive in @directives and left_type in [:__aliases__, :__MODULE__] do
+    {directive, dm, [{{:., m, [left, :{}]}, meta, sort_terms(right)}]}
+  end
+
+  defp sort_multi_children(other), do: other
+
   defp sort(directives) do
-    directive_strings =
-      if Quokka.Config.sort_order() == :ascii do
-        Enum.map(directives, &{&1, Macro.to_string(&1)})
-      else
-        Enum.map(directives, &{&1, &1 |> Macro.to_string() |> String.downcase()})
+    directives
+    |> sort_terms()
+    |> Style.reset_newlines()
+  end
+
+  defp sort_terms(asts) do
+    compare_key =
+      case Quokka.Config.sort_order() do
+        :ascii -> &Macro.to_string/1
+        _alpha -> fn ast -> ast |> Macro.to_string() |> String.downcase() end
       end
 
-    directive_strings
+    asts
+    |> Enum.map(&{&1, compare_key.(&1)})
     |> Enum.uniq_by(&elem(&1, 1))
     |> List.keysort(1)
     |> Enum.map(&elem(&1, 0))
-    |> Style.reset_newlines()
   end
 
   defp has_skip_comment?(context) do
