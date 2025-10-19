@@ -3,26 +3,36 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## [Unreleased]
+
+### Breaking Changes
+
+- Multi-alias sorting now matches Credo.Check.Readability.AliasOrder behavior by comparing the first child's full path instead of parent module only. This fixes compatibility with Credo 1.7.13+, which fixed a bug that now properly checks multi-alias ordering. Projects using Credo 1.7.12 or earlier may see new alias ordering changes when formatting. Upgrading to Credo 1.7.13+ is recommended for proper alias order checking.
+
 ## [2.11.2] - 2025-08-27
 
 ### Fixes
+
 - Fix crash in sorting when schema definition occurs through a macro.
 
 ## [2.11.1] - 2025-08-26
 
 ### Fixes
+
 - Improved error handling
 - Handle rewriting anonymous function captures of variables
 
 ## [2.11.0] - 2025-08-20
 
 ### Improvements
+
 - Support `:only` config option for `Credo.Check.Design.AliasUsage`.
 - Rewrite multiple `Map.delete` to `Map.drop`.
 - Rewrite `&my_func(&1)` => `&my_func/1` where relevant.
 - Rewrite `Enum.filter(fun) |> List.first([default])` => `Enum.find([default], fun)`
 
-### Fixes 
+### Fixes
+
 - Set default Elixir version as empty string for language server compatibility.
 - Do not dealias within moduledocs depending on the module layout order.
 - Properly autosort embedded schema.
@@ -31,33 +41,40 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 ## [2.10.0] - 2025-07-29
 
 ### Improvements
+
 - Rewrite `refute not` => `assert`
 
 ## [2.9.1] - 2025-07-13
 
 ### Fixes
+
 - Include ranges in numeric sorting.
 
 ## [2.9.0] - 2025-07-13
 
 ### Improvements
+
 - Rewrite inefficient Repo existence checks (`Repo.one` => `Repo.exists?` where appropriate)
 
 #### New rewrite type: tests
+
 Quokka will style your tests. For now, the main rewrite is `assert not` gets rewritten to `refute`. If you don't want this rewrite, add `exclude: [:tests]`.
 
 ### Fixes
+
 - In autosort, sort numeric keys naturally (ie, 1, 2, 10 instead of 1, 10, 2).
 - Update mix.exs changelog link to use hexdocs.
 
 ## [2.8.1] - 2025-07-07
 
 ### Fixes
+
 - Don't fail when credo not used in project.
 
 ## [2.8.0] - 2025-07-01
 
 ### Improvements
+
 - Leverage the Elixir version in the project to determine deprecation rewrites (instead of system version).
 - Add `exclude: [nums_with_underscores]` config to ignore numbers with underscores. (Don't style 100_00 as 10_000).
 - Add `exclude: [:autosort_ecto]` config to skip autosorting within Ecto queries.
@@ -66,10 +83,12 @@ Quokka will style your tests. For now, the main rewrite is `assert not` gets rew
 - Autosort efficiency improvements
 
 ### Fixes
+
 - Run formatter on ignored files. Previously, ignored files weren't getting formatted by default formatter.
 - Add changelog to Hex package metadata
 
 ### Deprecations
+
 - `piped_function_exclusions` is now deprecated. Use `exclude: [piped_functions: []]`
 - `inefficient_function_rewrites` is now deprecated. Use `exclude: [inefficient_functions]`
 
@@ -95,11 +114,13 @@ Quokka will style your tests. For now, the main rewrite is `assert not` gets rew
 ## [2.5.2] - 2025-04-09
 
 ### Fixes
+
 - Don't throw errors when styling an empty module
 
 ## [2.5.1] - 2025-04-09
 
 ### Fixes
+
 - Fix pipe chain start with alias lifting exceptions. When an alias is excluded from lifting, it was not properly identifying invalid pipe chain start.
 
 ## [2.5.0] - 2025-04-01
@@ -109,14 +130,14 @@ Quokka will style your tests. For now, the main rewrite is `assert not` gets rew
 - `if`: drop empty `do` bodies like `if a, do: nil, else: b` => `if !a, do: b`
 - `to_timeout/1` rewrites to use the next largest unit in some simple instances
 
-    ```elixir
-    # before
-    to_timeout(second: 60 * m)
-    to_timeout(day: 7)
-    # after
-    to_timeout(minute: m)
-    to_timeout(week: 1)
-    ```
+  ```elixir
+  # before
+  to_timeout(second: 60 * m)
+  to_timeout(day: 7)
+  # after
+  to_timeout(minute: m)
+  to_timeout(week: 1)
+  ```
 
 ### Fixes
 
@@ -146,6 +167,7 @@ Quokka will style your tests. For now, the main rewrite is `assert not` gets rew
 ### Improvements
 
 Credo doesn't warn about alias lifting for `behaviour, use, import` directives (unless there are aliases inside opts). Therefore, to match credo:
+
 - Don't lift `behaviour` aliases at all.
 - Only lift `use` and `import` aliases if they were going to be lifted anyways (credo wouldn't yell either way, but it seems sensible to lift an alias if it's already lifted).
 
@@ -178,6 +200,7 @@ subquery(
   |> limit(1)
 )
 ```
+
 would normally be rewritten to:
 
 ```elixir
@@ -189,6 +212,7 @@ would normally be rewritten to:
 ```
 
 but with the option set like this, it will not be rewritten:
+
 ```elixir
 # .formatter.exs
 quokka: [
@@ -201,13 +225,11 @@ quokka: [
 - For elixir 1.18 and above, Quokka will rewrite `%Foo{x | y} => %{x | y}`
 - For elixir 1.17 and above, Quokka will replace `:timer.units(x)` with `to_time(unit: x)`
 
-
 ### Fixes
 
 - Lift aliases that were already lifted
 - Lift aliases from inside module directives like `use` if the directive type comes after the alias.
 - `with` redundant body + non-arrow behind redundant clause
-
 
 ## [2.0.0] - 2025-02-20
 
@@ -223,7 +245,7 @@ Example configuration in `.formatter.exs`:
 [
   # Only apply these specific rewrites
   only: [:pipes, :aliases, :line_length],
-  
+
   # Or exclude specific rewrites
   exclude: [:sort_directives]
 ]
@@ -243,7 +265,7 @@ See the documentation for a complete list of available rewrite options.
 
 #### Line length formatting only
 
-In order to phase this into large codebases, Quokka now supports formatting only the line length, the idea being that it is easier to review a diff where one commit is just compressing vertical code and the following is the substantive rewrites -- aka the rewrites that change the AST. In order to use this feature, use `newline_fixes_only: true | false` in the config. 
+In order to phase this into large codebases, Quokka now supports formatting only the line length, the idea being that it is easier to review a diff where one commit is just compressing vertical code and the following is the substantive rewrites -- aka the rewrites that change the AST. In order to use this feature, use `newline_fixes_only: true | false` in the config.
 
 ##### `# quokka:sort` Quokka's first comment directive
 
@@ -326,19 +348,21 @@ my_macro "some arg" do
   another_macro :y
 end
 ```
+
 #### Other improvements
+
 - General improvements around conflict detection, lifting in more correct places and fewer incorrect places.
 - Use knowledge of existing aliases to shorten invocations.
 
-    example:
-        alias A.B.C
+  example:
+  alias A.B.C
 
         A.B.C.foo()
         A.B.C.bar()
         A.B.C.baz()
 
-    becomes:
-        alias A.B.C
+  becomes:
+  alias A.B.C
 
         C.foo()
         C.bar()

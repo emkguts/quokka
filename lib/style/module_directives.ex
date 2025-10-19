@@ -539,17 +539,63 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp sort_terms(asts) do
-    compare_key =
-      case Quokka.Config.sort_order() do
-        :ascii -> &Macro.to_string/1
-        _alpha -> fn ast -> ast |> Macro.to_string() |> String.downcase() end
-      end
+    sort_method = Quokka.Config.sort_order()
 
     asts
-    |> Enum.map(&{&1, compare_key.(&1)})
+    |> Enum.map(&{&1, get_sort_key(&1, sort_method)})
     |> Enum.uniq_by(&elem(&1, 1))
     |> List.keysort(1)
     |> Enum.map(&elem(&1, 0))
+  end
+
+  # Get the sort key for an alias, using first child's full path for multi-aliases
+  # This ensures compatibility with Credo.Check.Readability.AliasOrder which compares
+  # the first expanded child module path, not just the parent module.
+  defp get_sort_key({:alias, _, [{{:., _, [{:__aliases__, _, mod_list}, :{}]}, _, children}]}, sort_method) do
+    # Multi-alias: use alias parent.first_alphabetical_child as sort key
+    parent = Enum.map_join(mod_list, ".", &to_string/1)
+
+    # Sort children to get the alphabetically first one
+    first_child =
+      children
+      |> Enum.map(fn {:__aliases__, _, parts} ->
+        {Enum.map_join(parts, ".", &to_string/1), parts}
+      end)
+      |> Enum.sort_by(fn {str, _} ->
+        if sort_method == :ascii, do: str, else: String.downcase(str)
+      end)
+      |> List.first()
+      |> elem(1)
+      |> Enum.map_join(".", &to_string/1)
+
+    full_path = "alias #{parent}.#{first_child}"
+    if sort_method == :ascii, do: full_path, else: String.downcase(full_path)
+  end
+
+  defp get_sort_key({:alias, _, [{{:., _, [{:__MODULE__, _, _}, :{}]}, _, children}]}, sort_method) do
+    # Multi-alias with __MODULE__: use alias __MODULE__.first_alphabetical_child as sort key
+
+    # Sort children to get the alphabetically first one
+    first_child =
+      children
+      |> Enum.map(fn {:__aliases__, _, parts} ->
+        {Enum.map_join(parts, ".", &to_string/1), parts}
+      end)
+      |> Enum.sort_by(fn {str, _} ->
+        if sort_method == :ascii, do: str, else: String.downcase(str)
+      end)
+      |> List.first()
+      |> elem(1)
+      |> Enum.map_join(".", &to_string/1)
+
+    full_path = "alias __MODULE__.#{first_child}"
+    if sort_method == :ascii, do: full_path, else: String.downcase(full_path)
+  end
+
+  defp get_sort_key(directive, sort_method) do
+    # Single alias or other directive: use macro string representation
+    str = Macro.to_string(directive)
+    if sort_method == :ascii, do: str, else: String.downcase(str)
   end
 
   defp has_skip_comment?(context) do

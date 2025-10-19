@@ -499,14 +499,15 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       alias A.{B, C}
       """)
 
+      # Multi-aliases are sorted by first child (A.B), so they come before A.D
       assert_style(
         """
         alias A.D
         alias A.{B, E, C}
         """,
         """
-        alias A.D
         alias A.{B, C, E}
+        alias A.D
         """
       )
     end
@@ -732,6 +733,162 @@ defmodule Quokka.Style.ModuleDirectivesTest do
           use OptionsMagic, my_opts: unquote(library_options)
 
           @library_options library_options
+        end
+        """
+      )
+    end
+  end
+
+  describe "Credo.Check.Readability.AliasOrder compatibility" do
+    test "sorts multi-aliases by first child's full path (alpha)" do
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias Enaia.Comments.{Comment, Commentable}
+          alias Enaia.CRE.Commentable.CommonImpl
+          alias Enaia.CRE.{Account, Deal}
+          alias Enaia.Repo
+        end
+        """,
+        """
+        defmodule Foo do
+          alias Enaia.Comments.Comment
+          alias Enaia.Comments.Commentable
+          alias Enaia.CRE.Account
+          alias Enaia.CRE.Commentable.CommonImpl
+          alias Enaia.CRE.Deal
+          alias Enaia.Repo
+        end
+        """
+      )
+    end
+
+    test "sorts multi-aliases by first child's full path (ascii)" do
+      stub(Quokka.Config, :sort_order, fn -> :ascii end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias Enaia.Comments.{Comment, Commentable}
+          alias Enaia.CRE.{Account, Deal}
+          alias Enaia.Repo
+        end
+        """,
+        """
+        defmodule Foo do
+          alias Enaia.CRE.Account
+          alias Enaia.CRE.Deal
+          alias Enaia.Comments.Comment
+          alias Enaia.Comments.Commentable
+          alias Enaia.Repo
+        end
+        """
+      )
+    end
+
+    test "parent vs child ordering" do
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias Enaia.Comments
+          alias Enaia.Comments.{Comment, Commentable}
+        end
+        """,
+        """
+        defmodule Foo do
+          alias Enaia.Comments
+          alias Enaia.Comments.Comment
+          alias Enaia.Comments.Commentable
+        end
+        """
+      )
+    end
+
+    test "multi-alias vs single alias with deeper nesting" do
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias MyApp.B.{A, C}
+          alias MyApp.A.B.C
+        end
+        """,
+        """
+        defmodule Foo do
+          alias MyApp.A.B.C
+          alias MyApp.B.A
+          alias MyApp.B.C
+        end
+        """
+      )
+    end
+
+    test "__MODULE__ multi-alias sorting" do
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias __MODULE__.{Z, A, M}
+          alias __MODULE__.B
+        end
+        """,
+        """
+        defmodule Foo do
+          alias __MODULE__.A
+          alias __MODULE__.B
+          alias __MODULE__.M
+          alias __MODULE__.Z
+        end
+        """
+      )
+    end
+
+    test "complex real-world scenario" do
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule MyApp.CRE.Commentable do
+          alias MyApp.Comments.{Comment, Commentable}
+          alias MyApp.CRE.Commentable.CommonImpl
+          alias MyApp.CRE.{Account, Deal}
+          alias MyApp.Repo
+        end
+        """,
+        """
+        defmodule MyApp.CRE.Commentable do
+          alias MyApp.Comments.Comment
+          alias MyApp.Comments.Commentable
+          alias MyApp.CRE.Account
+          alias MyApp.CRE.Commentable.CommonImpl
+          alias MyApp.CRE.Deal
+          alias MyApp.Repo
+        end
+        """
+      )
+    end
+
+    test "multi-alias first child sorts before single alias (keeps multi-alias)" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias Foo.B
+          alias Foo.AAA.{X, Y}
+        end
+        """,
+        """
+        defmodule Foo do
+          alias Foo.AAA.{X, Y}
+          alias Foo.B
         end
         """
       )
