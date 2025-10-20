@@ -87,13 +87,11 @@ defmodule Quokka.Style.Deprecations do
   # Enum.slice(enumerable, 1..-2) => Enum.slice(enumerable, 1..-2//1)
   # String.slice("elixir", 2..-1) => String.slice("elixir", 2..-1//1)
   defp style({{:., _, [{_, _, [module]}, :slice]} = f, funm, [enumerable, {:.., _, [_, _]} = range]})
-       when module in [:Enum, :String],
-       do: {f, funm, [enumerable, add_step_to_decreasing_range(range)]}
+       when module in [:Enum, :String], do: {f, funm, [enumerable, add_step_to_decreasing_range(range)]}
 
   # Pipe version for {Enum,String}.slice
   defp style({:|>, m, [lhs, {{:., _, [{_, _, [mod]}, :slice]} = f, funm, [{:.., _, [_, _]} = range]}]})
-       when mod in [:Enum, :String],
-       do: {:|>, m, [lhs, {f, funm, [add_step_to_decreasing_range(range)]}]}
+       when mod in [:Enum, :String], do: {:|>, m, [lhs, {f, funm, [add_step_to_decreasing_range(range)]}]}
 
   # ~R is deprecated in favor of ~r
   defp style({:sigil_R, m, args}), do: {:sigil_r, m, args}
@@ -114,12 +112,10 @@ defmodule Quokka.Style.Deprecations do
 
   # use :eof instead of :all in IO.read/2 and IO.binread/2
   defp style({{:., _, [{:__aliases__, _, [:IO]}, fun]} = fm, dm, [{:__block__, am, [:all]}]})
-       when fun in [:read, :binread],
-       do: {fm, dm, [{:__block__, am, [:eof]}]}
+       when fun in [:read, :binread], do: {fm, dm, [{:__block__, am, [:eof]}]}
 
   defp style({{:., _, [{:__aliases__, _, [:IO]}, fun]} = fm, dm, [device, {:__block__, am, [:all]}]})
-       when fun in [:read, :binread],
-       do: {fm, dm, [device, {:__block__, am, [:eof]}]}
+       when fun in [:read, :binread], do: {fm, dm, [device, {:__block__, am, [:eof]}]}
 
   defp style(node), do: node
 
