@@ -1,4 +1,4 @@
-on: 
+on:
   push:
   pull_request:
 name: Build & Test
@@ -11,13 +11,21 @@ jobs:
     name: Elixir ${{matrix.elixir}} | OTP ${{matrix.otp}}
     strategy:
       matrix:
-        elixir: [1.15.8, 1.16.3, 1.17.3, 1.18.2]
-        otp: [26.2.5.7, 27.2.2]
+        elixir: [1.15.8, 1.16.3, 1.17.3, 1.18.2, 1.19.1]
+        otp: [26.2.5.7, 27.2.2, 28.1.1]
         exclude:
           - elixir: 1.15.8
             otp: 27.2.2
+          - elixir: 1.15.8
+            otp: 28.1.1
           - elixir: 1.16.3
             otp: 27.2.2
+          - elixir: 1.16.3
+            otp: 28.1.1
+          - elixir: 1.17.3
+            otp: 28.1.1
+          - elixir: 1.18.2
+            otp: 28.1.1
     steps:
       - uses: actions/checkout@v4
       - uses: erlef/setup-beam@v1
@@ -27,7 +35,7 @@ jobs:
       - run: mix clean
       - run: mix deps.get
       - name: Check formatting
-        if: matrix.elixir == '1.18.2' && matrix.otp == '26.2.5.7'
+        if: matrix.elixir == '1.19.1' && matrix.otp == '27.2.2'
         run: mix format --check-formatted
       - run: mix compile --warnings-as-errors
       - run: mix test
