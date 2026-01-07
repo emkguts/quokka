@@ -22,6 +22,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.SinglePipe
   alias Credo.Check.Readability.StrictModuleLayout
   alias Credo.Check.Refactor.PipeChainStart
+  alias Credo.Check.Refactor.UtcNowTruncate
   alias Quokka.Style.Blocks
   alias Quokka.Style.CommentDirectives
   alias Quokka.Style.Configs
@@ -158,6 +159,7 @@ defmodule Quokka.Config do
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
         sort_order: credo_opts[:sort_order] || :alpha,
         strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
+        utc_now_truncate: credo_opts[:utc_now_truncate] || false,
         zero_arity_parens: credo_opts[:zero_arity_parens] || false
       }
     )
