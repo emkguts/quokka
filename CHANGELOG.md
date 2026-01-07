@@ -3,6 +3,10 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## Next
+
+- Add single node rewrite to automatically remove single-token aliases, like `alias Foo`
+
 ## [2.11.2] - 2025-08-27
 
 ### Fixes

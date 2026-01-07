@@ -342,6 +342,20 @@ defmacro foo
 defmacrop foo
 ```
 
+## Remove single-token aliases
+
+Removes unnecessary aliases that don't actually add to the names available.
+
+```elixir
+# Before
+alias Foo
+alias Foo.Bar
+
+# Styled
+alias Foo.Bar
+```
+
+
 ## Elixir Deprecation Rewrites
 
 | Before                                                                                       | After                                                        | Elixir Version |
