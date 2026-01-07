@@ -1327,4 +1327,49 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("& &1.(&2)")
     end
   end
+
+  describe "unnecessary single-segment aliases" do
+    test "removes alias with single segment" do
+      assert_style("alias Floki", "")
+      assert_style("alias Foo", "")
+      assert_style("alias SomeModule", "")
+    end
+
+    test "removes alias and keeps surrounding code" do
+      assert_style(
+        """
+        alias Floki
+
+        Floki.parse("<html>")
+        """,
+        "Floki.parse(\"<html>\")"
+      )
+    end
+
+    test "removes alias inside module" do
+      assert_style(
+        """
+        defmodule MyModule do
+          alias Floki
+
+          def foo, do: Floki.parse("<html>")
+        end
+        """,
+        """
+        defmodule MyModule do
+          def foo(), do: Floki.parse("<html>")
+        end
+        """
+      )
+    end
+
+    test "preserves multi-segment aliases" do
+      assert_style("alias Foo.Bar")
+      assert_style("alias Foo.Bar.Baz")
+    end
+
+    test "preserves aliases with :as option" do
+      assert_style("alias Foo.Bar, as: Baz")
+    end
+  end
 end

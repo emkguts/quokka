@@ -1112,12 +1112,12 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
 
           use IDependOnTheOtherUseBeingFirst
 
-          alias Foo
+          alias Foo.Bar
         end
         """,
         """
         defmodule MyApp.Schemas.MySchema do
-          alias Foo
+          alias Foo.Bar
           alias MyApp.Schemas.MySchema
 
           use MyApp.Schema,

@@ -33,6 +33,12 @@ defmodule Quokka.Style.SingleNode do
 
   @closing_delimiters [~s|"|, ")", "}", "|", "]", "'", ">", "/"]
 
+  # `alias Foo` => `` (removed)
+  # Single-segment aliases don't change what names are available, so remove them
+  def run({{:alias, _, [{:__aliases__, _, [_single_segment]}]}, _} = zipper, ctx) do
+    {:cont, Zipper.remove(zipper), ctx}
+  end
+
   # `|> Timex.now()` => `|> Timex.now()`
   # skip over pipes into `Timex.now/1` so that we don't accidentally rewrite it as DateTime.utc_now/1
   def run({{:|>, _, [_, {{:., _, [{:__aliases__, _, [:Timex]}, :now]}, _, []}]}, _} = zipper, ctx),
