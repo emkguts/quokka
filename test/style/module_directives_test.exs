@@ -499,10 +499,46 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       alias A.{B, C}
       """)
 
-      assert_style("""
-      alias A.D
-      alias A.{B, E, C}
-      """)
+      assert_style(
+        """
+        alias A.D
+        alias A.{B, E, C}
+        """,
+        """
+        alias A.D
+        alias A.{B, C, E}
+        """
+      )
+    end
+
+    test "sorts nested alias/import/require braces when not expanded" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style(
+        """
+        alias A.{C, B, E}
+        require Bar.{B, A}
+        import Foo.{Z, A, M}
+        """,
+        """
+        import Foo.{A, M, Z}
+
+        alias A.{B, C, E}
+
+        require Bar.{A, B}
+        """
+      )
+
+      assert_style(
+        """
+        alias A.A
+        alias __MODULE__.{C, B.D, B.A, A}
+        """,
+        """
+        alias __MODULE__.{A, B.A, B.D, C}
+        alias A.A
+        """
+      )
     end
   end
 

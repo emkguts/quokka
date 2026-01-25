@@ -36,7 +36,7 @@ alias Foo.Bop
 ## Directive Organization
 
 This addresses:
-- [`Credo.Check.Readability.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html). While it is not possible to disable this rewrite, Quokka will respect the `:sort_method` Credo config.
+- [`Credo.Check.Readability.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html). While it is not possible to disable this rewrite, Quokka will respect the `:sort_method` Credo config. Note that nested aliases are sorted within their group as well.
 - [`Credo.Check.Readability.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html). While it is not possible to disable this rewrite, Quokka will respect the `:order` Credo config.
 
 Modules directives are sorted into the following order by default:
@@ -56,6 +56,7 @@ Modules directives are sorted into the following order by default:
 defmodule Foo do
   @behaviour Lawful
   alias A.A
+  alias __MODULE__.{C, B.D}
   require A
 
   use B
@@ -111,6 +112,7 @@ defmodule Foo do
   import A.A
   import C
 
+  alias __MODULE__.{B.D, C}
   alias A.A
   alias C.C
   alias D.D
