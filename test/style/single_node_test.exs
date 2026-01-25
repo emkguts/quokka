@@ -417,6 +417,30 @@ defmodule Quokka.Style.SingleNodeTest do
     end
   end
 
+  describe "Timex.today/0,1" do
+    test "Timex.today/0 => Date.utc_today/0" do
+      assert_style("Timex.today()", "Date.utc_today()")
+      assert_style("Timex.today() |> foo() |> bar()", "Date.utc_today() |> foo() |> bar()")
+    end
+
+    test "leaves Timex.today/1 alone" do
+      assert_style("Timex.today(tz)", "Timex.today(tz)")
+
+      assert_style(
+        """
+        timezone
+        |> Timex.today()
+        |> foo()
+        """,
+        """
+        timezone
+        |> Timex.today()
+        |> foo()
+        """
+      )
+    end
+  end
+
   test "{DateTime,NaiveDateTime,Time,Date}.compare to {DateTime,NaiveDateTime,Time,Date}.before?" do
     assert_style("DateTime.compare(foo, bar) == :lt", "DateTime.before?(foo, bar)")
     assert_style("NaiveDateTime.compare(foo, bar) == :lt", "NaiveDateTime.before?(foo, bar)")

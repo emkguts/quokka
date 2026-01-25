@@ -170,9 +170,9 @@ baz |> Enum.reverse() |> Enum.concat(bop)
 Enum.reverse(baz, bop)
 ```
 
-### `Timex.now/0` ->` DateTime.utc_now/0`
+### `Timex.now/0` ->` DateTime.utc_now/0` and `Timex.today/0` -> `Date.utc_today/0`
 
-Timex certainly has its uses, but knowing what stdlib date/time struct is returned by `now/0` is a bit difficult!
+Timex certainly has its uses, but knowing what stdlib date/time struct is returned by Timex is a bit difficult.
 
 We prefer calling the actual function rather than its rename in Timex, helping the reader by being more explicit.
 
