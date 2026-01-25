@@ -33,8 +33,7 @@ defmodule Quokka.Style.Blocks do
 
   # Credo.Check.Refactor.CondStatements
   def run({{:cond, _, [[{_, [{:->, _, [[head], a]}, {:->, _, [[{:__block__, _, [truthy]}], b]}]}]]}, _} = zipper, ctx)
-      when is_atom(truthy) and truthy not in [nil, false],
-      do: if_ast(zipper, head, a, b, ctx)
+      when is_atom(truthy) and truthy not in [nil, false], do: if_ast(zipper, head, a, b, ctx)
 
   # Credo.Check.Readability.WithSingleClause
   # rewrite `with success <- single_statement do body else ...elses end`
