@@ -128,6 +128,11 @@ defmodule Quokka.Style.Pipes do
             else
               {:cont, single_pipe_zipper, ctx}
             end
+
+          # Handle cases where fix_pipe completely rewrites the pipe to a non-pipe node
+          # e.g., DateTime.utc_now() |> DateTime.truncate(:second) => DateTime.utc_now(:second)
+          other ->
+            {:cont, other, ctx}
         end
 
       non_pipe ->
@@ -186,6 +191,22 @@ defmodule Quokka.Style.Pipes do
         zipper = Zipper.up(zipper) || zipper
         # recursion ensures we get those nested function calls and any additional pipes
         run(zipper, ctx)
+    end
+  end
+
+  # DateTime.truncate(DateTime.utc_now(), precision) => DateTime.utc_now(precision)
+  # NaiveDateTime.truncate(NaiveDateTime.utc_now(), precision) => NaiveDateTime.utc_now(precision)
+  def run(
+        {{{:., _dm, [{_, _, [mod]}, :truncate]}, _meta,
+          [{{:., _, [{_, _, [mod]}, :utc_now]} = utc_now, utc_meta, []}, precision]}, _} = zipper,
+        ctx
+      )
+      when mod in [:DateTime, :NaiveDateTime] do
+    if Quokka.Config.utc_now_truncate?() do
+      replacement = {utc_now, utc_meta, [precision]}
+      {:cont, Zipper.replace(zipper, replacement), ctx}
+    else
+      {:cont, zipper, ctx}
     end
   end
 
@@ -323,6 +344,23 @@ defmodule Quokka.Style.Pipes do
   # `a |> (& &1).() |> c()` => `a |> then(& &1) |> c()`
   defp fix_pipe({:|>, m, [lhs, {{:., m2, [{anon_fun, _, _}] = fun}, _, []}]}) when anon_fun in [:&, :fn],
     do: {:|>, m, [lhs, {:then, m2, fun}]}
+
+  # `DateTime.utc_now() |> DateTime.truncate(precision)` => `DateTime.utc_now(precision)`
+  # `NaiveDateTime.utc_now() |> NaiveDateTime.truncate(precision)` => `NaiveDateTime.utc_now(precision)`
+  defp fix_pipe(
+         {:|>, _pm,
+          [
+            {{:., _, [{_, _, [mod]}, :utc_now]} = utc_now, meta, []},
+            {{:., _, [{_, _, [mod]}, :truncate]}, _, [precision]}
+          ]} = node
+       )
+       when mod in [:DateTime, :NaiveDateTime] do
+    if Quokka.Config.utc_now_truncate?() do
+      {utc_now, meta, [precision]}
+    else
+      node
+    end
+  end
 
   # `lhs |> Enum.reverse() |> Enum.concat(enum)` => `lhs |> Enum.reverse(enum)`
   defp fix_pipe(

@@ -154,6 +154,13 @@ a |> Keyword.drop([key1, key2]) |> Keyword.delete(key3) |> ...
 a |> Keyword.drop([key1, key2, key3]) |> ...
 a |> Keyword.drop([key1, key2, key3]) |> ...
 
+# If [`Credo.Check.Refactor.UtcNowTruncate`](https://hexdocs.pm/credo/Credo.Check.Refactor.UtcNowTruncate.html)
+# is enabled, rewrites (DateTime|NaiveDateTime).utc_now() |> (DateTime|NaiveDateTime).truncate(precision)
+DateTime.utc_now() |> DateTime.truncate(:millisecond)
+NaiveDateTime.utc_now() |> NaiveDateTime.truncate(:second)
+# Styled:
+DateTime.utc_now(:millisecond)
+NaiveDateTime.utc_now(:second)
 ```
 
 ### Unpiping Single Pipes
