@@ -649,6 +649,166 @@ defmodule Quokka.Style.BlocksTest do
     end
   end
 
+  describe "pipe into case" do
+    test "transforms case with pipe chain subject to pipe into case" do
+      assert_style(
+        """
+        case input
+             |> parse()
+             |> validate() do
+          {:ok, %{name: name, age: age}} when age > 18 ->
+            {:adult, name}
+
+          {:ok, %{name: name}} ->
+            {:minor, name}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+        """,
+        """
+        input
+        |> parse()
+        |> validate()
+        |> case do
+          {:ok, %{name: name, age: age}} when age > 18 ->
+            {:adult, name}
+
+          {:ok, %{name: name}} ->
+            {:minor, name}
+
+          {:error, reason} ->
+            {:error, reason}
+        end
+        """
+      )
+    end
+
+    test "transforms single pipe case subject" do
+      assert_style(
+        """
+        case foo |> bar() do
+          {:ok, x} -> x
+          {:error, e} -> e
+        end
+        """,
+        """
+        foo
+        |> bar()
+        |> case do
+          {:ok, x} -> x
+          {:error, e} -> e
+        end
+        """
+      )
+    end
+
+    test "transforms case with longer pipe chain" do
+      assert_style(
+        """
+        case a |> b() |> c() |> d() |> e() do
+          x -> x
+        end
+        """,
+        """
+        a
+        |> b()
+        |> c()
+        |> d()
+        |> e()
+        |> case do
+          x -> x
+        end
+        """
+      )
+    end
+
+    test "does not transform case without pipe subject" do
+      assert_style("""
+      case foo do
+        x -> x
+      end
+      """)
+
+      assert_style("""
+      case bar(foo) do
+        x -> x
+      end
+      """)
+    end
+
+    test "works inside function definitions" do
+      assert_style(
+        """
+        def process(data) do
+          case data
+               |> transform()
+               |> validate() do
+            {:ok, result} -> result
+            {:error, _} -> nil
+          end
+        end
+        """,
+        """
+        def process(data) do
+          data
+          |> transform()
+          |> validate()
+          |> case do
+            {:ok, result} -> result
+            {:error, _} -> nil
+          end
+        end
+        """
+      )
+    end
+
+    test "respects :pipe_into_case exclusion" do
+      stub(Quokka.Config, :pipe_into_case?, fn -> false end)
+
+      assert_style("""
+      case foo |> bar() |> baz() do
+        x -> x
+      end
+      """)
+    end
+
+    test "works with module function calls in pipe" do
+      assert_style(
+        """
+        case data
+             |> Enum.map(&transform/1)
+             |> Enum.filter(&valid?/1) do
+          [] -> :empty
+          items -> {:ok, items}
+        end
+        """,
+        """
+        data
+        |> Enum.map(&transform/1)
+        |> Enum.filter(&valid?/1)
+        |> case do
+          [] -> :empty
+          items -> {:ok, items}
+        end
+        """
+      )
+    end
+
+    test "works with inline case" do
+      assert_style(
+        "case foo |> bar() do x -> x end",
+        """
+        foo
+        |> bar()
+        |> case do
+          x -> x
+        end
+        """
+      )
+    end
+  end
+
   describe "if" do
     test "drops else nil" do
       assert_style("if a, do: b, else: nil", "if a, do: b")
