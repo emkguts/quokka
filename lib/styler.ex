@@ -36,9 +36,11 @@ defmodule Quokka do
     on_error = opts[:on_error] || :log
     zipper = Zipper.zip(ast)
 
+    plugin_opts = Quokka.Config.plugin_opts()
+
     {{ast, _}, comments} =
       Enum.reduce(Quokka.Config.get_styles(), {zipper, comments}, fn style, {zipper, comments} ->
-        context = %{comments: comments, file: file}
+        context = %{comments: comments, file: file, plugin_opts: Map.get(plugin_opts, style, [])}
 
         try do
           {zipper, %{comments: comments}} = Zipper.traverse_while(zipper, context, &style.run/2)
