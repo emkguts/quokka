@@ -78,6 +78,10 @@ defmodule Quokka.Config do
     quokka_config = formatter_opts[:quokka] || []
     credo_opts = extract_configs_from_credo()
 
+    # Load and validate plugins
+    load_required_files(quokka_config[:requires] || [])
+    {plugins, plugin_opts} = parse_plugins(quokka_config[:plugins] || [])
+
     lift_alias_excluded_namespaces = credo_opts[:lift_alias_excluded_namespaces] || []
 
     lift_alias_excluded_lastnames = credo_opts[:lift_alias_excluded_lastnames] || []
@@ -155,6 +159,8 @@ defmodule Quokka.Config do
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
         pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
         piped_function_exclusions: piped_function_exclusions,
+        plugin_opts: plugin_opts,
+        plugins: plugins,
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
         sort_order: credo_opts[:sort_order] || :alpha,
@@ -172,7 +178,7 @@ defmodule Quokka.Config do
   end
 
   def get_styles() do
-    styles_to_apply =
+    builtin_styles =
       cond do
         :line_length in only_styles() ->
           []
@@ -186,7 +192,11 @@ defmodule Quokka.Config do
       end
 
     styles_to_exclude = Enum.map(exclude_styles(), &@styles_by_atom[&1])
-    Enum.filter(styles_to_apply, fn style -> !Enum.member?(styles_to_exclude, style) end)
+    filtered_builtins = Enum.filter(builtin_styles, fn style -> !Enum.member?(styles_to_exclude, style) end)
+
+    # Plugins run after built-in styles, in declaration order
+    plugins = get(:plugins) || []
+    filtered_builtins ++ plugins
   end
 
   def only_styles() do
@@ -301,6 +311,18 @@ defmodule Quokka.Config do
     get(:zero_arity_parens)
   end
 
+  def plugins() do
+    get(:plugins)
+  end
+
+  def plugin_opts() do
+    get(:plugin_opts)
+  end
+
+  def plugin_opts(module) do
+    get(:plugin_opts)[module] || []
+  end
+
   def allowed_directory?(file) do
     relative_path = Path.relative_to_cwd(file)
     included_dirs = get(:directories_included)
@@ -394,4 +416,38 @@ defmodule Quokka.Config do
         System.version()
     end
   end
+
+  defp load_required_files(patterns) do
+    patterns
+    |> List.wrap()
+    |> Enum.flat_map(&Path.wildcard/1)
+    |> Enum.each(fn path ->
+      if File.exists?(path) do
+        Code.require_file(path)
+      else
+        Logger.warning("Quokka plugin file not found: #{path}")
+      end
+    end)
+  end
+
+  defp parse_plugins(plugin_specs) do
+    {modules, module_opts} =
+      Enum.reduce(plugin_specs, {[], %{}}, fn spec, {modules, opts_map} = acc ->
+        {module, opts} = normalize_plugin_spec(spec)
+
+        case Quokka.Plugin.validate(module) do
+          {:ok, module} ->
+            {[module | modules], Map.put(opts_map, module, opts)}
+
+          {:error, reason} ->
+            Logger.warning("Invalid Quokka plugin:\n\n#{inspect(reason)}")
+            acc
+        end
+      end)
+
+    {Enum.reverse(modules), module_opts}
+  end
+
+  defp normalize_plugin_spec({module, opts}) when is_atom(module) and is_list(opts), do: {module, opts}
+  defp normalize_plugin_spec(module) when is_atom(module), do: {module, []}
 end

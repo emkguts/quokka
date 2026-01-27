@@ -3,6 +3,10 @@
 Quokka follows [Semantic Versioning](https://semver.org) and
 [Common Changelog: Guiding Principles](https://common-changelog.org/#12-guiding-principles)
 
+## Next
+
+- Added support for plugins; see `Quokka.Plugin` docs for details on creating your own formatting rules.
+
 ## [2.11.2] - 2025-08-27
 
 ### Fixes
