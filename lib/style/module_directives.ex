@@ -542,9 +542,14 @@ defmodule Quokka.Style.ModuleDirectives do
     sort_method = Quokka.Config.sort_order()
 
     asts
-    |> Enum.map(&{&1, get_sort_key(&1, sort_method)})
-    |> Enum.uniq_by(&elem(&1, 1))
-    |> List.keysort(1)
+    |> Enum.map(fn ast ->
+      key = get_sort_key(ast, sort_method)
+      tie = Macro.to_string(ast)
+      tie = if sort_method == :ascii, do: tie, else: String.downcase(tie)
+      {ast, key, tie}
+    end)
+    |> Enum.uniq_by(fn {_, key, tie} -> {key, tie} end)
+    |> Enum.sort_by(fn {_, key, tie} -> {key, tie} end)
     |> Enum.map(&elem(&1, 0))
   end
 

@@ -893,5 +893,25 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """
       )
     end
+
+    test "keeps multi-alias when single alias shares sort key" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+      stub(Quokka.Config, :sort_order, fn -> :alpha end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          alias Foo.{Bar, Baz}
+          alias Foo.Bar
+        end
+        """,
+        """
+        defmodule Foo do
+          alias Foo.Bar
+          alias Foo.{Bar, Baz}
+        end
+        """
+      )
+    end
   end
 end
