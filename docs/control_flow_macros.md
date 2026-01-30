@@ -32,9 +32,15 @@ if !a, do: b
 
 ### Negation Inversion
 
-This addresses [`Credo.Check.Refactor.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.NegatedConditionsWithElse`](https://hexdocs.pm/credo/Credo.Check.Refactor.NegatedConditionsWithElse.html).
 
-Quokka removes negators in the head of `if` statements by "inverting" the statement.
+This behavior can be disabled by setting the check to `false` in your `.credo.exs`:
+
+```elixir
+{Credo.Check.Refactor.NegatedConditionsWithElse, false}
+```
+
+Quokka removes negators in the head of `if` statements with an `else` clause by "inverting" the statement.
 The following operators are considered "negators": `!`, `not`, `!=`, `!==`
 
 Examples:
@@ -46,7 +52,11 @@ if !x, do: y, else: z
 if x, do: z, else: y
 ```
 
-Because elixir relies on truthy/falsey values for its `if` statements, boolean casting is unnecessary and so double negation is simply removed.
+### Double Negation Removal
+
+This is always applied, regardless of the `NegatedConditionsWithElse` configuration.
+
+Because Elixir relies on truthy/falsey values for its `if` statements, boolean casting is unnecessary and so double negation is simply removed.
 
 ```elixir
 if !!x, do: y
@@ -77,7 +87,6 @@ end
 ## `with`
 
 This addresses [`Credo.Check.Readability.WithSingleClause`](https://hexdocs.pm/credo/Credo.Check.Readability.WithSingleClause.html), [`Credo.Check.Refactor.RedundantWithClauseResult`](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html), and [`Credo.Check.Refactor.WithClauses`](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html). This is not configurable.
-
 
 ### Remove Identity Else Clause
 
