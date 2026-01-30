@@ -779,6 +779,35 @@ defmodule Quokka.Style.BlocksTest do
       end
     end
 
+    test "respects negated_conditions_with_else config when false" do
+      stub(Quokka.Config, :negated_conditions_with_else?, fn -> false end)
+
+      # Should NOT rewrite when config is false
+      for negator <- ["!", "not "] do
+        assert_style("if #{negator}foo, do: :bar, else: :baz")
+
+        assert_style("""
+        if #{negator}foo do
+          bar
+        else
+          baz
+        end
+        """)
+      end
+
+      for negator <- ["!=", "!=="] do
+        assert_style("if a #{negator} b, do: :bar, else: :baz")
+
+        assert_style("""
+        if a #{negator} b do
+          bar
+        else
+          baz
+        end
+        """)
+      end
+    end
+
     test "comments and flips" do
       assert_style(
         """
