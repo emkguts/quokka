@@ -1,5 +1,39 @@
 # Comment Directives
 
+## Module Directive Control
+
+### Skip All Module Directive Transformations
+
+Use `# quokka:skip-module-directives` anywhere in a module to skip all transformations (expansion, sorting, organizing, alias lifting, etc.):
+
+```elixir
+defmodule MyApp.Module do
+  # quokka:skip-module-directives
+  alias Z.Z
+  alias A.A
+  import MyApp.{Foo, Bar}
+end
+```
+
+The older `# quokka:skip-module-reordering` is still supported but deprecated.
+
+### Skip Only Directive Sorting
+
+Use `# quokka:skip-module-directive-reordering` to preserve document order while still enabling other transformations:
+
+```elixir
+defmodule MyApp.Module do
+  # quokka:skip-module-directive-reordering
+  setup_config()
+
+  use SomeLibrary  # Depends on setup_config() being called first
+
+  alias MyApp.Thing
+end
+```
+
+This preserves order but still expands multi-aliases and lifts common aliases. See [Module Directives](module_directives.md) for details.
+
 ## Maintain static list order via `# quokka:sort`
 
 Quokka can keep static values sorted for your team as part of its formatting pass. To instruct it to do so, replace any `# Please keep this list sorted!` notes you wrote to your teammates with `# quokka:sort`.
@@ -73,6 +107,7 @@ Quokka will skip sorting entities that have comments inside them, though sorting
 Sorting within Ecto queries can be disabled by specifying `exclude: [:autosort_ecto]`. If your codebase makes use of `union` queries, this option may be desirable, since `union` matches on position and not on name.
 
 **Note on Ecto Query Detection**: Quokka uses pattern matching to identify Ecto queries and will skip autosorting maps within:
+
 - Remote calls to `Ecto.Query.from(...)`
 - Local `from` macro calls that include an `in` clause (e.g., `from u in "users", ...`)
 
@@ -81,6 +116,7 @@ This detection is designed to prevent false positives while catching the most co
 #### Examples
 
 When `autosort: [:map]` is enabled:
+
 ```elixir
 # quokka:skip-sort
 %{c: 3, b: 2, a: 1}
@@ -168,6 +204,7 @@ end
 ```
 
 When `autosort: [:exclude_ecto]` is enabled, the following will not get sorted:
+
 ```elixir
 # Using imported from macro (detected by 'in' clause)
 query1 =
@@ -181,7 +218,7 @@ query1 =
     }
 
 # Using fully qualified Ecto.Query.from
-query2 = 
+query2 =
   Ecto.Query.from(p in Post,
     select: %{
       title: p.title,

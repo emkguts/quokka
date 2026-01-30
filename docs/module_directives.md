@@ -1,12 +1,46 @@
-## Skipping Module Reordering
+## Comment Directives
 
-If you want to skip module reordering, you can add the following comment to the top of the file:
+### Skipping All Module Directive Transformations
+
+If you want to skip all module directive transformations, you can add the following comment anywhere in the module:
 
 ```elixir
-# quokka:skip-module-reordering
+# quokka:skip-module-directives
 ```
 
-This will prevent Quokka from doing any of the below transformations.
+This will prevent Quokka from doing any of the below transformations (expansion, sorting, organizing, alias lifting, etc.).
+
+> **Note:** The older `# quokka:skip-module-reordering` directive is still supported but deprecated in favor of `# quokka:skip-module-directives`.
+
+### Skipping Only Directive Sorting
+
+If you want to preserve the exact order of your module directives but still benefit from other transformations (like multi-alias expansion and alias lifting), you can use:
+
+```elixir
+# quokka:skip-module-directive-reordering
+```
+
+This is useful when you have dependencies between directives, such as needing to call a setup function before a `use` statement:
+
+```elixir
+defmodule MyApp.Module do
+  # quokka:skip-module-directive-reordering
+  setup_config()
+
+  use SomeLibrary  # This use depends on setup_config() being called first
+
+  alias MyApp.Thing
+  import OtherModule
+end
+```
+
+With this directive, Quokka will:
+
+- ✅ Still expand multi-alias statements like `alias Foo.{Bar, Baz}` into separate lines
+- ✅ Still lift commonly used aliases
+- ✅ Preserve the exact document order of all directives and function calls
+- ❌ Skip sorting directives alphabetically
+- ❌ Skip reorganizing directives by type
 
 ## Directive Expansion
 
@@ -36,19 +70,20 @@ alias Foo.Bop
 ## Directive Organization
 
 This addresses:
+
 - [`Credo.Check.Readability.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html). While it is not possible to disable this rewrite, Quokka will respect the `:sort_method` Credo config. Note that nested aliases are sorted within their group as well.
 - [`Credo.Check.Readability.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html). While it is not possible to disable this rewrite, Quokka will respect the `:order` Credo config.
 
 Modules directives are sorted into the following order by default:
 
-* `@shortdoc`
-* `@moduledoc`
-* `@behaviour`
-* `use`
-* `import` (sorted alphabetically)
-* `alias` (sorted alphabetically)
-* `require` (sorted alphabetically)
-* everything else (order unchanged)
+- `@shortdoc`
+- `@moduledoc`
+- `@behaviour`
+- `use`
+- `import` (sorted alphabetically)
+- `alias` (sorted alphabetically)
+- `require` (sorted alphabetically)
+- everything else (order unchanged)
 
 ### Before
 
