@@ -654,6 +654,28 @@ defmodule Quokka.Style.PipesTest do
       stub(Quokka.Config, :block_pipe_flag?, fn -> false end)
     end
 
+    test "single pipe rewrite respects piped_function_exclusions" do
+      stub(Quokka.Config, :piped_function_exclusions, fn -> [:from, :"Repo.insert"] end)
+
+      # Repo.insert is excluded, so `changeset |> Repo.insert()` is not rewritten to `Repo.insert(changeset)`
+      # pipe chain start extraction still applies
+      assert_style(
+        """
+        MyModule.changeset()
+        |> Repo.insert()
+        """,
+        """
+        MyModule.changeset()
+        |> Repo.insert()
+        """
+      )
+
+      assert_style("""
+      from(f in Foo, where: f.id == ^id)
+      |> Repo.all()
+      """)
+    end
+
     test "onelines assignments" do
       assert_style(
         """
