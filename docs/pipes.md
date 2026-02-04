@@ -176,3 +176,38 @@ map = a |> Enum.map(mapper) |> Map.new()
 # Styled:
 map = Map.new(a, mapper)
 ```
+
+### Excluding Functions from Pipe Rewrites
+
+You can exclude specific functions from pipe-related rewrites using the `exclude: [piped_functions: [...]]` option in your `.formatter.exs`. This affects:
+
+1. **Pipe nesting**: Functions won't be moved into pipe chains
+2. **SinglePipe**: Single pipes ending with excluded functions won't be collapsed
+3. **PipeChainStart**: Excluded functions at the start of pipes won't have their arguments extracted
+
+```elixir
+# .formatter.exs
+[
+  plugins: [Quokka],
+  quokka: [
+    exclude: [piped_functions: [:from, :"Repo.insert"]]
+  ]
+]
+```
+
+With this configuration:
+
+```elixir
+# SinglePipe: won't collapse because Repo.insert is excluded
+changeset
+|> Repo.insert()
+
+# PipeChainStart: won't extract because Repo.insert is excluded
+Repo.insert(changeset)
+|> Ecto.Multi.run(:something, fn _, _ -> :ok end)
+|> Repo.transaction()
+
+# from is excluded, so this stays as-is
+from(f in Foo, where: f.id == ^id)
+|> Repo.all()
+```

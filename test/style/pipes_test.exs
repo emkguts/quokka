@@ -80,6 +80,37 @@ defmodule Quokka.Style.PipesTest do
       )
     end
 
+    test "pipe chain start rewrite respects function exclusions" do
+      stub(Quokka.Config, :pipe_chain_start_excluded_functions, fn -> ["my_query", "Repo.insert"] end)
+
+      # Repo.insert is excluded, so `Repo.insert(changeset) |> other()` is not extracted
+      assert_style("""
+      Repo.insert(changeset)
+      |> Ecto.Multi.run(:something, fn _, _ -> :ok end)
+      |> Repo.transaction()
+      """)
+
+      # my_query is excluded, so `my_query(arg) |> other()` is not extracted
+      assert_style("""
+      my_query(arg)
+      |> Repo.all()
+      |> Enum.map(& &1.id)
+      """)
+
+      # non-excluded functions are still extracted
+      assert_style(
+        """
+        String.trim(input)
+        |> String.upcase()
+        """,
+        """
+        input
+        |> String.trim()
+        |> String.upcase()
+        """
+      )
+    end
+
     test "fixes nested pipes" do
       stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
