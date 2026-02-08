@@ -46,6 +46,8 @@ defmodule Quokka.Style.ModuleDirectives do
   alias Quokka.Style
   alias Quokka.Zipper
 
+  require Logger
+
   @directives ~w(alias import require use)a
   @attr_directives ~w(moduledoc shortdoc behaviour)a
   @defstruct ~w(schema embedded_schema defstruct)a
@@ -811,11 +813,14 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp has_skip_comment?(context) do
-    Enum.any?(
-      context.comments,
-      &(String.contains?(&1.text, "quokka:skip-module-directives") or
-          String.contains?(&1.text, "quokka:skip-module-reordering"))
-    )
+    skip_module_directives = Enum.any?(context.comments, &String.contains?(&1.text, "quokka:skip-module-directives"))
+    skip_module_reordering = Enum.any?(context.comments, &String.contains?(&1.text, "quokka:skip-module-reordering"))
+
+    if skip_module_reordering do
+      Logger.warning("skip-module-reordering is deprecated in favor of skip-module-directives")
+    end
+
+    skip_module_directives or skip_module_reordering
   end
 
   defp has_skip_directive_sorting_comment?(context) do
