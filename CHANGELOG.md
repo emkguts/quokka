@@ -5,9 +5,36 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+## [2.12.0] - 2026-02-08
+
 ### Breaking Changes
 
 - Multi-alias sorting now matches Credo.Check.Readability.AliasOrder behavior by comparing the first child's full path instead of parent module only. This fixes compatibility with Credo 1.7.13+, which fixed a bug that now properly checks multi-alias ordering. Projects using Credo 1.7.12 or earlier may see new alias ordering changes when formatting. Upgrading to Credo 1.7.13+ is recommended for proper alias order checking.
+
+### Improvements
+
+- Automatically fix `Credo.Check.Refactor.UtcNowTruncate` by rewriting `DateTime.utc_now() |> DateTime.truncate(precision)` to `DateTime.utc_now(precision)`.
+- Transform `Timex.today()` to `Date.utc_today()`.
+- Rewrite `Map/Keyword.get(lhs, key, nil)` to `Map/Keyword.get(lhs, key)`.
+- Consecutive `Keyword.drop` or `Keyword.delete` rewrite to `Keyword.drop` as part of inefficient function rewrites.
+- Respect Credo's NegativeConditionsWithElse configuration.
+- Add comment directive `# quokka:skip-module-directive-reordering` for skipping module directive reordering to skip module directive reordering but still lift aliases, multi-alias expansion, etc.
+- Support piped function exclusions in SinglePipe rewrite. 
+- Support rewriting pipes within a `case ... do` block to instead pipe into case. Add `exclude: [:pipe_into_case]` to opt out of this behavior.
+
+### Fixes
+
+- Fix invalid inefficient function rewrites on Map.reduce arguments.
+- Sort nested module directives (e.g., `alias A.{B, E, C}` will be sorted to `alias A.{B, C, E}`).
+
+### Upgrades
+
+- Upgrade credo to 1.7.16
+- Add Elixir 1.19.1 and OTP 28.1.1 to CI checks
+
+### Deprecations
+
+- Soft deprecate `quokka:skip-module-reordering` in favor of `quokka:skip-module-directives`.
 
 ## [2.11.2] - 2025-08-27
 
