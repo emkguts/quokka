@@ -25,6 +25,7 @@ defmodule Quokka.Style.Blocks do
 
   @behaviour Quokka.Style
 
+  alias Quokka.Config
   alias Quokka.Style
   alias Quokka.Zipper
 
@@ -132,9 +133,13 @@ defmodule Quokka.Style.Blocks do
       # Credo.Check.Refactor.NegatedConditionsWithElse
       # if !x, do: y, else: z => if x, do: z, else: y
       [negator, [{do_, do_body}, {else_, else_body}]] when is_negator(negator) ->
-        zipper
-        |> Zipper.replace({:if, m, [invert(negator), [{do_, else_body}, {else_, do_body}]]})
-        |> run(ctx)
+        if Config.negated_conditions_with_else?() do
+          zipper
+          |> Zipper.replace({:if, m, [invert(negator), [{do_, else_body}, {else_, do_body}]]})
+          |> run(ctx)
+        else
+          {:cont, zipper, ctx}
+        end
 
       # drop `else end` and `else: nil`
       [head, [do_block, {_, else_body}]] when is_empty_body(else_body) ->

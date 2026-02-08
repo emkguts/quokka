@@ -21,6 +21,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
   alias Credo.Check.Readability.SinglePipe
   alias Credo.Check.Readability.StrictModuleLayout
+  alias Credo.Check.Refactor.NegatedConditionsWithElse
   alias Credo.Check.Refactor.PipeChainStart
   alias Credo.Check.Refactor.UtcNowTruncate
   alias Quokka.Style.Blocks
@@ -149,6 +150,7 @@ defmodule Quokka.Config do
         lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
         lift_alias_only: credo_opts[:lift_alias_only],
         line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
+        negated_conditions_with_else: Map.get(credo_opts, :negated_conditions_with_else, true),
         nums_with_underscores: Keyword.get(quokka_config, :exclude, []) |> Enum.member?(:nums_with_underscores),
         only_styles: quokka_config[:only] || [],
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
@@ -261,6 +263,10 @@ defmodule Quokka.Config do
     get(:line_length)
   end
 
+  def negated_conditions_with_else?() do
+    get(:negated_conditions_with_else)
+  end
+
   def exclude_nums_with_underscores?() do
     get(:nums_with_underscores)
   end
@@ -355,6 +361,9 @@ defmodule Quokka.Config do
 
       {MultiAlias, opts}, acc when is_list(opts) ->
         Map.put(acc, :rewrite_multi_alias, true)
+
+      {NegatedConditionsWithElse, false}, acc ->
+        Map.put(acc, :negated_conditions_with_else, true)
 
       {ParenthesesOnZeroArityDefs, opts}, acc when is_list(opts) ->
         Map.put(acc, :zero_arity_parens, opts[:parens] || false)
