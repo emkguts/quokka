@@ -32,6 +32,16 @@ defmodule Quokka.Style.Blocks do
   defguardp is_negator(n) when elem(n, 0) in [:!, :not, :!=, :!==]
   defguardp is_empty_body(n) when elem(n, 0) == :__block__ and elem(n, 2) in [[nil], []]
 
+  # Pipe into case: case foo |> bar() do ... end => foo |> bar() |> case do ... end
+  def run({{:case, case_meta, [{:|>, _, _} = pipe_chain, clauses]}, _} = zipper, ctx) do
+    if Quokka.Config.pipe_into_case?() do
+      new_node = {:|>, [line: case_meta[:line]], [pipe_chain, {:case, case_meta, [clauses]}]}
+      {:cont, Zipper.replace(zipper, new_node), ctx}
+    else
+      {:cont, zipper, ctx}
+    end
+  end
+
   # Credo.Check.Refactor.CondStatements
   def run({{:cond, _, [[{_, [{:->, _, [[head], a]}, {:->, _, [[{:__block__, _, [truthy]}], b]}]}]]}, _} = zipper, ctx)
       when is_atom(truthy) and truthy not in [nil, false], do: if_ast(zipper, head, a, b, ctx)

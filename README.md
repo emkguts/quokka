@@ -101,6 +101,8 @@ in `.formatter.exs` to fine tune your setup:
       | :inefficient_functions
       # Don't rewrite subquery(from u in users) --> from from u in users... |> subquery()
       | piped_functions: [:subquery, :"Repo.update", ...]
+      # Don't rewrite `case foo |> bar() |> baz() do` into `foo |> bar() |> baz() |> case do`
+      | :pipe_into_case
     ]
   ]
 ]
@@ -112,11 +114,12 @@ in `.formatter.exs` to fine tune your setup:
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
 | `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |
 | `:only` | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups. | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests]` | `[]` (all modules included) |
-| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions]` | `[]` (all rewrites included) |
+| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case]` | `[]` (all rewrites included) |
 | `exclude: [:inefficient_functions]` | Excludes rewriting inefficient functions to more efficient form |  |  |
 | `exclude: [piped_functions: []]` | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. | `[:subquery, :"Repo.update", ...]` | `[]` |
 | `exclude: [:autosort_ecto]` | Skips autosorting within ecto queries. Particularly useful if you use union. | | |
 | `exclude: [:nums_with_underscores]` | Doesn't re-underscore numbers that already have it. Particularly useful if you have numbers like 100_00 in your codebase. | | |
+| `exclude: [:pipe_into_case]` | Disables rewriting `case foo \|> bar() do` into `foo \|> bar() \|> case do`. | | |
 
 ## Credo inspired rewrites
 

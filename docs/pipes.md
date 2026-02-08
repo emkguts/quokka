@@ -163,6 +163,37 @@ DateTime.utc_now(:millisecond)
 NaiveDateTime.utc_now(:second)
 ```
 
+### Pipe into Case
+
+When a `case` statement has a pipe chain as its subject, Quokka rewrites it to use the `|> case do` syntax.
+
+```elixir
+case foo
+     |> bar()
+     |> baz() do
+  x -> x
+end
+
+# Styled:
+foo
+|> bar()
+|> baz()
+|> case do
+  x -> x
+end
+```
+
+This rewrite can be disabled by adding `:pipe_into_case` to the exclude list in your `.formatter.exs`:
+
+```elixir
+[
+  plugins: [Quokka],
+  quokka: [
+    exclude: [:pipe_into_case]
+  ]
+]
+```
+
 ### Unpiping Single Pipes
 
 This addresses [`Credo.Check.Readability.SinglePipe`](https://hexdocs.pm/credo/Credo.Check.Readability.SinglePipe.html). If the Credo check is enabled, Quokka will rewrite pipechains with a single pipe to be function calls. Notably, this rule combined with the optimizations rewrites above means some chains with more than one pipe will also become function calls.

@@ -99,6 +99,8 @@ defmodule Quokka.Config do
         other -> other
       end)
 
+    exclude_rules = Keyword.get(quokka_config, :exclude, [])
+
     inefficient_function_rewrites =
       case Keyword.get(quokka_config, :inefficient_function_rewrites) do
         true ->
@@ -110,13 +112,13 @@ defmodule Quokka.Config do
           false
 
         nil ->
-          not (Keyword.get(quokka_config, :exclude, []) |> Enum.member?(:inefficient_functions))
+          :inefficient_functions not in exclude_rules
       end
 
     piped_function_exclusions =
       case Keyword.get(quokka_config, :piped_function_exclusions) do
         nil ->
-          Keyword.get(quokka_config, :exclude, []) |> Keyword.get(:piped_functions, [])
+          Keyword.get(exclude_rules, :piped_functions, [])
 
         exclusions ->
           Logger.warning(
@@ -131,14 +133,14 @@ defmodule Quokka.Config do
       # quokka:sort
       %{
         autosort: autosort,
-        autosort_exclude_ecto: quokka_config |> Keyword.get(:exclude, []) |> Enum.member?(:autosort_ecto),
+        autosort_exclude_ecto: :autosort_ecto in exclude_rules,
         autosort_schema_order: autosort_schema_order,
         block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
         directories_excluded: Map.get(quokka_config[:files] || %{}, :excluded, []),
         directories_included: Map.get(quokka_config[:files] || %{}, :included, []),
         elixir_version: parse_elixir_version(),
-        exclude_styles: quokka_config[:exclude] || [],
+        exclude_styles: exclude_rules,
         inefficient_function_rewrites: inefficient_function_rewrites,
         large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
         lift_alias: credo_opts[:lift_alias] || false,
@@ -151,11 +153,12 @@ defmodule Quokka.Config do
         lift_alias_only: credo_opts[:lift_alias_only],
         line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
         negated_conditions_with_else: Map.get(credo_opts, :negated_conditions_with_else, true),
-        nums_with_underscores: Keyword.get(quokka_config, :exclude, []) |> Enum.member?(:nums_with_underscores),
+        nums_with_underscores: :nums_with_underscores in exclude_rules,
         only_styles: quokka_config[:only] || [],
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
         pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
+        pipe_into_case_flag: :pipe_into_case not in exclude_rules,
         piped_function_exclusions: piped_function_exclusions,
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
@@ -281,6 +284,10 @@ defmodule Quokka.Config do
 
   def refactor_pipe_chain_starts?() do
     get(:pipe_chain_start_flag)
+  end
+
+  def pipe_into_case?() do
+    get(:pipe_into_case_flag)
   end
 
   def rewrite_multi_alias?() do
