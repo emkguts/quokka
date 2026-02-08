@@ -80,6 +80,37 @@ defmodule Quokka.Style.PipesTest do
       )
     end
 
+    test "pipe chain start rewrite respects function exclusions" do
+      stub(Quokka.Config, :pipe_chain_start_excluded_functions, fn -> ["my_query", "Repo.insert"] end)
+
+      # Repo.insert is excluded, so `Repo.insert(changeset) |> other()` is not extracted
+      assert_style("""
+      Repo.insert(changeset)
+      |> Ecto.Multi.run(:something, fn _, _ -> :ok end)
+      |> Repo.transaction()
+      """)
+
+      # my_query is excluded, so `my_query(arg) |> other()` is not extracted
+      assert_style("""
+      my_query(arg)
+      |> Repo.all()
+      |> Enum.map(& &1.id)
+      """)
+
+      # non-excluded functions are still extracted
+      assert_style(
+        """
+        String.trim(input)
+        |> String.upcase()
+        """,
+        """
+        input
+        |> String.trim()
+        |> String.upcase()
+        """
+      )
+    end
+
     test "fixes nested pipes" do
       stub(Quokka.Config, :block_pipe_flag?, fn -> true end)
 
@@ -652,6 +683,28 @@ defmodule Quokka.Style.PipesTest do
       )
 
       stub(Quokka.Config, :block_pipe_flag?, fn -> false end)
+    end
+
+    test "single pipe rewrite respects piped_function_exclusions" do
+      stub(Quokka.Config, :piped_function_exclusions, fn -> [:from, :"Repo.insert"] end)
+
+      # Repo.insert is excluded, so `changeset |> Repo.insert()` is not rewritten to `Repo.insert(changeset)`
+      # pipe chain start extraction still applies
+      assert_style(
+        """
+        MyModule.changeset()
+        |> Repo.insert()
+        """,
+        """
+        MyModule.changeset()
+        |> Repo.insert()
+        """
+      )
+
+      assert_style("""
+      from(f in Foo, where: f.id == ^id)
+      |> Repo.all()
+      """)
     end
 
     test "onelines assignments" do

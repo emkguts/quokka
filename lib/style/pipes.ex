@@ -52,8 +52,14 @@ defmodule Quokka.Style.Pipes do
             {:cont, single_pipe_unquote_zipper, ctx}
 
           # unpipe a single pipe zipper
-          {{:|>, _, [lhs, rhs]}, _} = single_pipe_zipper ->
-            if Quokka.Config.single_pipe_flag?() do
+          {{:|>, _, [{lhs_fun, _, _} = lhs, {fun, _, _} = rhs]}, _} = single_pipe_zipper ->
+            exclusions = Quokka.Config.piped_function_exclusions()
+
+            if Quokka.Config.single_pipe_flag?() and
+                 lhs_fun not in exclusions and
+                 alias_function_usage_to_existing_atom(lhs_fun) not in exclusions and
+                 fun not in exclusions and
+                 alias_function_usage_to_existing_atom(fun) not in exclusions do
               {fun, rhs_meta, args} = rhs
               {_, lhs_meta, _} = lhs
               lhs_line = lhs_meta[:line]

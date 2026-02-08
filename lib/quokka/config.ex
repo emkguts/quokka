@@ -275,7 +275,12 @@ defmodule Quokka.Config do
   end
 
   def pipe_chain_start_excluded_functions() do
-    get(:pipe_chain_start_excluded_functions)
+    case get(:pipe_chain_start_excluded_functions) do
+      [_ | _] = l -> l
+      # :piped_function_exclusions are provided as atoms, rather than strings,
+      # but the Credo config expects strings.
+      empty when empty in [nil, []] -> Enum.map(get(:piped_function_exclusions), &to_string/1)
+    end
   end
 
   def pipe_chain_start_excluded_argument_types() do
