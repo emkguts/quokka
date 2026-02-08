@@ -37,7 +37,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     test "skips module reordering" do
       assert_style("""
       defmodule Foo do
-        # quokka:skip-module-reordering
+        # quokka:skip-module-directives
         @behaviour Lawful
         require A
         alias A.{A, B}
@@ -77,6 +77,220 @@ defmodule Quokka.Style.ModuleDirectivesTest do
                    |> Enum.fetch!(1)
       end
       """)
+    end
+
+    test "skip-module-reordering (deprecated) skips module reordering" do
+      assert_style("""
+      defmodule Foo do
+        # quokka:skip-module-reordering
+        @behaviour Lawful
+        require A
+        alias A.{A, B}
+
+        use B
+
+        def c(x), do: y
+
+        import C
+      end
+      """)
+    end
+
+    test "skip-module-directive-reordering: expands but doesn't sort" do
+      assert_style(
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          alias D.D
+          alias A.{C, B}
+          import Z
+          import A
+          require Y
+          require X
+        end
+        """,
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          alias D.D
+          alias A.C
+          alias A.B
+          import Z
+          import A
+          require Y
+          require X
+        end
+        """
+      )
+    end
+
+    test "skip-module-directive-reordering: preserves order with mixed directives" do
+      assert_style(
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          @behaviour Lawful
+          require A
+          alias D.D
+          alias A.{C, B}
+
+          use B
+
+          def c(x), do: y
+
+          import C
+          @behaviour Chaotic
+          import A
+          alias E.E
+
+          use A
+        end
+        """,
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          @behaviour Lawful
+          require A
+          alias D.D
+          alias A.C
+          alias A.B
+
+          use B
+
+          def c(x), do: y
+
+          import C
+          @behaviour Chaotic
+          import A
+          alias E.E
+
+          use A
+        end
+        """
+      )
+    end
+
+    test "skip-module-directive-reordering: preserves brace order when multi-alias not expanded" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style("""
+      defmodule Foo do
+        # quokka:skip-module-directive-reordering
+        alias D.D
+        alias A.{C, B}
+        import Z
+        import A
+      end
+      """)
+    end
+
+    test "skip-module-directive-reordering: preserves function calls between directives" do
+      assert_style(
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          setup_config()
+
+          use SomeLibrary
+
+          configure_feature(:enabled)
+
+          @moduledoc \"\"\"
+          This module needs setup_config() before use.
+          \"\"\"
+
+          alias MyApp.Thing
+          import OtherModule
+        end
+        """,
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          setup_config()
+
+          use SomeLibrary
+
+          configure_feature(:enabled)
+
+          @moduledoc \"\"\"
+          This module needs setup_config() before use.
+          \"\"\"
+
+          alias MyApp.Thing
+          import OtherModule
+        end
+        """
+      )
+    end
+
+    test "skip-module-directive-reordering: lifts aliases when appropriate" do
+      # Use a long namespace that would normally trigger alias lifting
+      assert_style(
+        """
+        defmodule Foo do
+          some_macro()
+
+          # quokka:skip-module-directive-reordering
+          use SomeLibrary
+
+          def foo, do: MyApp.Services.Authentication.User.create()
+          def bar, do: MyApp.Services.Authentication.User.delete()
+          def baz, do: MyApp.Services.Authentication.User.update()
+          def qux, do: MyApp.Services.Authentication.User.find()
+        end
+        """,
+        """
+        defmodule Foo do
+          some_macro()
+
+          # quokka:skip-module-directive-reordering
+          use SomeLibrary
+
+          alias MyApp.Services.Authentication.User
+
+          def foo(), do: User.create()
+          def bar(), do: User.delete()
+          def baz(), do: User.update()
+          def qux(), do: User.find()
+        end
+        """
+      )
+    end
+
+    test "skip-module-directive-reordering: inserts lifted aliases next to existing aliases" do
+      assert_style(
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          use SomeLibrary
+
+          some_macro()
+
+          alias MyApp.Thing
+
+          def foo, do: MyApp.Services.Authentication.User.create()
+          def bar, do: MyApp.Services.Authentication.User.delete()
+          def baz, do: MyApp.Services.Authentication.User.update()
+          def qux, do: MyApp.Services.Authentication.User.find()
+        end
+        """,
+        """
+        defmodule Foo do
+          # quokka:skip-module-directive-reordering
+          use SomeLibrary
+
+          some_macro()
+
+          alias MyApp.Thing
+          alias MyApp.Services.Authentication.User
+
+          def foo(), do: User.create()
+          def bar(), do: User.delete()
+          def baz(), do: User.update()
+          def qux(), do: User.find()
+        end
+        """
+      )
     end
   end
 

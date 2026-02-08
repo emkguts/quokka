@@ -46,6 +46,8 @@ defmodule Quokka.Style.ModuleDirectives do
   alias Quokka.Style
   alias Quokka.Zipper
 
+  require Logger
+
   @directives ~w(alias import require use)a
   @attr_directives ~w(moduledoc shortdoc behaviour)a
   @defstruct ~w(schema embedded_schema defstruct)a
@@ -84,7 +86,7 @@ defmodule Quokka.Style.ModuleDirectives do
           # we want only-child literal block to be handled in the only-child catch-all. it means someone did a weird
           # (that would be a literal, so best case someone wrote a string and forgot to put `@moduledoc` before it)
           {:__block__, _, [_, _ | _]} ->
-            {:skip, organize_directives(body_zipper, moduledoc), ctx}
+            {:skip, organize_directives(body_zipper, moduledoc, ctx), ctx}
 
           # a module whose only child is a moduledoc. nothing to do here!
           # seems weird at first blush but lots of projects/libraries do this with their root namespace module
@@ -97,7 +99,7 @@ defmodule Quokka.Style.ModuleDirectives do
               zipper =
                 body_zipper
                 |> Zipper.replace({:__block__, [], [moduledoc, only_child]})
-                |> organize_directives()
+                |> organize_directives(nil, ctx)
 
               {:skip, zipper, ctx}
             else
@@ -112,7 +114,7 @@ defmodule Quokka.Style.ModuleDirectives do
   def run({{directive, _, children}, _} = zipper, ctx) when directive in @directives and is_list(children) do
     # Need to be careful that we aren't getting false positives on variables or fns like `def import(foo)` or `alias = 1`
     case Style.ensure_block_parent(zipper) do
-      {:ok, zipper} -> {:skip, zipper |> Zipper.up() |> organize_directives(), ctx}
+      {:ok, zipper} -> {:skip, zipper |> Zipper.up() |> organize_directives(nil, ctx), ctx}
       # not actually a directive! carry on.
       :error -> {:cont, zipper, ctx}
     end
@@ -201,7 +203,166 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp organize_directives(parent, moduledoc \\ nil) do
+  defp organize_directives(parent, moduledoc, ctx) do
+    skip_sorting? = has_skip_directive_sorting_comment?(ctx)
+
+    if skip_sorting? do
+      organize_directives_preserve_order(parent, moduledoc)
+    else
+      organize_directives_with_sorting(parent, moduledoc)
+    end
+  end
+
+  defp organize_directives_preserve_order(parent, moduledoc) do
+    # Use zipper to traverse and expand in place, preserving structure
+    parent =
+      parent
+      |> Zipper.traverse(fn
+        {{:@, _, [{:moduledoc, _, _}]}, _} = zipper ->
+          zipper
+
+        {{directive, _, _}, _} = zipper when directive in @directives ->
+          if Quokka.Config.rewrite_multi_alias?() do
+            # Expand multi-aliases in place
+            node = Zipper.node(zipper)
+            expanded = expand(node)
+
+            case expanded do
+              [single] ->
+                Zipper.replace(zipper, single)
+
+              [first | rest] ->
+                # Replace current node with first, then insert siblings after it
+                zipper
+                |> Zipper.replace(first)
+                |> Zipper.insert_siblings(rest)
+
+              [] ->
+                Zipper.remove(zipper)
+            end
+          else
+            zipper
+          end
+
+        zipper ->
+          zipper
+      end)
+
+    # Apply alias lifting if enabled
+    parent =
+      if Quokka.Config.lift_alias?() do
+        children = Zipper.children(parent)
+
+        # Build dealias map from existing aliases
+        existing_aliases = Enum.filter(children, &match?({:alias, _, _}, &1))
+        dealiases = AliasEnv.define(existing_aliases)
+
+        # Find liftable aliases from non-alias content
+        non_alias_content = Enum.reject(children, &match?({:alias, _, _}, &1))
+        liftable = find_liftable_aliases(non_alias_content, dealiases)
+
+        if Enum.any?(liftable) do
+          # Create new alias nodes
+          m = [line: 999_999]
+
+          new_aliases =
+            Enum.map(liftable, fn aliases ->
+              AliasEnv.expand(dealiases, {:alias, m, [{:__aliases__, [{:last, m} | m], aliases}]})
+            end)
+
+          # Transform children to use lifted aliases
+          transformed_children =
+            children
+            |> Enum.map(fn child ->
+              case child do
+                {:alias, _, _} -> child
+                other -> do_lift_aliases([other], liftable) |> List.first()
+              end
+            end)
+
+          # Find insertion point: after last alias, or at end of directives
+          {insertion_index, line_hint, after_alias?} =
+            transformed_children
+            |> Enum.with_index()
+            |> Enum.reverse()
+            |> Enum.reduce_while({nil, nil, false}, fn
+              {{:alias, meta, _}, idx}, _acc ->
+                {:halt, {idx + 1, meta[:line], true}}
+
+              {{dir, meta, _}, idx}, {nil, nil, false} when dir in @directives or dir == :@ ->
+                {:cont, {idx + 1, meta[:line], false}}
+
+              _, acc ->
+                {:cont, acc}
+            end)
+
+          # Insert lifted aliases at the found position
+          {before_insertion, after_insertion} =
+            if insertion_index do
+              Enum.split(transformed_children, insertion_index)
+            else
+              {transformed_children, []}
+            end
+
+          # If inserting after an alias, remove end_of_expression from the preceding alias
+          before_insertion =
+            if after_alias? and not Enum.empty?(before_insertion) do
+              {dir, meta, args} = List.last(before_insertion)
+              most = Enum.drop(before_insertion, -1)
+              most ++ [{dir, Keyword.delete(meta, :end_of_expression), args}]
+            else
+              before_insertion
+            end
+
+          # Adjust line numbers and blank lines for new aliases
+          new_aliases =
+            if line_hint do
+              new_aliases
+              |> Enum.map(&Style.set_line(&1, line_hint))
+              |> then(fn aliases ->
+                # Add blank line after the last lifted alias
+                case List.last(aliases) do
+                  nil ->
+                    aliases
+
+                  {dir, meta, args} ->
+                    most = Enum.drop(aliases, -1)
+                    most ++ [{dir, Keyword.put(meta, :end_of_expression, newlines: 2), args}]
+                end
+              end)
+            else
+              new_aliases
+            end
+
+          new_children = before_insertion ++ new_aliases ++ after_insertion
+
+          Zipper.replace_children(parent, new_children)
+        else
+          parent
+        end
+      else
+        parent
+      end
+
+    # Add moduledoc if needed and not present
+    if moduledoc do
+      children = Zipper.children(parent)
+      has_moduledoc = Enum.any?(children, &match?({:@, _, [{:moduledoc, _, _}]}, &1))
+
+      if has_moduledoc do
+        parent
+      else
+        parent
+        |> Zipper.down()
+        |> Zipper.insert_left(moduledoc)
+        |> Zipper.up()
+      end
+    else
+      parent
+    end
+  end
+
+  defp organize_directives_with_sorting(parent, moduledoc) do
     {before, _after} = Enum.split_while(Quokka.Config.strict_module_layout_order(), &(&1 != :alias))
 
     acc =
@@ -222,7 +383,13 @@ defmodule Quokka.Style.ModuleDirectives do
 
         {directive, _, _} = ast, acc when directive in @directives ->
           {ast, acc} = lift_module_attrs(ast, acc)
-          ast = if Quokka.Config.rewrite_multi_alias?(), do: expand(ast), else: [sort_multi_children(ast)]
+
+          ast =
+            if Quokka.Config.rewrite_multi_alias?() do
+              expand(ast)
+            else
+              [sort_multi_children(ast)]
+            end
 
           # import and use might get hoisted above aliases, so need to dealias depending on the layout order
           needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
@@ -238,7 +405,10 @@ defmodule Quokka.Style.ModuleDirectives do
         ast, acc ->
           %{acc | nondirectives: [ast | acc.nondirectives]}
       end)
-      # Reversing once we're done accumulating since `reduce`ing into list accs means you're reversed!
+
+    # Reversing once we're done accumulating since `reduce`ing into list accs means you're reversed!
+    acc =
+      acc
       |> Map.new(fn
         {:moduledoc, []} ->
           {:moduledoc, List.wrap(moduledoc)}
@@ -247,7 +417,7 @@ defmodule Quokka.Style.ModuleDirectives do
           {:use, uses |> Enum.reverse() |> Style.reset_newlines()}
 
         {directive, to_sort} when directive in ~w(behaviour import alias require)a ->
-          {directive, sort(to_sort)}
+          {directive, sort(to_sort, false)}
 
         {:dealiases, d} ->
           {:dealiases, d}
@@ -346,14 +516,14 @@ defmodule Quokka.Style.ModuleDirectives do
         liftable
         |> Enum.map(&AliasEnv.expand(dealiases, {:alias, m, [{:__aliases__, [{:last, m} | m], &1}]}))
         |> Enum.concat(aliases)
-        |> sort()
+        |> sort(false)
 
       lifted_directives =
         Map.take(acc, after_alias)
         |> Map.new(fn
           {:behaviour, ast_nodes} -> {:behaviour, ast_nodes}
           {:use, ast_nodes} -> {:use, do_lift_aliases(ast_nodes, liftable)}
-          {directive, ast_nodes} -> {directive, ast_nodes |> do_lift_aliases(liftable) |> sort()}
+          {directive, ast_nodes} -> {directive, ast_nodes |> do_lift_aliases(liftable) |> sort(false)}
         end)
 
       nondirectives = do_lift_aliases(nondirectives, liftable)
@@ -509,17 +679,49 @@ defmodule Quokka.Style.ModuleDirectives do
   # =>
   # import Foo.Bar
   # import Foo.Baz
-  defp expand({directive, _, [{{:., _, [{:__aliases__, _, module}, :{}]}, _, right}]}) do
-    Enum.map(right, fn {_, meta, segments} ->
-      {directive, meta, [{:__aliases__, [line: meta[:line]], module ++ segments}]}
-    end)
+  defp expand({directive, meta, [{{:., _, [{:__aliases__, _, module}, :{}]}, _, right}]}) do
+    expanded =
+      Enum.map(right, fn {_, child_meta, segments} ->
+        {directive, child_meta, [{:__aliases__, [line: child_meta[:line]], module ++ segments}]}
+      end)
+
+    # Preserve the end_of_expression metadata from the original node on the last expanded node
+    case expanded do
+      [] ->
+        []
+
+      [single] ->
+        {dir, child_meta, args} = single
+        [{dir, Keyword.merge(child_meta, Keyword.take(meta, [:end_of_expression])), args}]
+
+      list ->
+        {last_dir, last_meta, last_args} = List.last(list)
+        most = Enum.drop(list, -1)
+        most ++ [{last_dir, Keyword.merge(last_meta, Keyword.take(meta, [:end_of_expression])), last_args}]
+    end
   end
 
   # alias __MODULE__.{Bar, Baz}
-  defp expand({directive, _, [{{:., _, [{:__MODULE__, _, _} = module, :{}]}, _, right}]}) do
-    Enum.map(right, fn {_, meta, segments} ->
-      {directive, meta, [{:__aliases__, [line: meta[:line]], [module | segments]}]}
-    end)
+  defp expand({directive, meta, [{{:., _, [{:__MODULE__, _, _} = module, :{}]}, _, right}]}) do
+    expanded =
+      Enum.map(right, fn {_, child_meta, segments} ->
+        {directive, child_meta, [{:__aliases__, [line: child_meta[:line]], [module | segments]}]}
+      end)
+
+    # Preserve the end_of_expression metadata from the original node on the last expanded node
+    case expanded do
+      [] ->
+        []
+
+      [single] ->
+        {dir, child_meta, args} = single
+        [{dir, Keyword.merge(child_meta, Keyword.take(meta, [:end_of_expression])), args}]
+
+      list ->
+        {last_dir, last_meta, last_args} = List.last(list)
+        most = Enum.drop(list, -1)
+        most ++ [{last_dir, Keyword.merge(last_meta, Keyword.take(meta, [:end_of_expression])), last_args}]
+    end
   end
 
   defp expand(other), do: [other]
@@ -532,9 +734,16 @@ defmodule Quokka.Style.ModuleDirectives do
 
   defp sort_multi_children(other), do: other
 
-  defp sort(directives) do
+  defp sort(directives, skip_sorting?) do
     directives
-    |> sort_terms()
+    |> then(fn dirs ->
+      if skip_sorting? do
+        # When skipping sorting, we still need to reverse since we accumulated in reverse order
+        Enum.reverse(dirs)
+      else
+        sort_terms(dirs)
+      end
+    end)
     |> Style.reset_newlines()
   end
 
@@ -604,9 +813,20 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp has_skip_comment?(context) do
+    skip_module_directives = Enum.any?(context.comments, &String.contains?(&1.text, "quokka:skip-module-directives"))
+    skip_module_reordering = Enum.any?(context.comments, &String.contains?(&1.text, "quokka:skip-module-reordering"))
+
+    if skip_module_reordering do
+      Logger.warning("skip-module-reordering is deprecated in favor of skip-module-directives")
+    end
+
+    skip_module_directives or skip_module_reordering
+  end
+
+  defp has_skip_directive_sorting_comment?(context) do
     Enum.any?(
       context.comments,
-      &String.contains?(&1.text, "quokka:skip-module-reordering")
+      &String.contains?(&1.text, "quokka:skip-module-directive-reordering")
     )
   end
 
