@@ -583,7 +583,8 @@ defmodule Quokka.Style.Pipes do
   defp valid_pipe_start?({{:., _, [{_, _, mod_list}, fun]}, _, arguments}) when is_list(mod_list) do
     not Quokka.Config.refactor_pipe_chain_starts?() or
       first_arg_excluded_type?(arguments) or
-      "#{Enum.join(mod_list, ".")}.#{fun}" in Quokka.Config.pipe_chain_start_excluded_functions()
+      (Enum.all?(mod_list, &is_atom/1) and
+         "#{Enum.join(mod_list, ".")}.#{fun}" in Quokka.Config.pipe_chain_start_excluded_functions())
   end
 
   # variable
