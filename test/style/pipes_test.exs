@@ -834,6 +834,41 @@ defmodule Quokka.Style.PipesTest do
       assert_style("start..stop//step |> foo() |> bar()")
       assert_style("foo(start..stop//step) |> bar()", "start..stop//step |> foo() |> bar()")
     end
+
+    test "copes with module names defined as module attributes" do
+      assert_style(
+        """
+
+        defmodule Foo do
+          use ExUnit.Case
+
+          @module_to_call Bar
+
+          test "piping" do
+            assert 42 ==
+                     @module_to_call.bar(%Bop{})
+                     |> foo()
+                     |> baz()
+          end
+        end
+        """,
+        """
+        defmodule Foo do
+          use ExUnit.Case
+
+          @module_to_call Bar
+
+          test "piping" do
+            assert 42 ==
+                     %Bop{}
+                     |> @module_to_call.bar()
+                     |> foo()
+                     |> baz()
+          end
+        end
+        """
+      )
+    end
   end
 
   describe "optimizations & readability improvements" do
