@@ -5,6 +5,12 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+## [2.12.1] - 2025-02-12
+
+### Fixes
+
+- Fix crash when checking pipe start validity
+
 ## [2.12.0] - 2026-02-08
 
 ### Breaking Changes
