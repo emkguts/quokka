@@ -41,6 +41,14 @@ defmodule QuokkaTest.ZipperTest do
       assert {1, 2} |> Zipper.zip() |> Zipper.replace_children([3, 4]) |> Zipper.node() == {3, 4}
     end
 
+    test "2-tuples with single child collapses" do
+      assert {1, 2} |> Zipper.zip() |> Zipper.replace_children([3]) |> Zipper.node() == 3
+    end
+
+    test "2-tuples with no children collapses to nil" do
+      assert {1, 2} |> Zipper.zip() |> Zipper.replace_children([]) |> Zipper.node() == nil
+    end
+
     test "lists" do
       assert [1, 2, 3] |> Zipper.zip() |> Zipper.replace_children([:a, :b, :c]) |> Zipper.node() ==
                [:a, :b, :c]
@@ -501,6 +509,27 @@ defmodule QuokkaTest.ZipperTest do
              |> Zipper.remove()
              |> Zipper.remove()
              |> Zipper.node() == []
+    end
+
+    test "removes the left child of a 2-tuple" do
+      zipper =
+        {1, 2}
+        |> Zipper.zip()
+        |> Zipper.down()
+        |> Zipper.remove()
+
+      assert Zipper.root(zipper) == 2
+    end
+
+    test "removes the right child of a 2-tuple" do
+      zipper =
+        {1, 2}
+        |> Zipper.zip()
+        |> Zipper.down()
+        |> Zipper.right()
+        |> Zipper.remove()
+
+      assert Zipper.root(zipper) == 1
     end
 
     test "raises when attempting to remove the root" do

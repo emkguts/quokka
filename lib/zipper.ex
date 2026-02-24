@@ -59,6 +59,8 @@ defmodule Quokka.Zipper do
   defp do_replace_children({_form, meta, args}, [first | rest]) when is_list(args), do: {first, meta, rest}
 
   defp do_replace_children({_, _}, [left, right]), do: {left, right}
+  defp do_replace_children({_, _}, [single]), do: single
+  defp do_replace_children({_, _}, []), do: nil
   defp do_replace_children(list, children) when is_list(list), do: children
 
   @doc """

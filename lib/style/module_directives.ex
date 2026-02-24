@@ -78,10 +78,9 @@ defmodule Quokka.Style.ModuleDirectives do
           |> Zipper.right()
 
         case Zipper.node(body_zipper) do
-          # an empty body - replace it with a moduledoc and call it a day ¯\_(ツ)_/¯
+          # an empty body - Leave it alone
           {:__block__, _, []} ->
-            zipper = if moduledoc, do: Zipper.replace(body_zipper, moduledoc), else: body_zipper
-            {:skip, zipper, ctx}
+            {:skip, body_zipper, ctx}
 
           # we want only-child literal block to be handled in the only-child catch-all. it means someone did a weird
           # (that would be a literal, so best case someone wrote a string and forgot to put `@moduledoc` before it)
