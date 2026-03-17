@@ -44,7 +44,7 @@ defmodule Quokka.Style.SingleNode do
     do: {:skip, zipper, ctx}
 
   # Skip expensive empty enum check rewrites when inside guard clauses
-  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===, :!=] do
+  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===, :!=, :and] do
     if in_guard?(zipper) do
       {:cont, {style_guard(node), meta}, ctx}
     else
@@ -625,6 +625,29 @@ defmodule Quokka.Style.SingleNode do
   defp add_underscores(reversed_list, acc), do: reversed_list |> Enum.reverse(acc) |> to_string()
 
   # Guard-specific rewrites for length/1 comparisons
+
+  # Special case: is_list(enum) and length(enum) > 0 => is_list(enum) and enum != []
+  defp style_guard({:and, m, [{:is_list, im, [enum]}, {:>, _, [{:length, _, [enum]}, {:__block__, _, [0]}]}]}),
+    do: {:and, m, [{:is_list, im, [enum]}, {:!=, m, [enum, {:__block__, m, [[]]}]}]}
+
+  defp style_guard({:and, m, [{:is_list, im, [enum]}, {:<, _, [{:__block__, _, [0]}, {:length, _, [enum]}]}]}),
+    do: {:and, m, [{:is_list, im, [enum]}, {:!=, m, [{:__block__, m, [[]]}, enum]}]}
+
+  # Special case: is_list(enum) and length(enum) != 0 => is_list(enum) and enum != []
+  defp style_guard({:and, m, [{:is_list, im, [enum]}, {:!=, _, [{:length, _, [enum]}, {:__block__, _, [0]}]}]}),
+    do: {:and, m, [{:is_list, im, [enum]}, {:!=, m, [enum, {:__block__, m, [[]]}]}]}
+
+  defp style_guard({:and, m, [{:is_list, im, [enum]}, {:!=, _, [{:__block__, _, [0]}, {:length, _, [enum]}]}]}),
+    do: {:and, m, [{:is_list, im, [enum]}, {:!=, m, [{:__block__, m, [[]]}, enum]}]}
+
+  # Special case: is_list(enum) and length(enum) == 0 => is_list(enum) and enum == []
+  defp style_guard({:and, m, [{:is_list, im, [enum]}, {:==, _, [{:length, _, [enum]}, {:__block__, _, [0]}]}]}),
+    do: {:and, m, [{:is_list, im, [enum]}, {:==, m, [enum, {:__block__, m, [[]]}]}]}
+
+  defp style_guard({:and, m, [{:is_list, im, [enum]}, {:==, _, [{:__block__, _, [0]}, {:length, _, [enum]}]}]}),
+    do: {:and, m, [{:is_list, im, [enum]}, {:==, m, [{:__block__, m, [[]]}, enum]}]}
+
+  # Basic rewrites when is_list is not already present
   # length(enum) == 0 => enum == []
   defp style_guard({:==, m, [{:length, _, [enum]}, {:__block__, _, [0]}]}), do: {:==, m, [enum, {:__block__, m, [[]]}]}
 
