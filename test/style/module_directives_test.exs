@@ -583,6 +583,16 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       end
       """)
     end
+
+    test "empty defmodule inside quote do...end does not crash" do
+      assert_style("""
+      ast =
+        quote do
+          defmodule Foo.Bar.Baz do
+          end
+        end
+      """)
+    end
   end
 
   describe "directive sort/dedupe/expansion" do
