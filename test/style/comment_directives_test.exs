@@ -665,7 +665,7 @@ defmodule Quokka.Style.CommentDirectivesTest do
 
   describe "sort" do
     test "we dont just sort by accident" do
-      assert_style "[:c, :b, :a]"
+      assert_style("[:c, :b, :a]")
     end
 
     test "sorts lists of atoms" do
@@ -982,6 +982,58 @@ defmodule Quokka.Style.CommentDirectivesTest do
         ]
         """
       )
+    end
+
+    test "sorts @type struct fields" do
+      assert_style(
+        """
+        # quokka:sort
+        @type t :: %__MODULE__{
+                title: String.t(),
+                id: integer(),
+                name: String.t()
+              }
+        """,
+        """
+        # quokka:sort
+        @type t :: %__MODULE__{
+                id: integer(),
+                name: String.t(),
+                title: String.t()
+              }
+        """
+      )
+    end
+
+    test "sorts @type named struct fields" do
+      assert_style(
+        """
+        # quokka:sort
+        @type t :: %MyStruct{
+                title: String.t(),
+                id: integer(),
+                name: String.t()
+              }
+        """,
+        """
+        # quokka:sort
+        @type t :: %MyStruct{
+                id: integer(),
+                name: String.t(),
+                title: String.t()
+              }
+        """
+      )
+    end
+
+    test "does not sort @type struct fields without directive" do
+      assert_style("""
+      @type t :: %__MODULE__{
+              title: String.t(),
+              id: integer(),
+              name: String.t()
+            }
+      """)
     end
 
     test "nodes within a do end block" do

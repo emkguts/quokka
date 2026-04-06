@@ -192,9 +192,16 @@ defmodule Quokka.Style.CommentDirectives do
     {{:=, m, [lhs, rhs]}, comments}
   end
 
-  defp sort({:@, m, [{a, am, [assignment]}]}, comments) do
+  # @type / @typep — sort struct fields (e.g. `@type t :: %__MODULE__{...}`)
+  defp sort({:@, attr_meta, [{attr, annotation_meta, [{:"::", spec_meta, [lhs, rhs]}]}]}, comments)
+       when attr in [:type, :typep] do
+    {rhs, comments} = sort(rhs, comments)
+    {{:@, attr_meta, [{attr, annotation_meta, [{:"::", spec_meta, [lhs, rhs]}]}]}, comments}
+  end
+
+  defp sort({:@, attr_meta, [{attr, annotation_meta, [assignment]}]}, comments) do
     {assignment, comments} = sort(assignment, comments)
-    {{:@, m, [{a, am, [assignment]}]}, comments}
+    {{:@, attr_meta, [{attr, annotation_meta, [assignment]}]}, comments}
   end
 
   defp sort({:embedded_schema, meta, [[{{:__block__, _, [:do]}, {:__block__, block_meta, fields}}]]}, comments) do
