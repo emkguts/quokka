@@ -203,13 +203,33 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp organize_directives(parent, moduledoc, ctx) do
-    skip_sorting? = has_skip_directive_sorting_comment?(ctx)
+    skip_sorting? = has_skip_directive_sorting_comment?(ctx) or has_ignored_module_attribute?(parent)
 
     if skip_sorting? do
       organize_directives_preserve_order(parent, moduledoc)
     else
       organize_directives_with_sorting(parent, moduledoc)
     end
+  end
+
+  # Respect the Credo `StrictModuleLayout` options `ignore_module_attributes` and
+  # `ignore: [:module_attribute]`. When a module contains an attribute flagged as
+  # ignored, reordering it can break semantics (e.g. hoisting `@moduledoc` above
+  # an `@foo` that the moduledoc interpolates), so we fall back to preserve-order
+  # mode for the whole module.
+  defp has_ignored_module_attribute?(parent) do
+    ignore_all? = :module_attribute in Quokka.Config.strict_module_layout_ignore()
+    ignored = Quokka.Config.strict_module_layout_ignored_module_attributes()
+
+    parent
+    |> Zipper.children()
+    |> Enum.any?(fn
+      {:@, _, [{attr, _, _}]} when attr not in @attr_directives ->
+        ignore_all? or attr in ignored
+
+      _ ->
+        false
+    end)
   end
 
   defp organize_directives_preserve_order(parent, moduledoc) do
@@ -258,7 +278,21 @@ defmodule Quokka.Style.ModuleDirectives do
 
         # Find liftable aliases from non-alias content
         non_alias_content = Enum.reject(children, &match?({:alias, _, _}, &1))
-        liftable = find_liftable_aliases(non_alias_content, dealiases)
+
+        # In preserve-order mode we keep the existing aliases in place, so drop
+        # any "liftable" that would just duplicate an alias already present.
+        existing_alias_paths =
+          existing_aliases
+          |> Enum.flat_map(fn
+            {:alias, _, [{:__aliases__, _, path}]} -> [path]
+            _ -> []
+          end)
+          |> MapSet.new()
+
+        liftable =
+          non_alias_content
+          |> find_liftable_aliases(dealiases)
+          |> Enum.reject(&MapSet.member?(existing_alias_paths, &1))
 
         if Enum.any?(liftable) do
           # Create new alias nodes

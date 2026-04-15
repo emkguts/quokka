@@ -72,7 +72,7 @@ alias Foo.Bop
 This addresses:
 
 - [`Credo.Check.Readability.AliasOrder`](https://hexdocs.pm/credo/Credo.Check.Readability.AliasOrder.html). While it is not possible to disable this rewrite, Quokka will respect the `:sort_method` Credo config. Note that nested aliases are sorted within their group as well.
-- [`Credo.Check.Readability.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html). While it is not possible to disable this rewrite, Quokka will respect the `:order` Credo config.
+- [`Credo.Check.Readability.StrictModuleLayout`](https://hexdocs.pm/credo/Credo.Check.Readability.StrictModuleLayout.html). While it is not possible to disable this rewrite, Quokka will respect the `:order` Credo config, as well as the `:ignore_module_attributes` and `ignore: [:module_attribute]` options. If a module contains a module attribute listed in `:ignore_module_attributes` (or any module attribute, when `:module_attribute` is included in `:ignore`), Quokka preserves the original directive order for that module instead of hoisting directives above the attribute.
 
 Modules directives are sorted into the following order by default:
 

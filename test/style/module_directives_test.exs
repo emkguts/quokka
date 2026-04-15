@@ -537,6 +537,78 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     end
   end
 
+  describe "credo ignore_module_attributes" do
+    test "preserves order when an ignored attribute is present" do
+      stub(Quokka.Config, :strict_module_layout_ignored_module_attributes, fn -> [:command] end)
+
+      assert_style("""
+      defmodule Mix.Tasks.Foo do
+        @command [
+          options: [
+            since: [
+              default: &__MODULE__.default_opt/1,
+              default_doc: "Defaults to six months ago"
+            ]
+          ]
+        ]
+
+        @moduledoc \"\"\"
+        Foo
+
+        \#{CliMate.CLI.format_usage(@command, format: :moduledoc)}
+        \"\"\"
+
+        use Mix.Task
+
+        alias CliMate.CLI
+
+        def run(argv) do
+          CLI.parse_or_halt!(argv, @command)
+        end
+
+        def default_opt(:since) do
+          Date.utc_today() |> Date.shift(month: -6)
+        end
+      end
+      """)
+    end
+
+    test "preserves order when :module_attribute is in :ignore" do
+      stub(Quokka.Config, :strict_module_layout_ignore, fn -> [:module_attribute] end)
+
+      assert_style("""
+      defmodule Foo do
+        @command [key: :value]
+
+        @moduledoc \"\"\"
+        Uses \#{inspect(@command)}
+        \"\"\"
+
+        use SomeLib
+      end
+      """)
+    end
+
+    test "still reorders when no ignored attribute is in the module" do
+      stub(Quokka.Config, :strict_module_layout_ignored_module_attributes, fn -> [:unused] end)
+
+      assert_style(
+        """
+        defmodule Foo do
+          use Bar
+          @moduledoc "test"
+        end
+        """,
+        """
+        defmodule Foo do
+          @moduledoc "test"
+          use Bar
+        end
+        """
+      )
+    end
+  end
+
   describe "strange parents!" do
     test "regression: only triggers on SpecialForms, ignoring functions and vars" do
       assert_style("def foo(alias), do: Foo.bar(alias)")
