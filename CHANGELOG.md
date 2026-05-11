@@ -5,6 +5,10 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+### Improvements
+
+- Rewrite `Enum.reduce/2,3` calls that simply sum their two arguments to `Enum.sum/1` (part of inefficient function rewrites).
+
 ## [2.12.1] - 2025-02-12
 
 ### Fixes

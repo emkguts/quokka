@@ -170,6 +170,22 @@ baz |> Enum.reverse() |> Enum.concat(bop)
 Enum.reverse(baz, bop)
 ```
 
+### `Enum.reduce` summing -> `Enum.sum`
+
+Quokka rewrites `Enum.reduce/2,3` calls whose reducer simply adds the two arguments to `Enum.sum/1`. This covers anonymous functions (with operands in either order), `&(&1 + &2)` captures, and `&+/2` / `&Kernel.+/2` captures. For `Enum.reduce/3`, the accumulator must be the literal integer `0` (so `0.0` is left alone to preserve float typing on empty enums).
+
+```elixir
+# Before
+Enum.reduce(enum, 0, fn x, acc -> x + acc end)
+# Styled
+Enum.sum(enum)
+
+# Before
+string |> String.to_charlist() |> Enum.reduce(0, &(&1 + &2))
+# Styled
+string |> String.to_charlist() |> Enum.sum()
+```
+
 ### `Timex.now/0` ->` DateTime.utc_now/0` and `Timex.today/0` -> `Date.utc_today/0`
 
 Timex certainly has its uses, but knowing what stdlib date/time struct is returned by Timex is a bit difficult.
