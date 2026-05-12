@@ -418,6 +418,23 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, {count, [line: meta[:line]], [filterer]}]}
   end
 
+  # `lhs |> Enum.drop(offset) |> Enum.take(count)` => `lhs |> Enum.slice(offset, count)`
+  # Only rewrites when both args are non-negative integer literals — a negative value passed to
+  # `Enum.drop` / `Enum.take` operates from the end of the enum, which `Enum.slice/3` does not
+  # support, so variables (which may hold negative values at runtime) are left alone.
+  defp fix_pipe(
+         pipe_chain(
+           pm,
+           lhs,
+           {{:., dm, [{_, _, [:Enum]} = enum, :drop]}, meta, [{:__block__, _, [offset]}]},
+           {{:., _, [{_, _, [:Enum]}, :take]}, _, [{:__block__, _, [count]}]}
+         )
+       )
+       when is_integer(offset) and is_integer(count) and offset >= 0 and count >= 0 do
+    slice = Style.set_line({{:., dm, [enum, :slice]}, meta, [offset, count]}, meta[:line])
+    {:|>, pm, [lhs, slice]}
+  end
+
   # `lhs |> Stream.map(fun) |> Stream.run()` => `lhs |> Enum.each(fun)`
   # `lhs |> Stream.each(fun) |> Stream.run()` => `lhs |> Enum.each(fun)`
   defp fix_pipe(
