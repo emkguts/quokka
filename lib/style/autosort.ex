@@ -102,17 +102,40 @@ defmodule Quokka.Style.Autosort do
   defp keyword_pairs?(list), do: Enum.all?(list, &match?({{_, _, _}, _}, &1))
 
   defp sort_keyword_list_with_comments(pairs, comments, map_open_line) do
-    {groups, comments} =
-      Enum.map_reduce(pairs, comments, fn pair, comments_acc ->
+    {groups, {comments, _last_line}} =
+      Enum.map_reduce(pairs, {comments, nil}, fn pair, {comments_acc, prev_last_line} ->
         line = Style.meta(pair)[:line]
         last_line = Style.max_line(pair)
-        {mine, rest} = Style.comments_for_lines(comments_acc, line, last_line)
-        {{pair, mine}, rest}
+        {mine, rest} = pair_comments_for_keyword(comments_acc, prev_last_line, line, last_line)
+        {{pair, Enum.sort_by(mine, & &1.line)}, {rest, last_line}}
       end)
 
-    groups
-    |> sort_keyword_groups()
-    |> sort_groups_sequentially(comments, map_open_line + 1)
+    sorted_groups = sort_keyword_groups(groups)
+
+    if groups_need_sort?(groups, sorted_groups) do
+      sort_groups_sequentially(sorted_groups, comments, map_open_line + 1)
+    else
+      pairs = Enum.map(groups, &elem(&1, 0))
+
+      comments =
+        Enum.flat_map(groups, fn {_, pair_comments} ->
+          Enum.sort_by(pair_comments, & &1.line)
+        end) ++ comments
+
+      {pairs, comments}
+    end
+  end
+
+  # Assign comments between fields using line boundaries, not `comments_for_lines/3`'s
+  # start - 1 rule (which steals a comment on the previous field's line after layout drifts).
+  defp pair_comments_for_keyword(comments, prev_last_line, _line, last_line) do
+    Enum.split_with(comments, fn %{line: comment_line} ->
+      comment_line <= last_line and (is_nil(prev_last_line) or comment_line > prev_last_line)
+    end)
+  end
+
+  defp groups_need_sort?(groups, sorted_groups) do
+    Enum.map(groups, &elem(&1, 0)) != Enum.map(sorted_groups, &elem(&1, 0))
   end
 
   defp sort_keyword_groups(groups) do
@@ -139,6 +162,12 @@ defmodule Quokka.Style.Autosort do
   defp place_pair_with_comments(pair, pair_comments, line) do
     pair_comments = Enum.sort_by(pair_comments, & &1.line)
 
+    line =
+      case pair_comments do
+        [%{line: comment_line} | _] -> min(line, comment_line)
+        _ -> line
+      end
+
     {placed_comments, line} =
       Enum.map_reduce(pair_comments, line, fn comment, line ->
         {%{comment | line: line, previous_eol_count: 1}, line + 1}
@@ -146,9 +175,10 @@ defmodule Quokka.Style.Autosort do
 
     pair = Style.set_line(pair, line)
     last_line = Style.max_line(pair)
-    newlines = get_in(Style.meta(pair), [:end_of_expression, :newlines]) || 1
 
-    {pair, placed_comments, last_line + newlines}
+    # Use a fixed +1 step: source `newlines` metadata reflects the old layout and must
+    # not advance the cursor past comment lines that belong to the next entry.
+    {pair, placed_comments, last_line + 1}
   end
 
   defp do_sort({parent, meta, [list]} = node, comments) when parent in ~w(defstruct __block__)a and is_list(list) do
