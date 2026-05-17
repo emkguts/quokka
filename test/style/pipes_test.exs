@@ -1048,6 +1048,81 @@ defmodule Quokka.Style.PipesTest do
       end
     end
 
+    test "drop/take => slice" do
+      # single pipes collapse to a function call
+      assert_style(
+        "a |> Enum.drop(2) |> Enum.take(5)",
+        "Enum.slice(a, 2, 5)"
+      )
+
+      # zero is a valid non-negative literal
+      assert_style(
+        "a |> Enum.drop(0) |> Enum.take(5)",
+        "Enum.slice(a, 0, 5)"
+      )
+
+      # preserved inside a longer chain
+      assert_style(
+        """
+        a
+        |> b()
+        |> Enum.drop(2)
+        |> Enum.take(5)
+        """,
+        """
+        a
+        |> b()
+        |> Enum.slice(2, 5)
+        """
+      )
+
+      # followed by another pipe
+      assert_style(
+        """
+        a
+        |> Enum.drop(2)
+        |> Enum.take(5)
+        |> Enum.sum()
+        """,
+        """
+        a
+        |> Enum.slice(2, 5)
+        |> Enum.sum()
+        """
+      )
+
+      # assignment form
+      assert_style(
+        """
+        paginated =
+          sorted
+          |> Enum.drop(10)
+          |> Enum.take(20)
+        """,
+        "paginated = Enum.slice(sorted, 10, 20)"
+      )
+    end
+
+    test "drop/take => slice only rewrites non-negative integer literals" do
+      assert_style("a |> Enum.drop(-1) |> Enum.take(5)")
+      assert_style("a |> Enum.drop(2) |> Enum.take(-5)")
+      assert_style("a |> Enum.drop(-1) |> Enum.take(-5)")
+
+      assert_style("a |> Enum.drop(offset) |> Enum.take(per_page)")
+      assert_style("a |> Enum.drop(offset) |> Enum.take(5)")
+      assert_style("a |> Enum.drop(2) |> Enum.take(per_page)")
+
+      assert_style("a |> Enum.drop(x + 1) |> Enum.take(5)")
+      assert_style("a |> Enum.drop(2) |> Enum.take(length(b))")
+    end
+
+    test "drop/take => slice ignores non-matching variants" do
+      assert_style("a |> Stream.drop(2) |> Stream.take(5)")
+
+      assert_style("a |> Enum.drop(2) |> Stream.take(5)")
+      assert_style("a |> Stream.drop(2) |> Enum.take(5)")
+    end
+
     test "Stream.{each/map}/Stream.run" do
       assert_style("a |> Stream.each(fun) |> Stream.run()", "Enum.each(a, fun)")
       assert_style("a |> Stream.map(fun) |> Stream.run()", "Enum.each(a, fun)")

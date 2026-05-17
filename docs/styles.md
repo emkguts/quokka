@@ -258,6 +258,21 @@ This addresses [`Credo.Check.Refactor.FilterCount`](https://hexdocs.pm/credo/Cre
 Enum.count([1, 2, 3, 4, 5], fn x -> rem(x, 3) == 0 end)
 ```
 
+## Drop/take to slice
+
+`Enum.drop/2` followed by `Enum.take/2` walks the enumerable twice. `Enum.slice/3` does the same work in one pass.
+
+The rewrite is only applied when both arguments are non-negative integer literals. Variables and negative literals are left alone, since `Enum.drop(-n)` / `Enum.take(-n)` operate from the end of the enumerable — behavior `Enum.slice/3` does not support, and a variable could hold a negative value at runtime.
+
+```elixir
+sorted_accounts
+|> Enum.drop(20)
+|> Enum.take(10)
+
+# Styled:
+Enum.slice(sorted_accounts, 20, 10)
+```
+
 ## Map into
 
 This addresses [`Credo.Check.Refactor.MapInto`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapInto.html). This is not configurable.
