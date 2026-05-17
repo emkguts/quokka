@@ -21,7 +21,8 @@ defmodule Quokka.Style do
 
   @type context :: %{
           comments: [map()],
-          file: :stdin | String.t()
+          file: :stdin | String.t(),
+          plugin_opts: keyword()
         }
 
   @doc """

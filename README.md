@@ -103,6 +103,14 @@ in `.formatter.exs` to fine tune your setup:
       | piped_functions: [:subquery, :"Repo.update", ...]
       # Don't rewrite `case foo |> bar() |> baz() do` into `foo |> bar() |> baz() |> case do`
       | :pipe_into_case
+    ],
+    requires: [
+      # Files matched by the `:requires` list will be compiled for use in the plugin system
+      "lib/my_app/quokka_plugins/*.ex"
+    ],
+    plugins: [
+      MyApp.Quokka.Plugin1,
+      {MyApp.Quokka.Plugin2, option_1: "value", option_2: "other"}
     ]
   ]
 ]
@@ -202,6 +210,10 @@ Beyond Credo-inspired checks, Quokka provides additional style improvements:
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
 | Test Styling | Rewrites tests to be efficent and idiomatic | [Test Assertions](docs/tests.md) |
+
+## Custom rewrites
+
+Quokka supports writing your own plugins to get behavior that goes beyond (or even contradicts) the built-in styles. See the docs on `Quokka.Plugin` for more information.
 
 ## License
 
