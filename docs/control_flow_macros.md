@@ -66,7 +66,13 @@ if x, do: y
 
 ## `cond`
 
-This addresses [`Credo.Check.Refactor.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html). This is not configurable.
+This addresses [`Credo.Check.Refactor.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html).
+
+This behavior can be disabled by disabling the check in your `.credo.exs`:
+
+```elixir
+{Credo.Check.Refactor.CondStatements, false}
+```
 
 Quokka has only one `cond` statement rewrite: replace 2-clause statements with `if` statements.
 

@@ -175,7 +175,7 @@ the check can be configured further for fine tuning.
 
 | Credo Check                                                                                                  | Rewrite Description                     | Documentation                                                         | Configurable |
 | ------------------------------------------------------------------------------------------------------------ | --------------------------------------- | --------------------------------------------------------------------- | ------------ |
-| [`.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html)                       | Simplifies boolean expressions          | [Control Flow Macros](docs/control_flow_macros.md#cond)               |              |
+| [`.CondStatements`](https://hexdocs.pm/credo/Credo.Check.Refactor.CondStatements.html)                       | Simplifies boolean expressions          | [Control Flow Macros](docs/control_flow_macros.md#cond)               | ✓            |
 | [`.FilterCount`](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html)                             | Optimizes filter + count operations     | [Styles](docs/styles.md#filter-count)                                 |              |
 | [`.MapInto`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapInto.html)                                     | Optimizes map + into operations         | [Styles](docs/styles.md#map-into)                                     |              |
 | [`.MapJoin`](https://hexdocs.pm/credo/Credo.Check.Refactor.MapJoin.html)                                     | Optimizes map + join operations         | [Styles](docs/styles.md#map-join)                                     |              |
