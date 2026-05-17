@@ -292,6 +292,93 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """
       )
     end
+
+    test "skip-module-directive-reordering: works in a sibling defprotocol" do
+      assert_style(
+        """
+        defmodule Foo do
+        end
+
+        defprotocol Foo.Protocol do
+          # quokka:skip-module-directive-reordering
+          import Z
+          import A
+        end
+        """,
+        """
+        defmodule Foo do
+        end
+
+        defprotocol Foo.Protocol do
+          # quokka:skip-module-directive-reordering
+          import Z
+          import A
+        end
+        """
+      )
+    end
+
+    test "reorders directives in defimpl and defprotocol without skip comment" do
+      assert_style(
+        """
+        defimpl Foo, for: Atom do
+          require My.Fancy.Module
+          import My.Fancy.Module, only: [:fancy_fun, 1]
+        end
+        """,
+        """
+        defimpl Foo, for: Atom do
+          import My.Fancy.Module, only: [:fancy_fun, 1]
+
+          require My.Fancy.Module
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defprotocol Foo.Protocol do
+          import Z
+          import A
+        end
+        """,
+        """
+        defprotocol Foo.Protocol do
+          import A
+          import Z
+        end
+        """
+      )
+    end
+
+    test "skip-module-directive-reordering: in defimpl does not skip defmodule reordering" do
+      assert_style(
+        """
+        defmodule Foo do
+          import Z
+          import A
+        end
+
+        defimpl Foo, for: Atom do
+          # quokka:skip-module-directive-reordering
+          require My.Fancy.Module
+          import My.Fancy.Module, only: [:fancy_fun, 1]
+        end
+        """,
+        """
+        defmodule Foo do
+          import A
+          import Z
+        end
+
+        defimpl Foo, for: Atom do
+          # quokka:skip-module-directive-reordering
+          require My.Fancy.Module
+          import My.Fancy.Module, only: [:fancy_fun, 1]
+        end
+        """
+      )
+    end
   end
 
   describe "defmodule features" do

@@ -58,6 +58,14 @@ defmodule Quokka.Style.ModuleDirectives do
                       {:moduledoc, [line: nil], [{:__block__, [line: nil], [@module_placeholder]}]}
                     ]}
 
+  def run({{:defimpl, _, _children}, _} = zipper, ctx) do
+    run_impl_body(zipper, ctx)
+  end
+
+  def run({{:defprotocol, _, _children}, _} = zipper, ctx) do
+    run_impl_body(zipper, ctx, :defprotocol)
+  end
+
   def run({{:defmodule, _, children}, _} = zipper, ctx) do
     if has_skip_comment?(ctx) do
       {:skip, zipper, ctx}
@@ -147,6 +155,47 @@ defmodule Quokka.Style.ModuleDirectives do
 
   def run(zipper, ctx), do: {:cont, zipper, ctx}
 
+  defp run_impl_body(zipper, ctx, kind \\ :defimpl) do
+    if has_skip_comment?(ctx) do
+      {:skip, zipper, ctx}
+    else
+      case impl_body_zipper(zipper, kind) do
+        nil ->
+          {:skip, zipper, ctx}
+
+        body_zipper ->
+          case Zipper.node(body_zipper) do
+            {:__block__, _, []} ->
+              {:skip, body_zipper, ctx}
+
+            {:__block__, _, [_, _ | _]} ->
+              {:skip, organize_directives(body_zipper, nil, ctx), ctx}
+
+            _ ->
+              {:skip, zipper, ctx}
+          end
+      end
+    end
+  end
+
+  defp impl_body_zipper(zipper, :defimpl) do
+    zipper
+    |> Zipper.down()
+    |> Zipper.rightmost()
+    |> Zipper.down()
+    |> Zipper.down()
+    |> Zipper.right()
+  end
+
+  defp impl_body_zipper(zipper, :defprotocol) do
+    zipper
+    |> Zipper.down()
+    |> Zipper.right()
+    |> Zipper.down()
+    |> Zipper.down()
+    |> Zipper.right()
+  end
+
   def moduledoc_placeholder(), do: @module_placeholder
 
   defp moduledoc({:__aliases__, m, aliases}) do
@@ -203,7 +252,8 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp organize_directives(parent, moduledoc, ctx) do
-    skip_sorting? = has_skip_directive_sorting_comment?(ctx) or has_ignored_module_attribute?(parent)
+    skip_sorting? =
+      has_skip_directive_sorting_comment?(parent, ctx) or has_ignored_module_attribute?(parent)
 
     if skip_sorting? do
       organize_directives_preserve_order(parent, moduledoc)
@@ -856,12 +906,40 @@ defmodule Quokka.Style.ModuleDirectives do
     skip_module_directives or skip_module_reordering
   end
 
-  defp has_skip_directive_sorting_comment?(context) do
-    Enum.any?(
-      context.comments,
-      &String.contains?(&1.text, "quokka:skip-module-directive-reordering")
-    )
+  defp has_skip_directive_sorting_comment?(parent, context) do
+    case directive_block_span(parent) do
+      {nil, _} ->
+        false
+
+      {start_line, end_line} ->
+        Enum.any?(context.comments, fn comment ->
+          String.contains?(comment.text, "quokka:skip-module-directive-reordering") and
+            comment.line >= start_line and comment.line <= end_line
+        end)
+    end
   end
+
+  defp directive_block_span(parent) do
+    child_lines =
+      parent
+      |> Zipper.children()
+      |> Enum.map(&node_line/1)
+      |> Enum.reject(&is_nil/1)
+
+    case child_lines do
+      [] ->
+        case Style.meta(Zipper.node(parent)) do
+          %{line: line} when not is_nil(line) -> {line, line}
+          _ -> {nil, nil}
+        end
+
+      lines ->
+        {Enum.min(lines) - 1, Enum.max(lines)}
+    end
+  end
+
+  defp node_line({_, meta, _}), do: meta[:line]
+  defp node_line(_), do: nil
 
   # TODO investigate removing this in favor of the Style.post_sort_cleanup(node, comments)
   # "Fixes" the line numbers of nodes who have had their orders changed via sorting or other methods.
