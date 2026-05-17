@@ -63,6 +63,31 @@ a |> f(...) |> b()
 
 - add parens to function calls `|> fun |>` => `|> fun() |>`
 
+### One pipe per line
+
+If [`Credo.Check.Readability.OnePipePerLine`](https://hexdocs.pm/credo/Credo.Check.Readability.OnePipePerLine.html) is enabled, Quokka breaks pipe chains so each `|>` is on its own line. Pipes that are already split across lines are left unchanged.
+
+```elixir
+foo |> bar() |> baz()
+
+# Styled:
+foo
+|> bar()
+|> baz()
+```
+
+This also applies when only part of a chain is on one line:
+
+```elixir
+foo
+|> bar() |> baz()
+
+# Styled:
+foo
+|> bar()
+|> baz()
+```
+
 ### Add `then/2` when defining and calling anonymous functions in pipes
 
 - Addresses [`Credo.Check.Readability.PipeIntoAnonymousFunctions`](https://hexdocs.pm/credo/Credo.Check.Readability.PipeIntoAnonymousFunctions.html) by rewriting anonymous function invocations to use `then/2`. This is not configurable.

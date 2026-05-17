@@ -18,6 +18,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.LargeNumbers
   alias Credo.Check.Readability.MaxLineLength
   alias Credo.Check.Readability.MultiAlias
+  alias Credo.Check.Readability.OnePipePerLine
   alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
   alias Credo.Check.Readability.SinglePipe
   alias Credo.Check.Readability.StrictModuleLayout
@@ -154,6 +155,7 @@ defmodule Quokka.Config do
         line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
         negated_conditions_with_else: Map.get(credo_opts, :negated_conditions_with_else, true),
         nums_with_underscores: :nums_with_underscores in exclude_rules,
+        one_pipe_per_line: credo_opts[:one_pipe_per_line] || false,
         only_styles: quokka_config[:only] || [],
         pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
         pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
@@ -277,6 +279,10 @@ defmodule Quokka.Config do
     get(:nums_with_underscores)
   end
 
+  def one_pipe_per_line?() do
+    get(:one_pipe_per_line)
+  end
+
   def pipe_chain_start_excluded_functions() do
     case get(:pipe_chain_start_excluded_functions) do
       [_ | _] = l -> l
@@ -387,6 +393,9 @@ defmodule Quokka.Config do
 
       {NegatedConditionsWithElse, false}, acc ->
         Map.put(acc, :negated_conditions_with_else, true)
+
+      {OnePipePerLine, opts}, acc when is_list(opts) ->
+        Map.put(acc, :one_pipe_per_line, true)
 
       {ParenthesesOnZeroArityDefs, opts}, acc when is_list(opts) ->
         Map.put(acc, :zero_arity_parens, opts[:parens] || false)
