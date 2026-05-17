@@ -27,7 +27,6 @@ defmodule Quokka.Style.Autosort do
       node_line = Style.meta(node)[:line]
 
       should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
-      has_comments = has_comments_inside?(node, ctx.comments)
       is_sortable = get_node_type(node) in autosort_types
       is_query = ecto_from_query?(node)
 
@@ -35,12 +34,12 @@ defmodule Quokka.Style.Autosort do
         is_query and Quokka.Config.autosort_exclude_ecto?() ->
           {:skip, zipper, ctx}
 
-        should_skip || has_comments || !is_sortable ->
+        should_skip || !is_sortable ->
           {:cont, zipper, ctx}
 
         true ->
-          {sorted, _} = sort(node, [])
-          {:cont, Zipper.replace(zipper, sorted), ctx}
+          {sorted, comments} = sort(node, ctx.comments)
+          {:cont, Zipper.replace(zipper, sorted), %{ctx | comments: comments}}
       end
     end
   end
@@ -80,13 +79,6 @@ defmodule Quokka.Style.Autosort do
     end
   end
 
-  defp has_comments_inside?(node, comments) do
-    start_line = Style.meta(node)[:line] || 0
-    end_line = Style.max_line(node) || start_line
-
-    end_line > start_line && Enum.any?(comments, &(&1.line > start_line && &1.line < end_line))
-  end
-
   defp numeric_aware_sort(list) do
     {numeric_items, non_numeric_items} = Enum.split_with(list, &numeric_key?/1)
 
@@ -107,14 +99,74 @@ defmodule Quokka.Style.Autosort do
   defp extract_key({{:.., _, [start, _stop]}, _}), do: start
   defp extract_key({key, _}), do: key
 
+  defp keyword_pairs?(list), do: Enum.all?(list, &match?({{_, _, _}, _}, &1))
+
+  defp sort_keyword_list_with_comments(pairs, comments, map_open_line) do
+    {groups, comments} =
+      Enum.map_reduce(pairs, comments, fn pair, comments_acc ->
+        line = Style.meta(pair)[:line]
+        last_line = Style.max_line(pair)
+        {mine, rest} = Style.comments_for_lines(comments_acc, line, last_line)
+        {{pair, mine}, rest}
+      end)
+
+    groups
+    |> sort_keyword_groups()
+    |> sort_groups_sequentially(comments, map_open_line + 1)
+  end
+
+  defp sort_keyword_groups(groups) do
+    {numeric, other} = Enum.split_with(groups, fn {pair, _} -> numeric_key?(pair) end)
+
+    numeric_sorted = Enum.sort_by(numeric, fn {pair, _} -> extract_key(pair) end)
+    other_sorted = Enum.sort_by(other, fn {pair, _} -> Macro.to_string(pair) end)
+
+    numeric_sorted ++ other_sorted
+  end
+
+  defp sort_groups_sequentially(groups, orphan_comments, start_line) do
+    {pairs, comments, _} =
+      Enum.reduce(groups, {[], orphan_comments, start_line}, fn {pair, pair_comments},
+                                                                {pairs, comments, line} ->
+        {placed_pair, placed_comments, next_line} =
+          place_pair_with_comments(pair, pair_comments, line)
+
+        {[placed_pair | pairs], placed_comments ++ comments, next_line}
+      end)
+
+    {Enum.reverse(pairs), comments}
+  end
+
+  defp place_pair_with_comments(pair, pair_comments, line) do
+    pair_comments = Enum.sort_by(pair_comments, & &1.line)
+
+    {placed_comments, line} =
+      Enum.map_reduce(pair_comments, line, fn comment, line ->
+        {%{comment | line: line, previous_eol_count: 1}, line + 1}
+      end)
+
+    pair = Style.set_line(pair, line)
+    last_line = Style.max_line(pair)
+    newlines = get_in(Style.meta(pair), [:end_of_expression, :newlines]) || 1
+
+    {pair, placed_comments, last_line + newlines}
+  end
+
   defp do_sort({parent, meta, [list]} = node, comments) when parent in ~w(defstruct __block__)a and is_list(list) do
-    list = numeric_aware_sort(list)
     line = meta[:line]
 
     {list, comments} =
-      if line == Style.max_line(node),
-        do: {list, comments},
-        else: Style.order_line_meta_and_comments(list, comments, line)
+      cond do
+        line == Style.max_line(node) ->
+          {numeric_aware_sort(list), comments}
+
+        keyword_pairs?(list) ->
+          sort_keyword_list_with_comments(list, comments, line)
+
+        true ->
+          list = numeric_aware_sort(list)
+          Style.order_line_meta_and_comments(list, comments, line)
+      end
 
     {{parent, meta, [list]}, comments}
   end

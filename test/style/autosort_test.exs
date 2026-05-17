@@ -589,18 +589,77 @@ defmodule Quokka.Style.AutosortTest do
       """)
     end
 
-    test "skips autosort when map has comments inside" do
+    test "autosorts maps and keeps comments above their key" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
-      # Autosort skips entities with inline comments; use # quokka:sort to force sorting.
-      assert_style("""
-      %{
-        c: 3,
-        b: 2,
-        # this needs to come last
-        a: 1
-      }
-      """)
+      assert_style(
+        """
+        %{
+          c: 3,
+          a: 1,
+          # this is a weird case
+          # and the comment is multiline
+          b: 2
+        }
+        """,
+        """
+        %{
+          a: 1,
+          # this is a weird case
+          # and the comment is multiline
+          b: 2,
+          c: 3
+        }
+        """
+      )
+    end
+
+    test "autosorts maps and moves end-of-line comments above the key like mix format" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{
+          d: 4,
+          b: 5, # this is a special case
+          c: 3,
+          a: 1
+        }
+        """,
+        """
+        %{
+          a: 1,
+          # this is a special case
+          b: 5,
+          c: 3,
+          d: 4
+        }
+        """
+      )
+    end
+
+    test "autosorts maps with block and end-of-line comments on the same key" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{
+          d: 4,
+          # block comment above b
+          b: 5, # inline on b
+          a: 1
+        }
+        """,
+        """
+        %{
+          a: 1,
+          # block comment above b
+          # inline on b
+          b: 5,
+          d: 4
+        }
+        """
+      )
     end
 
     test "autosorts module attributes" do

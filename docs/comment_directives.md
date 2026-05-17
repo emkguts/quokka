@@ -84,33 +84,11 @@ a_var =
 }
 ```
 
-### Maps with inline comments
+### Comments while sorting
 
-When a map contains comments, [autosort](autosort.md) skips it by default. `# quokka:sort` forces sorting:
+`# quokka:sort` uses the same sorting code as [autosort](autosort.md) and follows the same comment rules: comments stay with the entry they belonged to (on lines above it after formatting). See [Autosort → Comments](autosort.md#comments) for how that works for maps, defstructs, and schemas under config autosort.
 
-```elixir
-# quokka:sort
-%{
-  c: 3,
-  b: 2,
-  # this needs to come last
-  a: 1
-}
-```
-
-would yield
-
-```elixir
-# quokka:sort
-# this needs to come last
-%{
-  a: 1,
-  b: 2,
-  c: 3
-}
-```
-
-For config-driven map sorting and `# quokka:skip-sort`, see [Autosort](autosort.md).
+For `# quokka:skip-sort` and config options, see [Autosort](autosort.md).
 
 ## Related
 

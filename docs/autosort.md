@@ -33,8 +33,26 @@ The default schema order is: `[:field, :belongs_to, :has_many, :has_one, :many_t
 For each sortable entity (map, `defstruct`, or schema block), autosort **sorts** unless one of these applies:
 
 1. **`# quokka:skip-sort`** on the line above the entity — opt out of autosort for that value only.
-2. **Comments inside the entity** — autosort skips the entity so inline comments that document ordering are preserved. Use [`# quokka:sort`](comment_directives.md) on the line above to force sorting anyway.
-3. **Ecto query context** (when `exclude: [:autosort_ecto]` is set) — maps inside detected `from` queries are not sorted. See [Ecto queries](#ecto-queries) below.
+2. **Ecto query context** (when `exclude: [:autosort_ecto]` is set) — maps inside detected `from` queries are not sorted. See [Ecto queries](#ecto-queries) below.
+
+## Comments
+
+Autosort passes comments through to the formatter so they stay with the code they annotate. The general rule (shared with [`# quokka:sort`](comment_directives.md)) is:
+
+- A comment on the same lines as an entry, or on the line(s) immediately above it, belongs to that entry.
+- After sorting, comments are placed on lines above the entry they belong to.
+- End-of-line comments (for example `b: 5, # note`) are moved onto their own line above the entry, matching `mix format` behavior.
+
+How that applies depends on what is being autosorted:
+
+| Type | What gets sorted | Comment handling |
+|------|------------------|------------------|
+| **`:map`** | Map keys (and map-update keyword lists) | Each key is sorted with its comments as a group; comments stay above that key after formatting. |
+| **`:defstruct`** (keyword form) | Fields like `defstruct b: 1, a: 2` | Same as maps. |
+| **`:defstruct`** (atom list) | Fields like `defstruct [:c, :b, :a]` | Fields are sorted, then line numbers and comments are adjusted together via the shared comment-ordering logic. |
+| **`:schema`** | `schema`, `typed_schema`, and `embedded_schema` fields | Fields are grouped by type (`:field`, `:has_many`, and so on), sorted within each group, then comments are re-laid-out with the sorted fields. Association macros keep blank lines between groups. |
+
+For values that autosort does not cover (plain lists, sigils, `@type` maps without autosort enabled, and so on), use [`# quokka:sort`](comment_directives.md). That directive uses the same sorting implementation and the same comment association rules.
 
 ## `# quokka:skip-sort`
 
@@ -57,17 +75,10 @@ When `autosort: [:map]` is enabled:
 
 %{
   c: 3,
-  b: 2,
-  # this needs to come last
-  a: 1
-}
-
-# quokka:sort
-%{
-  c: 3,
-  b: 2,
-  # this needs to come last
-  a: 1
+  a: 1,
+  # this is a weird case
+  # and the comment is multiline
+  b: 2
 }
 ```
 
@@ -80,22 +91,31 @@ would yield
 %{a: 1, b: 2, c: 3}
 
 %{
-  c: 3,
-  b: 2,
-  # this needs to come last
-  a: 1
-}
-
-# quokka:sort
-%{
-  # this needs to come last
   a: 1,
+  # this is a weird case
+  # and the comment is multiline
   b: 2,
   c: 3
 }
 ```
 
-The plain map is sorted. The `# quokka:skip-sort` map is left unchanged. The map with an inline comment is left unchanged by autosort (see skip rule 2 above). The map under `# quokka:sort` is sorted by the [comment directive](comment_directives.md), including when comments are inside the map.
+The plain map is sorted. The `# quokka:skip-sort` map is left unchanged. See [Comments](#comments) for how comments move with their keys.
+
+## Defstruct examples
+
+When `autosort: [:defstruct]` is enabled, keyword and atom-list forms are sorted:
+
+```elixir
+defstruct c: 1, b: 2, a: 3
+defstruct [:c, :b, :a]
+```
+
+would yield:
+
+```elixir
+defstruct a: 3, b: 2, c: 1
+defstruct [:a, :b, :c]
+```
 
 ## Schema examples
 
