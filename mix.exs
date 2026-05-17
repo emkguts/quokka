@@ -71,6 +71,7 @@ defmodule Quokka.MixProject do
       extra_section: "Docs",
       extras: [
         "CHANGELOG.md": [title: "Changelog"],
+        "docs/autosort.md": [title: "Autosort (maps, schemas, ...)"],
         "docs/comment_directives.md": [title: "Comment Directives (quokka:sort, ...)"],
         "docs/control_flow_macros.md": [title: "Control Flow Macros (if, case, ...)"],
         "docs/mix_configs.md": [title: "Mix Configs (config/config.exs, ...)"],

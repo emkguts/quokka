@@ -3,9 +3,12 @@ defmodule Quokka.ConfigTest do
   use Mimic
 
   import Quokka.Config
+  import Quokka.StyleCase, only: [style: 1]
 
   alias Credo.Check.Design.AliasUsage
   alias Credo.Check.Readability.MaxLineLength
+  alias Quokka.Style.Autosort
+  alias Quokka.Style.CommentDirectives
   alias Quokka.Style.Configs
   alias Quokka.Style.Deprecations
 
@@ -15,7 +18,7 @@ defmodule Quokka.ConfigTest do
 
   test "respects the `:only` configuration" do
     assert :ok = set!(quokka: [only: [:deprecations]])
-    assert [Deprecations] == Quokka.Config.get_styles()
+    assert [CommentDirectives, Deprecations] == Quokka.Config.get_styles()
   end
 
   test "respects the `:exclude` configuration" do
@@ -28,15 +31,42 @@ defmodule Quokka.ConfigTest do
     refute Deprecations in Quokka.Config.get_styles()
   end
 
+  test "exclude: [:comment_directives] has no effect" do
+    assert :ok = set!(quokka: [exclude: [:comment_directives]])
+
+    assert CommentDirectives in Quokka.Config.get_styles()
+
+    {_, styled, _} = style("""
+    # quokka:sort
+    [:c, :a, :b]
+    """)
+
+    assert styled == "# quokka:sort\n[:a, :b, :c]"
+  end
+
+  test "comment directives run even when not in :only" do
+    assert :ok = set!(quokka: [only: [:pipes]])
+
+    assert CommentDirectives in Quokka.Config.get_styles()
+    assert Quokka.Style.Pipes in Quokka.Config.get_styles()
+  end
+
+  test "excluding :autosort disables config autosort but not comment directives" do
+    assert :ok = set!(quokka: [autosort: [:map], exclude: [:autosort]])
+
+    assert CommentDirectives in Quokka.Config.get_styles()
+    refute Autosort in Quokka.Config.get_styles()
+  end
+
   test "respects the `:only` and `:exclude` configuration" do
     assert :ok = set!(quokka: [only: [:configs, :deprecations], exclude: [:deprecations]])
 
-    assert [Configs] == Quokka.Config.get_styles()
+    assert [CommentDirectives, Configs] == Quokka.Config.get_styles()
   end
 
   test "only applies line-length changes if :line_length is present in the `:only` configuration" do
     assert :ok = set!(quokka: [only: [:line_length]])
-    assert [] == Quokka.Config.get_styles()
+    assert [CommentDirectives] == Quokka.Config.get_styles()
   end
 
   test "respects the formatter_opts line_length configuration" do

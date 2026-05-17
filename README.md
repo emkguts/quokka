@@ -62,10 +62,10 @@ in `.formatter.exs` to fine tune your setup:
       excluded: ["lib/example.ex", ...]
     },
     only: [
+      # Config-driven autosort for maps, defstructs, and schemas
+      :autosort
       # Changes to blocks of code
-      :blocks
-      # Comment directives such as # quokka:sort
-      | :comment_directives
+      | :blocks
       # Sorting config files
       | :configs
       # Minimizes function heads
@@ -85,8 +85,8 @@ in `.formatter.exs` to fine tune your setup:
       | :tests
     ],
     exclude: [
-      :blocks
-      | :comment_directives
+      :autosort
+      | :blocks
       | :configs
       | :defs
       | :deprecations
@@ -110,11 +110,12 @@ in `.formatter.exs` to fine tune your setup:
 
 | Option | Description | Options | Default |
 |--------|-------------|---------|---------|
-| `:autosort` | Sort all maps and/or defstructs in your codebase. Quokka will skip sorting maps that have comments inside them, though sorting can still be forced with `# quokka:sort`. | `:map, :defstruct, :schema` | `[]` |
+| `:autosort` | Sort maps, defstructs, and/or schemas in your codebase. See [Autosort](docs/autosort.md). | `:map, :defstruct, :schema` | `[]` |
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
+| `exclude: [:autosort]` | Disables config-driven autosort (`# quokka:sort` still runs) | | |
 | `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |
-| `:only` | Only include the given modules. The special `:line_length` option excludes all changes except line length fixups. | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests]` | `[]` (all modules included) |
-| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case`) | `[:blocks, :comment_directives, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case]` | `[]` (all rewrites included) |
+| `:only` | Only include the given modules. `# quokka:sort` always runs. The special `:line_length` option excludes all other changes except line length fixups. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests]` | `[]` (all modules included) |
+| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case`). `# quokka:sort` cannot be disabled. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case]` | `[]` (all rewrites included) |
 | `exclude: [:inefficient_functions]` | Excludes rewriting inefficient functions to more efficient form |  |  |
 | `exclude: [piped_functions: []]` | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. | `[:subquery, :"Repo.update", ...]` | `[]` |
 | `exclude: [:autosort_ecto]` | Skips autosorting within ecto queries. Particularly useful if you use union. | | |

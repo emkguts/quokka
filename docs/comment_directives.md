@@ -1,44 +1,22 @@
 # Comment Directives
 
-## Module Directive Control
+The `comment_directives` style implements **`# quokka:sort`** only (see `Quokka.Style.CommentDirectives`). It always runs: there is no config option to disable it. If you added `# quokka:sort` in source, Quokka will honor it on every format pass.
 
-### Skip All Module Directive Transformations
+Other `quokka:*` comments are read by other styles:
 
-Use `# quokka:skip-module-directives` anywhere in a module to skip all transformations (expansion, sorting, organizing, alias lifting, etc.):
+| Comment | Style module |
+|---------|----------------|
+| `# quokka:sort` | `CommentDirectives` (always enabled) |
+| `# quokka:skip-sort` | `Autosort` |
+| `# quokka:skip-module-directives`, `# quokka:skip-module-directive-reordering`, … | `ModuleDirectives` |
 
-```elixir
-defmodule MyApp.Module do
-  # quokka:skip-module-directives
-  alias Z.Z
-  alias A.A
-  import MyApp.{Foo, Bar}
-end
-```
+## `# quokka:sort`
 
-The older `# quokka:skip-module-reordering` is still supported but deprecated.
+Opt in to sorting for a specific value. Place `# quokka:sort` on the line above the expression. This works whether or not [autosort](autosort.md) is enabled in config.
 
-### Skip Only Directive Sorting
+Replace `# Please keep this list sorted!` notes with `# quokka:sort` so Quokka maintains order during `mix format`.
 
-Use `# quokka:skip-module-directive-reordering` to preserve document order while still enabling other transformations:
-
-```elixir
-defmodule MyApp.Module do
-  # quokka:skip-module-directive-reordering
-  setup_config()
-
-  use SomeLibrary  # Depends on setup_config() being called first
-
-  alias MyApp.Thing
-end
-```
-
-This preserves order but still expands multi-aliases and lifts common aliases. See [Module Directives](module_directives.md) for details.
-
-## Maintain static list order via `# quokka:sort`
-
-Quokka can keep static values sorted for your team as part of its formatting pass. To instruct it to do so, replace any `# Please keep this list sorted!` notes you wrote to your teammates with `# quokka:sort`.
-
-#### Examples
+### Examples
 
 ```elixir
 # quokka:sort
@@ -106,44 +84,11 @@ a_var =
 }
 ```
 
-## Autosort
+### Maps with inline comments
 
-Quokka can autosort maps, defstructs, and schemas. To enable this feature, set `autosort: [:map, :defstruct, :schema]` in the config. The order of schema sorting can be customized in the following way:
-
-```elixir
-autosort: [:map, schema: [:field, :belongs_to]]
-```
-
-The default order is: `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]`.
-
-Quokka will skip sorting entities that have comments inside them, though sorting can still be forced with `# quokka:sort`. Finally, when `autosort` is enabled, a specific entity can be skipped by adding `# quokka:skip-sort` on the line above it.
-
-Sorting within Ecto queries can be disabled by specifying `exclude: [:autosort_ecto]`. If your codebase makes use of `union` queries, this option may be desirable, since `union` matches on position and not on name.
-
-**Note on Ecto Query Detection**: Quokka uses pattern matching to identify Ecto queries and will skip autosorting maps within:
-
-- Remote calls to `Ecto.Query.from(...)`
-- Local `from` macro calls that include an `in` clause (e.g., `from u in "users", ...`)
-
-This detection is designed to prevent false positives while catching the most common Ecto query patterns. Non-Ecto functions named `from` will not be affected.
-
-#### Examples
-
-When `autosort: [:map]` is enabled:
+When a map contains comments, [autosort](autosort.md) skips it by default. `# quokka:sort` forces sorting:
 
 ```elixir
-# quokka:skip-sort
-%{c: 3, b: 2, a: 1}
-
-%{c: 3, b: 2, a: 1}
-
-%{
-  c: 3,
-  b: 2,
-  # this needs to come last
-  a: 1
-}
-
 # quokka:sort
 %{
   c: 3,
@@ -156,91 +101,18 @@ When `autosort: [:map]` is enabled:
 would yield
 
 ```elixir
-# quokka:skip-sort
-%{c: 3, b: 2, a: 1}
-
-%{a: 1, b: 2, c: 3}
-
-%{
-  c: 3,
-  b: 2,
-  # this needs to come last
-  a: 1
-}
-
 # quokka:sort
+# this needs to come last
 %{
-  # this needs to come last
   a: 1,
   b: 2,
   c: 3
 }
 ```
 
-When `autosort: [:schema]` is enabled:
+For config-driven map sorting and `# quokka:skip-sort`, see [Autosort](autosort.md).
 
-```elixir
-defmodule MySchema do
-  use Ecto.Schema
+## Related
 
-  schema "my_schema" do
-    field :name, :string
-    field :age, :integer
-    field :email, :string
-    has_many :posts, Post
-    has_one :profile, Profile
-    belongs_to :user, User
-    many_to_many :tags, Tag, join_through: "my_schema_tags"
-  end
-end
-```
-
-would yield:
-
-```elixir
-defmodule MySchema do
-  use Ecto.Schema
-
-  schema "my_schema" do
-    belongs_to(:user, User)
-
-    has_many(:posts, Post)
-
-    has_one(:profile, Profile)
-
-    many_to_many(:tags, Tag, join_through: "my_schema_tags")
-
-    field(:age, :integer)
-    field(:email, :string)
-    field(:name, :string)
-  end
-end
-```
-
-When `autosort: [:exclude_ecto]` is enabled, the following will not get sorted:
-
-```elixir
-# Using imported from macro (detected by 'in' clause)
-query1 =
-  from u in "users",
-    select: %{
-      id: u.id,
-      name: u.name,
-      email: u.email,
-      active: true,
-      role: "user"
-    }
-
-# Using fully qualified Ecto.Query.from
-query2 =
-  Ecto.Query.from(p in Post,
-    select: %{
-      title: p.title,
-      author: p.author,
-      date: p.inserted_at
-    }
-  )
-
-# But non-Ecto functions named 'from' will still have their maps sorted
-result = MyModule.from(%{z: 1, a: 2, m: 3})  # map will be sorted to %{a: 2, m: 3, z: 1}
-```
+- [Autosort](autosort.md) — `autosort: [:map, :defstruct, :schema]` and `# quokka:skip-sort`
+- [Module Directives](module_directives.md) — `use`, `alias`, `import`, skip comments, and related transforms

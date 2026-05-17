@@ -24,6 +24,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Refactor.NegatedConditionsWithElse
   alias Credo.Check.Refactor.PipeChainStart
   alias Credo.Check.Refactor.UtcNowTruncate
+  alias Quokka.Style.Autosort
   alias Quokka.Style.Blocks
   alias Quokka.Style.CommentDirectives
   alias Quokka.Style.Configs
@@ -40,8 +41,8 @@ defmodule Quokka.Config do
 
   # quokka:sort
   @styles_by_atom %{
+    autosort: Autosort,
     blocks: Blocks,
-    comment_directives: CommentDirectives,
     configs: Configs,
     defs: Defs,
     deprecations: Deprecations,
@@ -50,6 +51,20 @@ defmodule Quokka.Config do
     single_node: SingleNode,
     tests: Tests
   }
+
+  # CommentDirectives is not configurable; # quokka:sort always runs.
+  @style_pipeline [
+    Blocks,
+    CommentDirectives,
+    Autosort,
+    Configs,
+    Defs,
+    Deprecations,
+    ModuleDirectives,
+    Pipes,
+    SingleNode,
+    Tests
+  ]
 
   @stdlib ~w(
     Access Agent Application Atom Base Behaviour Bitwise Code Date DateTime Dict Ecto Enum Exception
@@ -100,6 +115,10 @@ defmodule Quokka.Config do
       end)
 
     exclude_rules = Keyword.get(quokka_config, :exclude, [])
+
+    if :comment_directives in exclude_rules do
+      Logger.warning("exclude: [:comment_directives] has no effect; # quokka:sort always runs")
+    end
 
     inefficient_function_rewrites =
       case Keyword.get(quokka_config, :inefficient_function_rewrites) do
@@ -180,21 +199,35 @@ defmodule Quokka.Config do
   end
 
   def get_styles() do
-    styles_to_apply =
+    enabled_styles =
       cond do
         :line_length in only_styles() ->
-          []
+          MapSet.new()
 
         only_styles() == [] ->
-          Map.values(@styles_by_atom)
+          MapSet.new(Map.values(@styles_by_atom))
 
         true ->
-          Enum.map(only_styles(), &@styles_by_atom[&1])
+          only_styles()
+          |> Enum.map(&@styles_by_atom[&1])
           |> Enum.reject(&is_nil/1)
+          |> MapSet.new()
       end
 
-    styles_to_exclude = Enum.map(exclude_styles(), &@styles_by_atom[&1])
-    Enum.filter(styles_to_apply, fn style -> !Enum.member?(styles_to_exclude, style) end)
+    excluded_styles =
+      exclude_styles()
+      |> Enum.reject(&(&1 == :comment_directives))
+      |> Enum.map(&@styles_by_atom[&1])
+      |> Enum.reject(&is_nil/1)
+      |> MapSet.new()
+
+    Enum.filter(@style_pipeline, fn
+      CommentDirectives ->
+        true
+
+      style ->
+        MapSet.member?(enabled_styles, style) and not MapSet.member?(excluded_styles, style)
+    end)
   end
 
   def only_styles() do
