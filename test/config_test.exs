@@ -11,6 +11,7 @@ defmodule Quokka.ConfigTest do
   alias Quokka.Style.CommentDirectives
   alias Quokka.Style.Configs
   alias Quokka.Style.Deprecations
+  alias Quokka.Style.Pipes
 
   test "no config is good times" do
     assert :ok = set!([])
@@ -36,10 +37,11 @@ defmodule Quokka.ConfigTest do
 
     assert CommentDirectives in Quokka.Config.get_styles()
 
-    {_, styled, _} = style("""
-    # quokka:sort
-    [:c, :a, :b]
-    """)
+    {_, styled, _} =
+      style("""
+      # quokka:sort
+      [:c, :a, :b]
+      """)
 
     assert styled == "# quokka:sort\n[:a, :b, :c]"
   end
@@ -48,7 +50,7 @@ defmodule Quokka.ConfigTest do
     assert :ok = set!(quokka: [only: [:pipes]])
 
     assert CommentDirectives in Quokka.Config.get_styles()
-    assert Quokka.Style.Pipes in Quokka.Config.get_styles()
+    assert Pipes in Quokka.Config.get_styles()
   end
 
   test "excluding :autosort disables config autosort but not comment directives" do

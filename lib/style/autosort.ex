@@ -126,8 +126,7 @@ defmodule Quokka.Style.Autosort do
 
   defp sort_groups_sequentially(groups, orphan_comments, start_line) do
     {pairs, comments, _} =
-      Enum.reduce(groups, {[], orphan_comments, start_line}, fn {pair, pair_comments},
-                                                                {pairs, comments, line} ->
+      Enum.reduce(groups, {[], orphan_comments, start_line}, fn {pair, pair_comments}, {pairs, comments, line} ->
         {placed_pair, placed_comments, next_line} =
           place_pair_with_comments(pair, pair_comments, line)
 
