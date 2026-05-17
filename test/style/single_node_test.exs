@@ -1351,4 +1351,128 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("& &1.(&2)")
     end
   end
+
+  describe "Enum.reduce summing => Enum.sum" do
+    test "rewrites summing reducer with fn x, acc -> x + acc end" do
+      assert_style(
+        "Enum.reduce(enum, 0, fn x, acc -> x + acc end)",
+        "Enum.sum(enum)"
+      )
+    end
+
+    test "rewrites summing reducer with operands in either order" do
+      assert_style(
+        "Enum.reduce(enum, 0, fn x, acc -> acc + x end)",
+        "Enum.sum(enum)"
+      )
+    end
+
+    test "rewrites &(&1 + &2) capture" do
+      assert_style("Enum.reduce(enum, 0, &(&1 + &2))", "Enum.sum(enum)")
+      assert_style("Enum.reduce(enum, 0, &(&2 + &1))", "Enum.sum(enum)")
+    end
+
+    test "rewrites &+/2 and &Kernel.+/2 captures" do
+      assert_style("Enum.reduce(enum, 0, &+/2)", "Enum.sum(enum)")
+      assert_style("Enum.reduce(enum, 0, &Kernel.+/2)", "Enum.sum(enum)")
+    end
+
+    test "rewrites piped form" do
+      assert_style(
+        """
+        string
+        |> String.to_charlist()
+        |> Enum.reduce(0, fn x, acc -> x + acc end)
+        """,
+        """
+        string
+        |> String.to_charlist()
+        |> Enum.sum()
+        """
+      )
+    end
+
+    test "rewrites single-pipe form" do
+      assert_style(
+        "enum |> Enum.reduce(0, fn x, acc -> x + acc end)",
+        "enum |> Enum.sum()"
+      )
+    end
+
+    test "rewrites piped capture forms" do
+      assert_style("enum |> Enum.reduce(0, &(&1 + &2))", "enum |> Enum.sum()")
+      assert_style("enum |> Enum.reduce(0, &+/2)", "enum |> Enum.sum()")
+    end
+
+    test "rewrites Enum.reduce/2 summing form" do
+      assert_style(
+        "Enum.reduce(enum, fn x, acc -> x + acc end)",
+        "Enum.sum(enum)"
+      )
+
+      assert_style("Enum.reduce(enum, &+/2)", "Enum.sum(enum)")
+      assert_style("Enum.reduce(enum, &(&1 + &2))", "Enum.sum(enum)")
+
+      assert_style(
+        "enum |> Enum.reduce(fn x, acc -> x + acc end)",
+        "enum |> Enum.sum()"
+      )
+
+      assert_style(
+        """
+        string
+        |> String.to_charlist()
+        |> Enum.reduce(fn x, acc -> x + acc end)
+        """,
+        """
+        string
+        |> String.to_charlist()
+        |> Enum.sum()
+        """
+      )
+    end
+
+    test "does not rewrite when accumulator is not zero" do
+      assert_style("Enum.reduce(enum, 1, fn x, acc -> x + acc end)")
+      assert_style("Enum.reduce(enum, initial, fn x, acc -> x + acc end)")
+    end
+
+    test "does not rewrite when accumulator is 0.0 (preserves float type)" do
+      assert_style("Enum.reduce(enum, 0.0, fn x, acc -> x + acc end)")
+    end
+
+    test "does not rewrite when body is not a simple sum of the two args" do
+      assert_style("Enum.reduce(enum, 0, fn x, acc -> x - acc end)")
+      assert_style("Enum.reduce(enum, 0, fn x, acc -> x * acc end)")
+      assert_style("Enum.reduce(enum, 0, fn x, acc -> x + acc + 1 end)")
+      assert_style("Enum.reduce(enum, 0, fn x, acc -> x + 1 end)")
+      assert_style("Enum.reduce(enum, 0, fn x, _acc -> x end)")
+      assert_style("Enum.reduce(enum, 0, fn x, _acc -> x + x end)")
+      assert_style("Enum.reduce(enum, fn x, acc -> x - acc end)")
+      assert_style("Enum.reduce(enum, fn x, acc -> x * acc end)")
+      assert_style("Enum.reduce(enum, fn x, acc -> x + acc + 1 end)")
+      assert_style("Enum.reduce(enum, fn x, acc -> x + 1 end)")
+      assert_style("Enum.reduce(enum, fn x, _acc -> x end)")
+      assert_style("Enum.reduce(enum, fn x, _acc -> x + x end)")
+    end
+
+    test "does not rewrite non-Enum modules" do
+      assert_style("MyMod.reduce(enum, 0, fn x, acc -> x + acc end)")
+    end
+
+    test "does not rewrite when capture indices are wrong" do
+      assert_style("Enum.reduce(enum, 0, &(&1 + &1))")
+      assert_style("Enum.reduce(enum, 0, &(&1 + &3))")
+    end
+
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+      assert_style("Enum.reduce(enum, 0, fn x, acc -> x + acc end)")
+      assert_style("enum |> Enum.reduce(0, &+/2)")
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+      assert_style("Enum.reduce(enum, 0, fn x, acc -> x + acc end)", "Enum.sum(enum)")
+      assert_style("enum |> Enum.reduce(0, &+/2)", "enum |> Enum.sum()")
+    end
+  end
 end
