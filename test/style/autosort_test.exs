@@ -696,5 +696,59 @@ defmodule Quokka.Style.AutosortTest do
         """
       )
     end
+
+    test "struct comments above fields stay put when keys are already sorted" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      source = """
+      %Example{
+        alpha: :one,
+        # belongs with beta
+        beta: 2,
+        delta: 2,
+        epsilon: 0,
+        # belongs with gamma
+        gamma: -1
+      }
+      """
+
+      assert_style(source)
+
+      code =
+        Enum.reduce(1..5, source, fn _, code ->
+          {_, styled, _} = style(code)
+          styled
+        end)
+
+      assert code =~ ~r/alpha: :one,\n\s+# belongs with beta\n\s+beta:/
+      assert code =~ ~r/epsilon: 0,\n\s+# belongs with gamma\n\s+gamma:/
+    end
+
+    test "struct comments stay put through Quokka.format like mix format" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      source = """
+      assert result == %Example{
+               alpha: 0,
+               beta: :value,
+               delta: 2,
+               epsilon: -1,
+               # belongs with gamma
+               gamma: 2,
+               # belongs with zeta
+               zeta: 0
+             }
+      """
+
+      opts = [file: "test.exs", line_length: 98, plugins: [Quokka], quokka: [autosort: [:map]]]
+
+      code =
+        Enum.reduce(1..10, source, fn _, code ->
+          Quokka.format(code, opts) |> String.trim_trailing("\n")
+        end)
+
+      assert code =~ ~r/epsilon: -1,\n\s+# belongs with gamma\n\s+gamma:/
+      assert code =~ ~r/gamma: 2,\n\s+# belongs with zeta\n\s+zeta:/
+    end
   end
 end
