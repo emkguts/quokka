@@ -325,6 +325,38 @@ defmodule Quokka.Style.SingleNode do
   defp style({:++, _, [{{:., _, [{_, _, [:Enum]}, :reverse]} = reverse, r_meta, [lhs]}, rhs]}),
     do: {reverse, r_meta, [lhs, rhs]}
 
+  # `Enum.reduce(enum, 0, fn x, acc -> x + acc end)` => `Enum.sum(enum)`
+  defp style({{:., dm, [{:__aliases__, am, [:Enum]}, :reduce]}, m, [enum, {:__block__, _, [0]}, reducer]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and sum_reducer?(reducer),
+      do: {{:., dm, [{:__aliases__, am, [:Enum]}, :sum]}, m, [enum]},
+      else: node
+  end
+
+  # `Enum.reduce(enum, fn x, acc -> x + acc end)` => `Enum.sum(enum)`
+  # Enum.reduce/2 uses the first element as the accumulator; summing the rest is
+  # equivalent to summing the whole enum.
+  defp style({{:., dm, [{:__aliases__, am, [:Enum]}, :reduce]}, m, [enum, reducer]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and sum_reducer?(reducer),
+      do: {{:., dm, [{:__aliases__, am, [:Enum]}, :sum]}, m, [enum]},
+      else: node
+  end
+
+  # `enum |> Enum.reduce(0, fn x, acc -> x + acc end)` => `enum |> Enum.sum()`
+  defp style(
+         {:|>, pm, [lhs, {{:., dm, [{:__aliases__, am, [:Enum]}, :reduce]}, m, [{:__block__, _, [0]}, reducer]}]} = node
+       ) do
+    if Quokka.Config.inefficient_function_rewrites?() and sum_reducer?(reducer),
+      do: {:|>, pm, [lhs, {{:., dm, [{:__aliases__, am, [:Enum]}, :sum]}, m, []}]},
+      else: node
+  end
+
+  # `enum |> Enum.reduce(fn x, acc -> x + acc end)` => `enum |> Enum.sum()`
+  defp style({:|>, pm, [lhs, {{:., dm, [{:__aliases__, am, [:Enum]}, :reduce]}, m, [reducer]}]} = node) do
+    if Quokka.Config.inefficient_function_rewrites?() and sum_reducer?(reducer),
+      do: {:|>, pm, [lhs, {{:., dm, [{:__aliases__, am, [:Enum]}, :sum]}, m, []}]},
+      else: node
+  end
+
   @literal_zero_pattern quote do: {:__block__, _, [0]}
   @enum_count_pattern quote do: {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(enum)]}
   @enum_count_with_fn_pattern quote do: {{:., var!(m), [{_, _, [:Enum]}, :count]}, _, [var!(enum), var!(func)]}
@@ -574,6 +606,24 @@ defmodule Quokka.Style.SingleNode do
   # Check if the AST represents a pattern match (assignment)
   defp is_pattern_match?({:=, _, _}), do: true
   defp is_pattern_match?(_), do: false
+
+  # True when the reducer function just sums its two arguments (in either order).
+  # Matches `fn a, b -> a + b end`, `fn a, b -> b + a end`, `&(&1 + &2)`, `&(&2 + &1)`,
+  # `&+/2`, and `&Kernel.+/2`.
+  defp sum_reducer?({:fn, _, [{:->, _, [[{a, _, ca}, {b, _, cb}], {:+, _, [{x, _, cx}, {y, _, cy}]}]}]})
+       when is_atom(a) and is_atom(b) and is_atom(x) and is_atom(y) and a != :_ and b != :_ and a != b do
+    ({a, ca} == {x, cx} and {b, cb} == {y, cy}) or ({a, ca} == {y, cy} and {b, cb} == {x, cx})
+  end
+
+  defp sum_reducer?({:&, _, [{:+, _, [{:&, _, [n1]}, {:&, _, [n2]}]}]}) when is_integer(n1) and is_integer(n2),
+    do: {n1, n2} in [{1, 2}, {2, 1}]
+
+  defp sum_reducer?({:&, _, [{:/, _, [{:+, _, nil}, {:__block__, _, [2]}]}]}), do: true
+
+  defp sum_reducer?({:&, _, [{:/, _, [{{:., _, [{:__aliases__, _, [:Kernel]}, :+]}, _, []}, {:__block__, _, [2]}]}]}),
+    do: true
+
+  defp sum_reducer?(_), do: false
 
   defp replace_into({:., dm, [{_, am, _} = enum, _]}, collectable, rest) do
     case Quokka.Config.inefficient_function_rewrites?() and collectable do

@@ -63,6 +63,13 @@ a_var =
     A,
     List
   ]
+
+# quokka:sort
+@type t :: %__MODULE__{
+  c: String.t(),
+  a: boolean(),
+  b: pos_integer()
+}
 ```
 
 Would yield:
@@ -90,6 +97,13 @@ a_var =
     List,
     Modules
   ]
+
+# quokka:sort
+@type t :: %__MODULE__{
+  a: boolean(),
+  b: pos_integer,
+  c: String.t()
+}
 ```
 
 ## Autosort
