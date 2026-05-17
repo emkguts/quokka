@@ -12,20 +12,8 @@
 defmodule Quokka.Config do
   @moduledoc false
 
-  alias Credo.Check.Design.AliasUsage
-  alias Credo.Check.Readability.AliasOrder
-  alias Credo.Check.Readability.BlockPipe
-  alias Credo.Check.Readability.LargeNumbers
-  alias Credo.Check.Readability.MaxLineLength
-  alias Credo.Check.Readability.MultiAlias
-  alias Credo.Check.Readability.OnePipePerLine
-  alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
-  alias Credo.Check.Readability.SinglePipe
-  alias Credo.Check.Readability.StrictModuleLayout
-  alias Credo.Check.Refactor.CondStatements
-  alias Credo.Check.Refactor.NegatedConditionsWithElse
-  alias Credo.Check.Refactor.PipeChainStart
-  alias Credo.Check.Refactor.UtcNowTruncate
+  alias Quokka.Config.Credo
+  alias Quokka.Config.Plugins
   alias Quokka.Style.Autosort
   alias Quokka.Style.Blocks
   alias Quokka.Style.CommentDirectives
@@ -85,6 +73,31 @@ defmodule Quokka.Config do
     :embeds_one
   ]
 
+  @default_strict_module_layout_order [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require]
+
+  @config_getters ~w(
+    autosort autosort_schema_order block_pipe_exclude elixir_version exclude_styles
+    large_numbers_gt lift_alias_depth lift_alias_excluded_lastnames lift_alias_excluded_namespaces
+    lift_alias_frequency lift_alias_only line_length only_styles piped_function_exclusions
+    pipe_chain_start_excluded_argument_types plugins plugin_opts sort_order
+    strict_module_layout_ignore strict_module_layout_ignored_module_attributes strict_module_layout_order
+  )a
+
+  @config_boolean_getters ~w(
+    autosort_exclude_ecto block_pipe_flag cond_statements exclude_nums_with_underscores
+    inefficient_function_rewrites lift_alias negated_conditions_with_else one_pipe_per_line
+    pipe_into_case refactor_pipe_chain_starts rewrite_multi_alias single_pipe_flag utc_now_truncate
+    zero_arity_parens
+  )a
+
+  for key <- @config_getters do
+    def unquote(key)(), do: get(unquote(key))
+  end
+
+  for key <- @config_boolean_getters do
+    def unquote(:"#{key}?")(), do: get(unquote(key))
+  end
+
   def set(formatter_opts) do
     :persistent_term.get(@key)
     :ok
@@ -93,113 +106,13 @@ defmodule Quokka.Config do
   end
 
   def set!(formatter_opts) do
-    quokka_config = formatter_opts[:quokka] || []
-    credo_opts = extract_configs_from_credo()
+    quokka = formatter_opts[:quokka] || []
+    credo = Credo.extract()
+    {plugins, plugin_opts} = Plugins.load(quokka)
+    exclude = Keyword.get(quokka, :exclude, [])
 
-    # Load and validate plugins
-    load_required_files(quokka_config[:requires] || [])
-    {plugins, plugin_opts} = parse_plugins(quokka_config[:plugins] || [])
-
-    lift_alias_excluded_namespaces = credo_opts[:lift_alias_excluded_namespaces] || []
-
-    lift_alias_excluded_lastnames = credo_opts[:lift_alias_excluded_lastnames] || []
-
-    default_order = [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require]
-    strict_module_layout_order = credo_opts[:strict_module_layout_order] || default_order
-
-    autosort = quokka_config[:autosort] || []
-
-    autosort_schema_order =
-      autosort
-      |> Keyword.get(:schema, [])
-      |> then(&(&1 ++ (@default_schema_order -- &1)))
-
-    autosort =
-      Enum.map(autosort, fn
-        {:schema, _order} -> :schema
-        other -> other
-      end)
-
-    exclude_rules = Keyword.get(quokka_config, :exclude, [])
-
-    if :comment_directives in exclude_rules do
-      Logger.warning("exclude: [:comment_directives] has no effect; # quokka:sort always runs")
-    end
-
-    inefficient_function_rewrites =
-      case Keyword.get(quokka_config, :inefficient_function_rewrites) do
-        true ->
-          Logger.warning("inefficient_function_rewrites is deprecated. Use exclude: [:inefficient_functions] instead.")
-          true
-
-        false ->
-          Logger.warning("inefficient_function_rewrites is deprecated. Use exclude: [:inefficient_functions] instead.")
-          false
-
-        nil ->
-          :inefficient_functions not in exclude_rules
-      end
-
-    piped_function_exclusions =
-      case Keyword.get(quokka_config, :piped_function_exclusions) do
-        nil ->
-          Keyword.get(exclude_rules, :piped_functions, [])
-
-        exclusions ->
-          Logger.warning(
-            "piped_function_exclusions is deprecated. Use exclude: [piped_functions: [:fun1, :fun2, ...]] instead."
-          )
-
-          exclusions
-      end
-
-    :persistent_term.put(
-      @key,
-      # quokka:sort
-      %{
-        autosort: autosort,
-        autosort_exclude_ecto: :autosort_ecto in exclude_rules,
-        autosort_schema_order: autosort_schema_order,
-        block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
-        block_pipe_flag: credo_opts[:block_pipe_flag] || false,
-        cond_statements: Map.get(credo_opts, :cond_statements, true),
-        directories_excluded: Map.get(quokka_config[:files] || %{}, :excluded, []),
-        directories_included: Map.get(quokka_config[:files] || %{}, :included, []),
-        elixir_version: parse_elixir_version(),
-        exclude_styles: exclude_rules,
-        inefficient_function_rewrites: inefficient_function_rewrites,
-        large_numbers_gt: credo_opts[:large_numbers_gt] || :infinity,
-        lift_alias: credo_opts[:lift_alias] || false,
-        lift_alias_depth: credo_opts[:lift_alias_depth] || 0,
-        lift_alias_excluded_lastnames:
-          MapSet.new(Enum.map(lift_alias_excluded_lastnames, &String.to_atom/1) ++ @stdlib),
-        lift_alias_excluded_namespaces:
-          MapSet.new(Enum.map(lift_alias_excluded_namespaces, &String.to_atom/1) ++ @stdlib),
-        lift_alias_frequency: credo_opts[:lift_alias_frequency] || 0,
-        lift_alias_only: credo_opts[:lift_alias_only],
-        line_length: min(credo_opts[:line_length], formatter_opts[:line_length]) || 98,
-        negated_conditions_with_else: Map.get(credo_opts, :negated_conditions_with_else, true),
-        nums_with_underscores: :nums_with_underscores in exclude_rules,
-        one_pipe_per_line: credo_opts[:one_pipe_per_line] || false,
-        only_styles: quokka_config[:only] || [],
-        pipe_chain_start_excluded_argument_types: credo_opts[:pipe_chain_start_excluded_argument_types] || [],
-        pipe_chain_start_excluded_functions: credo_opts[:pipe_chain_start_excluded_functions] || [],
-        pipe_chain_start_flag: credo_opts[:pipe_chain_start_flag] || false,
-        pipe_into_case_flag: :pipe_into_case not in exclude_rules,
-        piped_function_exclusions: piped_function_exclusions,
-        plugin_opts: plugin_opts,
-        plugins: plugins,
-        rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
-        single_pipe_flag: credo_opts[:single_pipe_flag] || false,
-        sort_order: credo_opts[:sort_order] || :alpha,
-        strict_module_layout_ignore: credo_opts[:strict_module_layout_ignore] || [],
-        strict_module_layout_ignored_module_attributes:
-          credo_opts[:strict_module_layout_ignored_module_attributes] || [],
-        strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
-        utc_now_truncate: credo_opts[:utc_now_truncate] || false,
-        zero_arity_parens: credo_opts[:zero_arity_parens] || false
-      }
-    )
+    :persistent_term.put(@key, build_config_map(formatter_opts, quokka, credo, exclude, plugins, plugin_opts))
+    :ok
   end
 
   def get(key) do
@@ -241,161 +154,23 @@ defmodule Quokka.Config do
       end)
 
     # Plugins run after built-in styles, in declaration order
-    plugins = get(:plugins) || []
-    builtin_styles ++ plugins
-  end
-
-  def only_styles() do
-    get(:only_styles)
-  end
-
-  def exclude_styles() do
-    get(:exclude_styles)
-  end
-
-  def sort_order() do
-    get(:sort_order)
-  end
-
-  def autosort() do
-    get(:autosort)
-  end
-
-  def autosort_schema_order() do
-    get(:autosort_schema_order)
-  end
-
-  def autosort_exclude_ecto?() do
-    get(:autosort_exclude_ecto)
-  end
-
-  def block_pipe_flag?() do
-    get(:block_pipe_flag)
-  end
-
-  def block_pipe_exclude() do
-    get(:block_pipe_exclude)
-  end
-
-  def elixir_version() do
-    get(:elixir_version)
-  end
-
-  def inefficient_function_rewrites?() do
-    get(:inefficient_function_rewrites)
-  end
-
-  def large_numbers_gt() do
-    get(:large_numbers_gt)
-  end
-
-  def lift_alias?() do
-    get(:lift_alias)
-  end
-
-  def lift_alias_depth() do
-    get(:lift_alias_depth)
-  end
-
-  def lift_alias_excluded_lastnames() do
-    get(:lift_alias_excluded_lastnames)
-  end
-
-  def lift_alias_excluded_namespaces() do
-    get(:lift_alias_excluded_namespaces)
-  end
-
-  def lift_alias_only() do
-    get(:lift_alias_only)
-  end
-
-  def lift_alias_frequency() do
-    get(:lift_alias_frequency)
-  end
-
-  def line_length() do
-    get(:line_length)
-  end
-
-  def cond_statements?() do
-    get(:cond_statements)
-  end
-
-  def negated_conditions_with_else?() do
-    get(:negated_conditions_with_else)
-  end
-
-  def exclude_nums_with_underscores?() do
-    get(:nums_with_underscores)
-  end
-
-  def one_pipe_per_line?() do
-    get(:one_pipe_per_line)
+    builtin_styles ++ (plugins() || [])
   end
 
   def pipe_chain_start_excluded_functions() do
     case get(:pipe_chain_start_excluded_functions) do
-      [_ | _] = l -> l
-      # :piped_function_exclusions are provided as atoms, rather than strings,
-      # but the Credo config expects strings.
-      empty when empty in [nil, []] -> Enum.map(get(:piped_function_exclusions), &to_string/1)
+      [_ | _] = list ->
+        list
+
+      empty when empty in [nil, []] ->
+        # :piped_function_exclusions are provided as atoms, rather than strings,
+        # but the Credo config expects strings.
+        Enum.map(piped_function_exclusions(), &to_string/1)
     end
   end
 
-  def pipe_chain_start_excluded_argument_types() do
-    get(:pipe_chain_start_excluded_argument_types)
-  end
-
-  def refactor_pipe_chain_starts?() do
-    get(:pipe_chain_start_flag)
-  end
-
-  def pipe_into_case?() do
-    get(:pipe_into_case_flag)
-  end
-
-  def rewrite_multi_alias?() do
-    get(:rewrite_multi_alias)
-  end
-
-  def single_pipe_flag?() do
-    get(:single_pipe_flag)
-  end
-
-  def strict_module_layout_order() do
-    get(:strict_module_layout_order)
-  end
-
-  def strict_module_layout_ignore() do
-    get(:strict_module_layout_ignore)
-  end
-
-  def strict_module_layout_ignored_module_attributes() do
-    get(:strict_module_layout_ignored_module_attributes)
-  end
-
-  def piped_function_exclusions() do
-    get(:piped_function_exclusions)
-  end
-
-  def utc_now_truncate?() do
-    get(:utc_now_truncate)
-  end
-
-  def zero_arity_parens?() do
-    get(:zero_arity_parens)
-  end
-
-  def plugins() do
-    get(:plugins)
-  end
-
-  def plugin_opts() do
-    get(:plugin_opts)
-  end
-
   def plugin_opts(module) do
-    get(:plugin_opts)[module] || []
+    plugin_opts()[module] || []
   end
 
   def allowed_directory?(file) do
@@ -410,82 +185,126 @@ defmodule Quokka.Config do
     end
   end
 
-  defp read_credo_config() do
-    exec = Credo.Execution.build()
-    dir = File.cwd!()
+  defp build_config_map(formatter_opts, quokka, credo, exclude, plugins, plugin_opts) do
+    {autosort, autosort_schema_order} = parse_autosort(quokka)
+    {inefficient_function_rewrites, piped_function_exclusions} = parse_deprecated_opts(quokka, exclude)
 
-    case Credo.ConfigFile.read_or_default(exec, dir) do
-      {:ok, config} -> config
-      {:error, _} -> %{checks: []}
+    warn_comment_directives_excluded(exclude)
+
+    # quokka:sort
+    %{
+      autosort: autosort,
+      autosort_exclude_ecto: :autosort_ecto in exclude,
+      autosort_schema_order: autosort_schema_order,
+      directories_excluded: Map.get(quokka[:files] || %{}, :excluded, []),
+      directories_included: Map.get(quokka[:files] || %{}, :included, []),
+      elixir_version: parse_elixir_version(),
+      exclude_nums_with_underscores: :nums_with_underscores in exclude,
+      exclude_styles: exclude,
+      inefficient_function_rewrites: inefficient_function_rewrites,
+      only_styles: quokka[:only] || [],
+      pipe_into_case: :pipe_into_case not in exclude,
+      piped_function_exclusions: piped_function_exclusions,
+      plugin_opts: plugin_opts,
+      plugins: plugins
+    }
+    |> Map.merge(credo_settings(credo, formatter_opts))
+  end
+
+  defp parse_autosort(quokka) do
+    autosort = quokka[:autosort] || []
+
+    schema_order =
+      autosort
+      |> Keyword.get(:schema, [])
+      |> then(&(&1 ++ (@default_schema_order -- &1)))
+
+    normalized =
+      Enum.map(autosort, fn
+        {:schema, _order} -> :schema
+        other -> other
+      end)
+
+    {normalized, schema_order}
+  end
+
+  defp parse_deprecated_opts(quokka, exclude) do
+    inefficient_function_rewrites =
+      case Keyword.get(quokka, :inefficient_function_rewrites) do
+        nil ->
+          :inefficient_functions not in exclude
+
+        value ->
+          Logger.warning("inefficient_function_rewrites is deprecated. Use exclude: [:inefficient_functions] instead.")
+          value
+      end
+
+    piped_function_exclusions =
+      case Keyword.get(quokka, :piped_function_exclusions) do
+        nil ->
+          Keyword.get(exclude, :piped_functions, [])
+
+        exclusions ->
+          Logger.warning(
+            "piped_function_exclusions is deprecated. Use exclude: [piped_functions: [:fun1, :fun2, ...]] instead."
+          )
+
+          exclusions
+      end
+
+    {inefficient_function_rewrites, piped_function_exclusions}
+  end
+
+  defp warn_comment_directives_excluded(exclude) do
+    if :comment_directives in exclude do
+      Logger.warning("exclude: [:comment_directives] has no effect; # quokka:sort always runs")
     end
   end
 
-  defp extract_configs_from_credo() do
-    case read_credo_config().checks do
-      checks when is_list(checks) -> checks
-      checks -> Map.get(checks, :enabled, [])
-    end
-    |> Enum.reduce(%{}, fn
-      {AliasOrder, opts}, acc when is_list(opts) ->
-        Map.put(acc, :sort_order, opts[:sort_method])
+  defp credo_settings(credo, formatter_opts) do
+    %{
+      block_pipe_exclude: credo[:block_pipe_exclude] || [],
+      block_pipe_flag: credo[:block_pipe_flag] || false,
+      cond_statements: Map.get(credo, :cond_statements, true),
+      large_numbers_gt: credo[:large_numbers_gt] || :infinity,
+      line_length: min(credo[:line_length], formatter_opts[:line_length]) || 98,
+      negated_conditions_with_else: Map.get(credo, :negated_conditions_with_else, true),
+      one_pipe_per_line: credo[:one_pipe_per_line] || false,
+      pipe_chain_start_excluded_argument_types: credo[:pipe_chain_start_excluded_argument_types] || [],
+      pipe_chain_start_excluded_functions: credo[:pipe_chain_start_excluded_functions] || [],
+      refactor_pipe_chain_starts: credo[:pipe_chain_start_flag] || false,
+      rewrite_multi_alias: credo[:rewrite_multi_alias] || false,
+      single_pipe_flag: credo[:single_pipe_flag] || false,
+      sort_order: credo[:sort_order] || :alpha,
+      utc_now_truncate: credo[:utc_now_truncate] || false,
+      zero_arity_parens: credo[:zero_arity_parens] || false
+    }
+    |> Map.merge(lift_alias_settings(credo))
+    |> Map.merge(strict_module_layout_settings(credo))
+  end
 
-      {AliasUsage, opts}, acc when is_list(opts) ->
-        acc
-        |> Map.put(:lift_alias, true)
-        |> Map.put(:lift_alias_depth, opts[:if_nested_deeper_than])
-        |> Map.put(:lift_alias_frequency, opts[:if_called_more_often_than])
-        |> Map.put(:lift_alias_excluded_namespaces, opts[:excluded_namespaces])
-        |> Map.put(:lift_alias_excluded_lastnames, opts[:excluded_lastnames])
-        |> Map.put(:lift_alias_only, opts[:only])
+  defp lift_alias_settings(credo) do
+    excluded_lastnames = credo[:lift_alias_excluded_lastnames] || []
+    excluded_namespaces = credo[:lift_alias_excluded_namespaces] || []
 
-      {BlockPipe, opts}, acc when is_list(opts) ->
-        acc
-        |> Map.put(:block_pipe_flag, true)
-        |> Map.put(:block_pipe_exclude, opts[:exclude])
+    %{
+      lift_alias: credo[:lift_alias] || false,
+      lift_alias_depth: credo[:lift_alias_depth] || 0,
+      lift_alias_excluded_lastnames: MapSet.new(Enum.map(excluded_lastnames, &String.to_atom/1) ++ @stdlib),
+      lift_alias_excluded_namespaces: MapSet.new(Enum.map(excluded_namespaces, &String.to_atom/1) ++ @stdlib),
+      lift_alias_frequency: credo[:lift_alias_frequency] || 0,
+      lift_alias_only: credo[:lift_alias_only]
+    }
+  end
 
-      {LargeNumbers, opts}, acc when is_list(opts) ->
-        acc
-        |> Map.put(:large_numbers_gt, opts[:only_greater_than] || 9999)
+  defp strict_module_layout_settings(credo) do
+    order = credo[:strict_module_layout_order] || @default_strict_module_layout_order
 
-      {MaxLineLength, opts}, acc when is_list(opts) ->
-        Map.put(acc, :line_length, opts[:max_length])
-
-      {MultiAlias, opts}, acc when is_list(opts) ->
-        Map.put(acc, :rewrite_multi_alias, true)
-
-      {CondStatements, false}, acc ->
-        Map.put(acc, :cond_statements, false)
-
-      {NegatedConditionsWithElse, false}, acc ->
-        Map.put(acc, :negated_conditions_with_else, true)
-
-      {OnePipePerLine, opts}, acc when is_list(opts) ->
-        Map.put(acc, :one_pipe_per_line, true)
-
-      {ParenthesesOnZeroArityDefs, opts}, acc when is_list(opts) ->
-        Map.put(acc, :zero_arity_parens, opts[:parens] || false)
-
-      {PipeChainStart, opts}, acc when is_list(opts) ->
-        acc
-        |> Map.put(:pipe_chain_start_flag, true)
-        |> Map.put(:pipe_chain_start_excluded_functions, opts[:excluded_functions])
-        |> Map.put(:pipe_chain_start_excluded_argument_types, opts[:excluded_argument_types])
-
-      {SinglePipe, opts}, acc when is_list(opts) ->
-        Map.put(acc, :single_pipe_flag, true)
-
-      {StrictModuleLayout, opts}, acc when is_list(opts) ->
-        acc
-        |> Map.put(:strict_module_layout_order, opts[:order])
-        |> Map.put(:strict_module_layout_ignore, opts[:ignore] || [])
-        |> Map.put(:strict_module_layout_ignored_module_attributes, opts[:ignore_module_attributes] || [])
-
-      {UtcNowTruncate, opts}, acc when is_list(opts) ->
-        Map.put(acc, :utc_now_truncate, true)
-
-      _, acc ->
-        acc
-    end)
+    %{
+      strict_module_layout_ignore: credo[:strict_module_layout_ignore] || [],
+      strict_module_layout_ignored_module_attributes: credo[:strict_module_layout_ignored_module_attributes] || [],
+      strict_module_layout_order: order ++ (@default_strict_module_layout_order -- order)
+    }
   end
 
   defp parse_elixir_version() do
@@ -503,38 +322,4 @@ defmodule Quokka.Config do
         System.version()
     end
   end
-
-  defp load_required_files(patterns) do
-    patterns
-    |> List.wrap()
-    |> Enum.flat_map(&Path.wildcard/1)
-    |> Enum.each(fn path ->
-      if File.exists?(path) do
-        Code.require_file(path)
-      else
-        Logger.warning("Quokka plugin file not found: #{path}")
-      end
-    end)
-  end
-
-  defp parse_plugins(plugin_specs) do
-    {modules, module_opts} =
-      Enum.reduce(plugin_specs, {[], %{}}, fn spec, {modules, opts_map} = acc ->
-        {module, opts} = normalize_plugin_spec(spec)
-
-        case Quokka.Plugin.validate(module) do
-          {:ok, module} ->
-            {[module | modules], Map.put(opts_map, module, opts)}
-
-          {:error, reason} ->
-            Logger.warning("Invalid Quokka plugin:\n\n#{inspect(reason)}")
-            acc
-        end
-      end)
-
-    {Enum.reverse(modules), module_opts}
-  end
-
-  defp normalize_plugin_spec({module, opts}) when is_atom(module) and is_list(opts), do: {module, opts}
-  defp normalize_plugin_spec(module) when is_atom(module), do: {module, []}
 end
