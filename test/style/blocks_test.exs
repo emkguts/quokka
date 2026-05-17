@@ -531,6 +531,17 @@ defmodule Quokka.Style.BlocksTest do
     end
   end
 
+  test "Credo.Check.Refactor.CondStatements respects cond_statements config when false" do
+    stub(Quokka.Config, :cond_statements?, fn -> false end)
+
+    assert_style("""
+    cond do
+      a -> b
+      true -> c
+    end
+    """)
+  end
+
   describe "unless to if" do
     test "inverts all the things" do
       assert_style(

@@ -22,6 +22,7 @@ defmodule Quokka.Config do
   alias Credo.Check.Readability.ParenthesesOnZeroArityDefs
   alias Credo.Check.Readability.SinglePipe
   alias Credo.Check.Readability.StrictModuleLayout
+  alias Credo.Check.Refactor.CondStatements
   alias Credo.Check.Refactor.NegatedConditionsWithElse
   alias Credo.Check.Refactor.PipeChainStart
   alias Credo.Check.Refactor.UtcNowTruncate
@@ -157,6 +158,7 @@ defmodule Quokka.Config do
         autosort_schema_order: autosort_schema_order,
         block_pipe_exclude: credo_opts[:block_pipe_exclude] || [],
         block_pipe_flag: credo_opts[:block_pipe_flag] || false,
+        cond_statements: Map.get(credo_opts, :cond_statements, true),
         directories_excluded: Map.get(quokka_config[:files] || %{}, :excluded, []),
         directories_included: Map.get(quokka_config[:files] || %{}, :included, []),
         elixir_version: parse_elixir_version(),
@@ -304,6 +306,10 @@ defmodule Quokka.Config do
     get(:line_length)
   end
 
+  def cond_statements?() do
+    get(:cond_statements)
+  end
+
   def negated_conditions_with_else?() do
     get(:negated_conditions_with_else)
   end
@@ -423,6 +429,9 @@ defmodule Quokka.Config do
 
       {MultiAlias, opts}, acc when is_list(opts) ->
         Map.put(acc, :rewrite_multi_alias, true)
+
+      {CondStatements, false}, acc ->
+        Map.put(acc, :cond_statements, false)
 
       {NegatedConditionsWithElse, false}, acc ->
         Map.put(acc, :negated_conditions_with_else, true)
