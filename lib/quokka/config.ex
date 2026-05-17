@@ -163,6 +163,9 @@ defmodule Quokka.Config do
         rewrite_multi_alias: credo_opts[:rewrite_multi_alias] || false,
         single_pipe_flag: credo_opts[:single_pipe_flag] || false,
         sort_order: credo_opts[:sort_order] || :alpha,
+        strict_module_layout_ignore: credo_opts[:strict_module_layout_ignore] || [],
+        strict_module_layout_ignored_module_attributes:
+          credo_opts[:strict_module_layout_ignored_module_attributes] || [],
         strict_module_layout_order: strict_module_layout_order ++ (default_order -- strict_module_layout_order),
         utc_now_truncate: credo_opts[:utc_now_truncate] || false,
         zero_arity_parens: credo_opts[:zero_arity_parens] || false
@@ -307,6 +310,14 @@ defmodule Quokka.Config do
     get(:strict_module_layout_order)
   end
 
+  def strict_module_layout_ignore() do
+    get(:strict_module_layout_ignore)
+  end
+
+  def strict_module_layout_ignored_module_attributes() do
+    get(:strict_module_layout_ignored_module_attributes)
+  end
+
   def piped_function_exclusions() do
     get(:piped_function_exclusions)
   end
@@ -390,7 +401,10 @@ defmodule Quokka.Config do
         Map.put(acc, :single_pipe_flag, true)
 
       {StrictModuleLayout, opts}, acc when is_list(opts) ->
-        Map.put(acc, :strict_module_layout_order, opts[:order])
+        acc
+        |> Map.put(:strict_module_layout_order, opts[:order])
+        |> Map.put(:strict_module_layout_ignore, opts[:ignore] || [])
+        |> Map.put(:strict_module_layout_ignored_module_attributes, opts[:ignore_module_attributes] || [])
 
       {UtcNowTruncate, opts}, acc when is_list(opts) ->
         Map.put(acc, :utc_now_truncate, true)

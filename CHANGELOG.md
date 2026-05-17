@@ -8,6 +8,11 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 ### Improvements
 
 - Rewrite `Enum.reduce/2,3` calls that simply sum their two arguments to `Enum.sum/1` (part of inefficient function rewrites).
+- Respect Credo's `Credo.Check.Readability.StrictModuleLayout` `ignore_module_attributes` and `ignore: [:module_attribute]` options. When a module contains an ignored module attribute, Quokka preserves the original directive order for that module rather than hoisting directives above the attribute (which could be referenced by an earlier-ordered directive such as `@moduledoc`). Fixes [#137](https://github.com/smartrent/quokka/issues/137).
+
+### Fixes
+
+- Fix alias duplication in `# quokka:skip-module-directive-reordering` mode when an existing alias was also referenced from non-alias content.
 
 ## [2.12.1] - 2025-02-12
 
