@@ -16,6 +16,7 @@ defmodule Quokka.Style.PipesTest do
   setup do
     stub(Quokka.Config, :single_pipe_flag?, fn -> true end)
     stub(Quokka.Config, :refactor_pipe_chain_starts?, fn -> true end)
+    stub(Quokka.Config, :one_pipe_per_line?, fn -> false end)
 
     :ok
   end
@@ -33,6 +34,59 @@ defmodule Quokka.Style.PipesTest do
 
       a |> b() |> c()
       """)
+    end
+
+    test "breaks multiple pipes on one line when credo check enabled" do
+      stub(Quokka.Config, :one_pipe_per_line?, fn -> true end)
+
+      assert_style(
+        "a |> b() |> c()",
+        """
+        a
+        |> b()
+        |> c()
+        """
+      )
+
+      assert_style(
+        "1 |> Integer.to_string() |> String.to_integer()",
+        """
+        1
+        |> Integer.to_string()
+        |> String.to_integer()
+        """
+      )
+
+      assert_style(
+        """
+        foo
+        |> bar() |> baz()
+        """,
+        """
+        foo
+        |> bar()
+        |> baz()
+        """
+      )
+
+      assert_style(
+        """
+        a()
+        |> b()
+        |> c()
+        """,
+        """
+        a()
+        |> b()
+        |> c()
+        """
+      )
+    end
+
+    test "preserves multiple pipes on one line when credo check disabled" do
+      stub(Quokka.Config, :one_pipe_per_line?, fn -> false end)
+
+      assert_style("a |> b() |> c()")
     end
 
     test "extracts >0 arity functions" do

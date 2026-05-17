@@ -17,6 +17,7 @@ defmodule Quokka.Style.Pipes do
 
     * Credo.Check.Readability.BlockPipe
     * Credo.Check.Readability.OneArityFunctionInPipe
+    * Credo.Check.Readability.OnePipePerLine
     * Credo.Check.Readability.PipeIntoAnonymousFunctions
     * Credo.Check.Readability.SinglePipe
     * Credo.Check.Refactor.FilterCount
@@ -43,7 +44,9 @@ defmodule Quokka.Style.Pipes do
   def run({{:|>, _, _}, _} = zipper, ctx) do
     case fix_pipe_start(zipper) do
       {{:|>, _, _}, _} = zipper ->
-        case Zipper.traverse(zipper, fn {node, meta} -> {fix_pipe(node), meta} end) do
+        case Zipper.traverse(zipper, fn {node, meta} ->
+               {node |> fix_pipe() |> maybe_break_one_pipe_per_line(), meta}
+             end) do
           {{:|>, _, [{:|>, _, _}, _]}, _} = chain_zipper ->
             {:cont, find_pipe_start(chain_zipper), ctx}
 
@@ -585,6 +588,41 @@ defmodule Quokka.Style.Pipes do
   end
 
   defp fix_pipe(node), do: node
+
+  # Credo.Check.Readability.OnePipePerLine
+  defp maybe_break_one_pipe_per_line({:|>, _, _} = pipe) do
+    if Quokka.Config.one_pipe_per_line?() and same_line_nested_pipe?(pipe) do
+      break_pipe_chain(pipe)
+    else
+      pipe
+    end
+  end
+
+  defp maybe_break_one_pipe_per_line(node), do: node
+
+  defp same_line_nested_pipe?({:|>, meta, [{:|>, inner_meta, _} = inner | _]}) do
+    meta[:line] == inner_meta[:line] or same_line_nested_pipe?(inner)
+  end
+
+  defp same_line_nested_pipe?(_), do: false
+
+  defp break_pipe_chain(pipe) do
+    {start, steps} = unfold_pipe_chain(pipe)
+    start_line = Style.max_line(start)
+
+    {pipe, _} =
+      Enum.reduce(steps, {start, start_line}, fn {meta, rhs}, {acc, prev_line} ->
+        line = prev_line + 1
+        pipe_meta = meta |> Keyword.put(:line, line) |> Keyword.put(:newlines, 1)
+        acc = {:|>, pipe_meta, [acc, Style.set_line(rhs, line)]}
+        {acc, line}
+      end)
+
+    pipe
+  end
+
+  defp unfold_pipe_chain({:|>, meta, [lhs, rhs]}), do: unfold_pipe_chain(lhs, [{meta, rhs}])
+  defp unfold_pipe_chain(start, acc), do: {start, Enum.reverse(acc)}
 
   defp valid_pipe_start?({op, _, _}) when op in @special_ops, do: true
   # 0-arity Module.function_call()
