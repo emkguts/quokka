@@ -46,6 +46,13 @@ defmodule Quokka.ConfigTest do
     assert styled == "# quokka:sort\n[:a, :b, :c]"
   end
 
+  test "only: [:comment_directives] does not enable config autosort" do
+    assert :ok = set!(quokka: [autosort: [:map], only: [:comment_directives]])
+
+    assert CommentDirectives in Quokka.Config.get_styles()
+    refute Autosort in Quokka.Config.get_styles()
+  end
+
   test "comment directives run even when not in :only" do
     assert :ok = set!(quokka: [only: [:pipes]])
 

@@ -189,7 +189,7 @@ defmodule Quokka.Config do
     {autosort, autosort_schema_order} = parse_autosort(quokka)
     {inefficient_function_rewrites, piped_function_exclusions} = parse_deprecated_opts(quokka, exclude)
 
-    warn_comment_directives_excluded(exclude)
+    warn_comment_directives_config(quokka)
 
     # quokka:sort
     %{
@@ -255,7 +255,16 @@ defmodule Quokka.Config do
     {inefficient_function_rewrites, piped_function_exclusions}
   end
 
-  defp warn_comment_directives_excluded(exclude) do
+  defp warn_comment_directives_config(quokka) do
+    only = quokka[:only] || []
+    exclude = quokka[:exclude] || []
+
+    if :comment_directives in only do
+      Logger.warning(
+        ":comment_directives in :only has no effect; use :autosort for config-driven sorting. # quokka:sort always runs."
+      )
+    end
+
     if :comment_directives in exclude do
       Logger.warning("exclude: [:comment_directives] has no effect; # quokka:sort always runs")
     end

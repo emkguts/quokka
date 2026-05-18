@@ -1,12 +1,18 @@
 # Comment Directives
 
-The `comment_directives` style implements **`# quokka:sort`** only (see `Quokka.Style.CommentDirectives`). It always runs: there is no config option to disable it. If you added `# quokka:sort` in source, Quokka will honor it on every format pass.
+**`# quokka:sort`** is Quokka's sorting directive. It always runs on every format pass; there is no config option to disable it. If you added `# quokka:sort` in source, Quokka will honor it.
 
-Other `quokka:*` comments are read by other styles:
+This is separate from [config-driven autosort](autosort.md), which sorts all maps, defstructs, and/or schemas when `autosort: [...]` is set in `.formatter.exs`. Use `# quokka:sort` for values autosort does not cover (lists, sigils, `@type` struct fields, and so on), or when you want to sort a specific value without enabling autosort globally.
+
+> #### Note on `:comment_directives` in config {: .tip}
+>
+> `:comment_directives` is no longer a valid style in `:only` or `:exclude` (removed in 2.13.0). `# quokka:sort` always runs regardless of those settings. To control config-driven sorting, use `:autosort` instead. See [Autosort → Upgrading from 2.12.x](autosort.md#autosort-vs-quokkasort).
+
+Other `quokka:*` comments are handled by other styles:
 
 | Comment | Style module |
 |---------|----------------|
-| `# quokka:sort` | `CommentDirectives` (always enabled) |
+| `# quokka:sort` | always enabled (not configurable) |
 | `# quokka:skip-sort` | `Autosort` |
 | `# quokka:skip-module-directives`, `# quokka:skip-module-directive-reordering`, … | `ModuleDirectives` |
 

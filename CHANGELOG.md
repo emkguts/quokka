@@ -5,15 +5,36 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+## [2.13.0] - 2026-05-18
+
+### Breaking Changes
+
+- Sorting is now split into two independent mechanisms. See [Autosort](docs/autosort.md#autosort-vs-quokkasort) for the full comparison.
+  - **Config autosort** (maps, defstructs, schemas): controlled by `autosort: [...]` and the `:autosort` style in `:only` or `:exclude`.
+  - **`# quokka:sort`** (per-value, opt-in): always runs; not affected by `:only`, `:exclude`, or `exclude: [:autosort]`.
+- If you use `:only` or `:exclude` to limit which styles run, replace `:comment_directives` with `:autosort` to control config-driven sorting. The `autosort: [...]` option is unchanged.
+
 ### Improvements
 
 - Added support for plugins; see `Quokka.Plugin` docs for details on creating your own formatting rules.
-- Rewrite `Enum.reduce/2,3` calls that simply sum their two arguments to `Enum.sum/1` (part of inefficient function rewrites).
+- Overhaul config-driven autosort: extracted into a dedicated style with [its own docs](docs/autosort.md). Maps with comments are now autosorted (comments stay with their keys). Use `# quokka:skip-sort` on the line above a value to opt out.
+- Support `# quokka:sort` for struct field keys in `@type` definitions (e.g. `@type t :: %__MODULE__{...}`).
+- Respect Credo's `Credo.Check.Readability.OnePipePerLine` — breaks pipe chains so each `|>` is on its own line when the check is enabled.
+- Respect Credo's `Credo.Check.Refactor.CondStatements` configuration. Set the check to `false` to disable `cond` simplification.
+- Module directive skip comments (`# quokka:skip-module-directives`, `# quokka:skip-module-directive-reordering`, etc.) now work inside `defimpl` blocks. Module directives in `defimpl` and `defprotocol` are reordered when no skip comment is present.
 - Respect Credo's `Credo.Check.Readability.StrictModuleLayout` `ignore_module_attributes` and `ignore: [:module_attribute]` options. When a module contains an ignored module attribute, Quokka preserves the original directive order for that module rather than hoisting directives above the attribute (which could be referenced by an earlier-ordered directive such as `@moduledoc`). Fixes [#137](https://github.com/smartrent/quokka/issues/137).
+- Rewrite `Enum.reduce/2,3` calls that simply sum their two arguments to `Enum.sum/1` (part of inefficient function rewrites).
+- Rewrite `Enum.drop/2` + `Enum.take/2` to `Enum.slice/3` when both arguments are non-negative integer literals (part of inefficient function rewrites).
 
 ### Fixes
 
 - Fix alias duplication in `# quokka:skip-module-directive-reordering` mode when an existing alias was also referenced from non-alias content.
+- Fix crash when formatting empty modules (e.g. a `defmodule` with no body inside a quote block).
+- Fix autosort so comments above map keys are preserved correctly after sorting.
+
+### Deprecations
+
+- `:comment_directives` is no longer a valid `:only` or `:exclude` style. Use `:autosort` to control config-driven sorting instead. `# quokka:sort` always runs and cannot be disabled. `exclude: [:comment_directives]` has no effect and logs a warning; `only: [:comment_directives]` no longer enables config autosort — add `:autosort` if you need it.
 
 ## [2.12.1] - 2025-02-12
 

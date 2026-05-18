@@ -24,7 +24,7 @@ Add `:quokka` as a dependency to your project's `mix.exs`:
 ```elixir
 def deps do
   [
-    {:quokka, "~> 2.12", only: [:dev, :test], runtime: false},
+    {:quokka, "~> 2.13", only: [:dev, :test], runtime: false},
   ]
 end
 ```
@@ -118,7 +118,7 @@ in `.formatter.exs` to fine tune your setup:
 
 | Option | Description | Options | Default |
 |--------|-------------|---------|---------|
-| `:autosort` | Sort maps, defstructs, and/or schemas in your codebase. See [Autosort](docs/autosort.md). | `:map, :defstruct, :schema` | `[]` |
+| `:autosort` | Config-driven sorting for maps, defstructs, and/or schemas. Separate from `# quokka:sort`, which always runs. See [Autosort](docs/autosort.md) and [Comment Directives](docs/comment_directives.md). | `:map, :defstruct, :schema` | `[]` |
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
 | `exclude: [:autosort]` | Disables config-driven autosort (`# quokka:sort` still runs) | | |
 | `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |

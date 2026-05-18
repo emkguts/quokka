@@ -1,6 +1,29 @@
 # Autosort
 
-Config-driven sorting for maps, `defstruct`s, and Ecto schemas. Enable it in `.formatter.exs`:
+Config-driven sorting for maps, `defstruct`s, and Ecto schemas.
+
+## Autosort vs `# quokka:sort`
+
+Quokka has two complementary ways to sort values. Both use the same sorting implementation and comment rules.
+
+| | Config autosort | `# quokka:sort` |
+|---|---|---|
+| **How to enable** | `autosort: [:map, :defstruct, :schema]` in `.formatter.exs` | Place `# quokka:sort` on the line above a value |
+| **What it sorts** | All matching values in the codebase | Only values you annotate (lists, sigils, `@type` maps, and so on) |
+| **Opt out** | `# quokka:skip-sort` on a specific value, or `exclude: [:autosort]` | Not applicable — annotated values are always sorted |
+| **`:only` / `:exclude` style** | `:autosort` | Not configurable — `# quokka:sort` always runs |
+
+See [Comment Directives](comment_directives.md) for `# quokka:sort` examples.
+
+> #### Upgrading from 2.12.x {: .tip}
+>
+> Prior to 2.13.0, config-driven autosort and `# quokka:sort` were both controlled via `:comment_directives` in `:only` or `:exclude`. They are now separate:
+>
+> - Use `:autosort` in `:only` or `:exclude` to control config-driven sorting.
+> - `# quokka:sort` always runs and cannot be disabled.
+> - `exclude: [:comment_directives]` has no effect and logs a warning.
+
+Enable config autosort in `.formatter.exs`:
 
 ```elixir
 [
