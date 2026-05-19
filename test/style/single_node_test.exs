@@ -1404,6 +1404,24 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("enum |> Enum.reduce(0, &+/2)", "enum |> Enum.sum()")
     end
 
+    test "does not rewrite a pipe-fed non-zero accumulator into Enum.sum/2" do
+      # The inner node is `Enum.reduce(<acc>, &+/2)`: its first argument is the
+      # accumulator (the enumerable is piped from the left), not the enumerable.
+      # Rewriting would emit `enum |> Enum.sum(<acc>)` => `Enum.sum/2`, which
+      # exists in no Elixir version. Only the zero-accumulator pure sum is
+      # rewritten (handled at the pipe node, see below); every other initial
+      # accumulator must be left intact.
+      assert_style("enum |> Enum.reduce(0.0, &+/2)")
+      assert_style("enum |> Enum.reduce(1, &+/2)")
+      assert_style("enum |> Enum.reduce(acc, &+/2)")
+      assert_style("enum |> Enum.reduce(%{}, fn x, acc -> x + acc end)")
+      # lhs of the pipe is still traversed/untouched (subtree not skipped).
+      assert_style("Enum.map(c, & &1.v) |> Enum.reduce(0.0, &+/2)")
+
+      # The zero-accumulator pure-sum pipe is still rewritten.
+      assert_style("enum |> Enum.reduce(0, &+/2)", "enum |> Enum.sum()")
+    end
+
     test "rewrites Enum.reduce/2 summing form" do
       assert_style(
         "Enum.reduce(enum, fn x, acc -> x + acc end)",
