@@ -12,6 +12,49 @@ defmodule Quokka.Style.AutosortTest do
   @moduledoc false
   use Quokka.StyleCase, async: true
 
+  describe "leading comments travel with their key when sorted" do
+    test "a moved key's leading comment is not stranded at the map top" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        defmodule M do
+          def cfg do
+            %{
+              # zeta section
+              zeta: 1,
+              # alpha section
+              alpha: 2,
+              # mid comment
+              mid: 3
+              # trailing comment after last key
+            }
+          end
+
+          def other, do: :ok
+        end
+        """,
+        """
+        defmodule M do
+          def cfg() do
+            %{
+              # alpha section
+              alpha: 2,
+              # mid comment
+              mid: 3,
+              # zeta section
+              zeta: 1
+              # trailing comment after last key
+            }
+          end
+
+          def other(), do: :ok
+        end
+        """
+      )
+    end
+  end
+
   describe "comment scoping" do
     test "sorting a map does not steal comments from earlier in the module" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)

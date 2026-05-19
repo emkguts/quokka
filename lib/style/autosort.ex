@@ -167,12 +167,12 @@ defmodule Quokka.Style.Autosort do
   defp place_pair_with_comments(pair, pair_comments, line) do
     pair_comments = Enum.sort_by(pair_comments, & &1.line)
 
-    line =
-      case pair_comments do
-        [%{line: comment_line} | _] -> min(line, comment_line)
-        _ -> line
-      end
-
+    # Place comments at the sequential cursor (where this pair lands after
+    # sorting), not at min(cursor, comment's original line). Clamping to the
+    # comment's stale pre-sort line strands a moved key's leading comment at
+    # the map top instead of travelling with the key. In the not-moved case
+    # the cursor is already <= the comment line, so dropping the clamp is a
+    # no-op there. See emkguts/quokka#161 follow-up.
     {placed_comments, line} =
       Enum.map_reduce(pair_comments, line, fn comment, line ->
         {%{comment | line: line, previous_eol_count: 1}, line + 1}
