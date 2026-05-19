@@ -102,8 +102,13 @@ defmodule Quokka.Style.Autosort do
   defp keyword_pairs?(list), do: Enum.all?(list, &match?({{_, _, _}, _}, &1))
 
   defp sort_keyword_list_with_comments(pairs, comments, map_open_line) do
+    # Seed prev_last_line with the map's opening line so the first pair only
+    # claims comments physically inside the map. With a nil seed the first
+    # pair's lower bound is unbounded and it steals every comment earlier in
+    # the module (e.g. a `# credo:disable-for-next-line` in another function),
+    # then sorting rewrites those comments' lines. See emkguts/quokka#161.
     {groups, {comments, _last_line}} =
-      Enum.map_reduce(pairs, {comments, nil}, fn pair, {comments_acc, prev_last_line} ->
+      Enum.map_reduce(pairs, {comments, map_open_line}, fn pair, {comments_acc, prev_last_line} ->
         line = Style.meta(pair)[:line]
         last_line = Style.max_line(pair)
         {mine, rest} = pair_comments_for_keyword(comments_acc, prev_last_line, line, last_line)
