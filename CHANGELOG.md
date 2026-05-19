@@ -5,6 +5,13 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+## [2.13.1] - 2026-05-19
+
+### Fixes
+
+- Fix `Enum.reduce/3` in a pipe being incorrectly rewritten to a nonexistent two-argument `Enum.sum` call. Piped `lhs |> Enum.reduce(acc, reducer)` was styled as `Enum.reduce/2` and could emit invalid `Enum.sum(acc)` when the reducer was a simple sum. Fixes [#160](https://github.com/smartrent/quokka/issues/160).
+- Fix autosort stealing comments from earlier in the module when sorting multi-line maps. Comments such as `# credo:disable-for-next-line` in unrelated code could be detached from the lines they suppress. Fixes [#161](https://github.com/smartrent/quokka/issues/161).
+
 ## [2.13.0] - 2026-05-18
 
 ### Breaking Changes
