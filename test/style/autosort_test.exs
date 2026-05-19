@@ -12,6 +12,60 @@ defmodule Quokka.Style.AutosortTest do
   @moduledoc false
   use Quokka.StyleCase, async: true
 
+  describe "comment scoping" do
+    test "sorting a map does not steal comments from earlier in the module" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        defmodule Repro do
+          def get!(account_id, preload) do
+            account_id
+            |> load()
+            # credo:disable-for-next-line Some.Check
+            |> preload(preload)
+            # trailing comment belonging to the case below
+            case account_id do
+              nil -> :error
+              _ -> :ok
+            end
+          end
+
+          defp analytics(query) do
+            select(query, [d], %{
+              total: d.a,
+              currency_code: d.c
+            })
+          end
+        end
+        """,
+        """
+        defmodule Repro do
+          def get!(account_id, preload) do
+            account_id
+            |> load()
+            # credo:disable-for-next-line Some.Check
+            |> preload(preload)
+
+            # trailing comment belonging to the case below
+            case account_id do
+              nil -> :error
+              _ -> :ok
+            end
+          end
+
+          defp analytics(query) do
+            select(query, [d], %{
+              currency_code: d.c,
+              total: d.a
+            })
+          end
+        end
+        """
+      )
+    end
+  end
+
   describe "config autosort" do
     test "autosorts schema fields" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
