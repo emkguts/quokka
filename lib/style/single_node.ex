@@ -43,6 +43,21 @@ defmodule Quokka.Style.SingleNode do
   def run({{:|>, _, [_, {{:., _, [{:__aliases__, _, [:Timex]}, :today]}, _, []}]}, _} = zipper, ctx),
     do: {:skip, zipper, ctx}
 
+  # A pipe-fed `Enum.reduce/3` (`lhs |> Enum.reduce(acc, reducer)`) reaches node
+  # styling as its inner `Enum.reduce(acc, reducer)`, which is shaped exactly
+  # like `Enum.reduce/2`. The reduce/2 => Enum.sum rewrite would treat the
+  # accumulator as the enumerable and emit `Enum.sum(acc)`; re-piped that is
+  # `Enum.sum/2`, which exists in no Elixir version. The zero-accumulator pure
+  # sum is handled at the pipe node itself (`|> Enum.reduce(0, &+/2)` =>
+  # `|> Enum.sum()`); here we only decline the rewrite for the genuine reduce/3
+  # form, while still traversing so the rest of the tree is styled.
+  def run({{{:., _, [{:__aliases__, _, [:Enum]}, :reduce]}, _, [_, _]} = reduce, meta} = zipper, ctx) do
+    case Zipper.up(zipper) do
+      {{:|>, _, [_, ^reduce]}, _} -> {:cont, zipper, ctx}
+      _ -> {:cont, {style(reduce), meta}, ctx}
+    end
+  end
+
   # Skip expensive empty enum check rewrites when inside guard clauses
   def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===, :!=] do
     if in_guard?(zipper) do
