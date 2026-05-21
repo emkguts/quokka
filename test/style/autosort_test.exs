@@ -12,49 +12,6 @@ defmodule Quokka.Style.AutosortTest do
   @moduledoc false
   use Quokka.StyleCase, async: true
 
-  describe "leading comments travel with their key when sorted" do
-    test "a moved key's leading comment is not stranded at the map top" do
-      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
-
-      assert_style(
-        """
-        defmodule M do
-          def cfg do
-            %{
-              # zeta section
-              zeta: 1,
-              # alpha section
-              alpha: 2,
-              # mid comment
-              mid: 3
-              # trailing comment after last key
-            }
-          end
-
-          def other, do: :ok
-        end
-        """,
-        """
-        defmodule M do
-          def cfg() do
-            %{
-              # alpha section
-              alpha: 2,
-              # mid comment
-              mid: 3,
-              # zeta section
-              zeta: 1
-              # trailing comment after last key
-            }
-          end
-
-          def other(), do: :ok
-        end
-        """
-      )
-    end
-  end
-
   describe "comment scoping" do
     test "sorting a map does not steal comments from earlier in the module" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
@@ -686,34 +643,25 @@ defmodule Quokka.Style.AutosortTest do
       """)
     end
 
-    test "autosorts maps and keeps comments above their key" do
+    test "does not autosort a map that has block comments inside it" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
-      assert_style(
-        """
-        %{
-          c: 3,
-          a: 1,
-          # this is a weird case
-          # and the comment is multiline
-          b: 2
-        }
-        """,
-        """
-        %{
-          a: 1,
-          # this is a weird case
-          # and the comment is multiline
-          b: 2,
-          c: 3
-        }
-        """
-      )
+      assert_style("""
+      %{
+        c: 3,
+        a: 1,
+        # this is a weird case
+        # and the comment is multiline
+        b: 2
+      }
+      """)
     end
 
-    test "autosorts maps and moves end-of-line comments above the key like mix format" do
+    test "does not autosort a map that has an end-of-line comment inside it" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
+      # mix format hoists the trailing comment to its own line; the key order
+      # is unchanged because autosort skips commented maps.
       assert_style(
         """
         %{
@@ -725,17 +673,17 @@ defmodule Quokka.Style.AutosortTest do
         """,
         """
         %{
-          a: 1,
+          d: 4,
           # this is a special case
           b: 5,
           c: 3,
-          d: 4
+          a: 1
         }
         """
       )
     end
 
-    test "autosorts maps with block and end-of-line comments on the same key" do
+    test "does not autosort a map that has both block and end-of-line comments inside it" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
 
       assert_style(
@@ -749,14 +697,78 @@ defmodule Quokka.Style.AutosortTest do
         """,
         """
         %{
-          a: 1,
+          d: 4,
           # block comment above b
           # inline on b
           b: 5,
-          d: 4
+          a: 1
         }
         """
       )
+    end
+
+    test "does not autosort a map containing a section comment heading multiple keys" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style("""
+      %{
+        # group one
+        "alpha" => 1,
+        "beta" => 2,
+        "gamma" => 3,
+        # group two
+        "delta" => 4,
+        "epsilon" => 5
+      }
+      """)
+    end
+
+    test "does not autosort a defstruct that has a comment inside it" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:defstruct] end)
+
+      assert_style("""
+      defmodule M do
+        defstruct [
+          # primary keys
+          :id,
+          :ref,
+          # metadata
+          :created_at,
+          :updated_at
+        ]
+      end
+      """)
+    end
+
+    test "does not autosort a defstruct (keyword form) that has a comment inside it" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:defstruct] end)
+
+      assert_style("""
+      defmodule M do
+        defstruct c: 1,
+                  # explain b
+                  b: 2,
+                  a: 3
+      end
+      """)
+    end
+
+    test "does not autosort a schema that has a comment inside its block" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style("""
+      defmodule MySchema do
+        use Ecto.Schema
+
+        schema "my_schema" do
+          # identifying fields
+          field(:name, :string)
+          field(:age, :integer)
+          # contact
+          field(:email, :string)
+        end
+      end
+      """)
     end
 
     test "autosorts module attributes" do

@@ -29,12 +29,13 @@ defmodule Quokka.Style.Autosort do
       should_skip = node_line && MapSet.member?(skip_sort_lines, node_line)
       is_sortable = get_node_type(node) in autosort_types
       is_query = ecto_from_query?(node)
+      has_comments = has_comments_inside?(node, ctx.comments)
 
       cond do
         is_query and Quokka.Config.autosort_exclude_ecto?() ->
           {:skip, zipper, ctx}
 
-        should_skip || !is_sortable ->
+        should_skip || has_comments || !is_sortable ->
           {:cont, zipper, ctx}
 
         true ->
@@ -58,6 +59,20 @@ defmodule Quokka.Style.Autosort do
       _ ->
         false
     end
+  end
+
+  # Config-driven autosort must not reorder a collection that contains
+  # comments. A comment in a map/struct typically heads a human-meaningful
+  # section of the collection; sorting the entries alphabetically disperses
+  # the section and the header ends up attached to whatever key now follows
+  # it. This restores the pre-2.13.0 behaviour. Users who really want a
+  # commented collection sorted can opt in per-collection with `# quokka:sort`,
+  # which is handled separately and is not affected by this guard.
+  defp has_comments_inside?(node, comments) do
+    start_line = Style.meta(node)[:line] || 0
+    end_line = Style.max_line(node) || start_line
+
+    end_line > start_line && Enum.any?(comments, &(&1.line > start_line && &1.line < end_line))
   end
 
   defp collect_skip_sort_lines(comments) do
@@ -123,9 +138,10 @@ defmodule Quokka.Style.Autosort do
       pairs = Enum.map(groups, &elem(&1, 0))
 
       comments =
-        Enum.flat_map(groups, fn {_, pair_comments} ->
-          Enum.sort_by(pair_comments, & &1.line)
-        end) ++ comments
+        groups
+        |> Enum.flat_map(fn {_, pair_comments} -> pair_comments end)
+        |> Kernel.++(comments)
+        |> Enum.sort_by(& &1.line)
 
       {pairs, comments}
     end
@@ -161,7 +177,13 @@ defmodule Quokka.Style.Autosort do
         {[placed_pair | pairs], placed_comments ++ comments, next_line}
       end)
 
-    {Enum.reverse(pairs), comments}
+    # The formatter emits comments in list order, not by `.line`, so we must
+    # return them sorted by line. Without this, multiple per-pair leading
+    # comments and the orphan list end up reversed and clustered together
+    # above one key after sorting (e.g. `# quokka:sort` on a map with
+    # several internal `# group ...` comments). Closely related to
+    # emkguts/quokka#161/#163.
+    {Enum.reverse(pairs), Enum.sort_by(comments, & &1.line)}
   end
 
   defp place_pair_with_comments(pair, pair_comments, line) do

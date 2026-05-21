@@ -92,7 +92,13 @@ a_var =
 
 ### Comments while sorting
 
-`# quokka:sort` uses the same sorting code as [autosort](autosort.md) and follows the same comment rules: comments stay with the entry they belonged to (on lines above it after formatting). See [Autosort → Comments](autosort.md#comments) for how that works for maps, defstructs, and schemas under config autosort.
+`# quokka:sort` uses the same sorting code as [autosort](autosort.md) but, unlike config autosort, still sorts a value that contains comments. Comments stay with the entry they belonged to:
+
+- A comment on the same lines as an entry, or on the line(s) immediately above it, belongs to that entry.
+- After sorting, comments are placed on lines above the entry they belong to.
+- End-of-line comments (for example `b: 5, # note`) are moved onto their own line above the entry, matching `mix format` behaviour.
+
+Config autosort, by contrast, skips any entity that contains comments. See [Autosort → When autosort runs](autosort.md#when-autosort-runs) for that rule.
 
 For `# quokka:skip-sort` and config options, see [Autosort](autosort.md).
 

@@ -141,6 +141,33 @@ defmodule Quokka.Style.CommentDirectivesTest do
       )
     end
 
+    test "moved keys' leading comments travel with each key, directive is preserved" do
+      assert_style(
+        """
+        # quokka:sort
+        %{
+          # zeta section
+          zeta: 1,
+          # alpha section
+          alpha: 2,
+          # mid comment
+          mid: 3
+        }
+        """,
+        """
+        # quokka:sort
+        %{
+          # alpha section
+          alpha: 2,
+          # mid comment
+          mid: 3,
+          # zeta section
+          zeta: 1
+        }
+        """
+      )
+    end
+
     test "inside keywords" do
       assert_style(
         """
