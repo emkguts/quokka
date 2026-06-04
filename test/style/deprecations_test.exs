@@ -168,6 +168,13 @@ defmodule Quokka.Style.DeprecationsTest do
       assert_style "a |> x() |> :timer.seconds()"
     end
 
+    test ":timer.x does not get rewritten when it includes negatives" do
+      assert_style ":timer.minutes(-60)", ":timer.minutes(-60)"
+      assert_style ":timer.hours(7 * -24)", ":timer.hours(7 * -24)"
+      assert_style ":timer.hours(hour_count * -24)", ":timer.hours(hour_count * -24)"
+      assert_style ":timer.hours(24 * -days)", ":timer.hours(24 * -days)"
+    end
+
     test "combined with :timer.x deprecation rewrite" do
       assert_style ":timer.minutes(60 * 4)", "to_timeout(hour: 4)"
     end
