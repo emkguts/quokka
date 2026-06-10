@@ -942,7 +942,9 @@ defmodule Quokka.Style.PipesTest do
 
     test "rewrites then/2 when the passed function is a named function reference" do
       assert_style "a |> then(&fun/1) |> c", "a |> fun() |> c()"
-      assert_style "a |> then(&(&1 / 1)) |> c", "a |> Kernel./(1) |> c()"
+      assert_style "a |> foo() |> then(&(&1 / 1)) |> c", "a |> foo() |> Kernel./(1) |> c()"
+      # the extracted kernel op lands at the pipe start, so it's folded inline (then unpiped here)
+      assert_style "a |> then(&(&1 / 1)) |> c", "c(a / 1)"
       assert_style "a |> then(&(&1 * 2 / 1)) |> c()"
       assert_style "a |> then(&fun/1)", "fun(a)"
       assert_style "a |> then(&fun(&1)) |> c", "a |> fun() |> c()"
@@ -953,12 +955,16 @@ defmodule Quokka.Style.PipesTest do
       assert_style "a |> then(&fun(d, &1)) |> c()"
       assert_style "a |> then(&fun(&1, d, %{foo: &1})) |> c()"
 
-      # then + kernel ops
-      assert_style "a |> then(&(-&1)) |> c", "a |> Kernel.-() |> c()"
-      assert_style "a |> then(&(+&1)) |> c", "a |> Kernel.+() |> c()"
+      # then + kernel ops: the extracted op lands at the pipe start and is folded inline
+      # (and then unpiped, since these are single pipes once folded)
+      assert_style "a |> then(&(-&1)) |> c", "c(-a)"
+      assert_style "a |> then(&(+&1)) |> c", "c(+a)"
+      assert_style "a |> foo() |> then(&(-&1)) |> c", "a |> foo() |> Kernel.-() |> c()"
+      assert_style "a |> foo() |> then(&(+&1)) |> c", "a |> foo() |> Kernel.+() |> c()"
 
       for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
-        assert_style "a |> then(&(&1 #{op} x)) |> c", "a |> Kernel.#{op}(x) |> c()"
+        assert_style "a |> then(&(&1 #{op} x)) |> c", "c(a #{op} x)"
+        assert_style "a |> foo() |> then(&(&1 #{op} x)) |> c", "a |> foo() |> Kernel.#{op}(x) |> c()"
       end
 
       # Doesn't rewrite non-kernel operators
@@ -1042,6 +1048,95 @@ defmodule Quokka.Style.PipesTest do
         |> Enum.sum()
         """
       )
+    end
+
+    test "folds a Kernel op at the start of a pipe into an inline expression" do
+      # single pipe off so the folded expression stays the start of the (still multi-step) pipe
+      stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
+
+      assert_style(
+        """
+        foo
+        |> Kernel.||(bar)
+        |> Enum.map(baz)
+        """,
+        """
+        (foo || bar)
+        |> Enum.map(baz)
+        """
+      )
+
+      assert_style(
+        """
+        inherited_rows
+        |> Kernel.++(account_rows)
+        |> Enum.map(&put_group/1)
+        """,
+        """
+        (inherited_rows ++ account_rows)
+        |> Enum.map(&put_group/1)
+        """
+      )
+
+      assert_style(
+        """
+        (assigns.invoice.amount_due || 0)
+        |> Kernel./(100)
+        |> :erlang.float_to_binary(decimals: 2)
+        """,
+        """
+        ((assigns.invoice.amount_due || 0) / 100)
+        |> :erlang.float_to_binary(decimals: 2)
+        """
+      )
+
+      assert_style(
+        """
+        (contacts || [])
+        |> Kernel.++([contact])
+        |> Enum.uniq_by(& &1.id)
+        """,
+        """
+        ((contacts || []) ++ [contact])
+        |> Enum.uniq_by(& &1.id)
+        """
+      )
+
+      assert_style(
+        """
+        foo
+        |> Kernel.<>("bar")
+        |> String.length()
+        """,
+        """
+        (foo <> "bar")
+        |> String.length()
+        """
+      )
+    end
+
+    test "folds every Kernel binary/unary operator that starts a pipe" do
+      stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
+
+      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+        assert_style("a |> Kernel.#{op}(x) |> c()", "(a #{op} x) |> c()")
+      end
+
+      assert_style("a |> Kernel.-() |> c()", "-a |> c()")
+      assert_style("a |> Kernel.+() |> c()", "+a |> c()")
+    end
+
+    test "only folds a Kernel op when it's the first function in the pipe" do
+      stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
+
+      # later in the chain, the lhs is itself a pipe, so folding would change semantics
+      assert_style("a |> b() |> Kernel.++(c)")
+      assert_style("a |> b() |> Kernel.++(c) |> d()")
+    end
+
+    test "folded single pipe gets unpiped when single pipe rewriting is enabled" do
+      assert_style("a |> Kernel.||(b) |> c()", "c(a || b)")
+      assert_style("a |> Kernel.++(b)", "a ++ b")
     end
 
     test "filter/count" do

@@ -335,7 +335,9 @@ defmodule Quokka.Style.Pipes do
         # we only rewrite unary/infix operators if they're in the Kernel namespace.
         # everything else stays as-is in the `then/2` because we can't know what module they're from
         if fun in @kernel_ops,
-          do: {:|>, m, [lhs, {{:., m2, [{:__aliases__, m2, [:Kernel]}, fun]}, m2, args}]},
+          # recurse so that a `Kernel.op` landing at the start of the pipe gets folded into an
+          # inline expression (e.g. `a |> Kernel.++(b)` => `a ++ b`)
+          do: fix_pipe({:|>, m, [lhs, {{:., m2, [{:__aliases__, m2, [:Kernel]}, fun]}, m2, args}]}),
           else: pipe
 
       true ->
@@ -586,6 +588,32 @@ defmodule Quokka.Style.Pipes do
        when mod in @collectable and enum in @enum do
     {:|>, pm, [lhs, {Style.set_line(new, em[:line]), em, [mapper]}]}
   end
+
+  # When a `Kernel` operator is the first function in a pipe, fold it back into an inline
+  # expression so it serves as the chain's start rather than an awkward `Kernel.op(...)` call:
+  #
+  #     foo
+  #     |> Kernel.||(bar)
+  #     |> Enum.map(...)
+  #
+  # becomes
+  #
+  #     (foo || bar)
+  #     |> Enum.map(...)
+  #
+  # We only fold when the left-hand side isn't itself a pipe (the operator really is the
+  # very first step). Folding a later step (`a |> b() |> Kernel.++(c)`) would change semantics,
+  # since operators like `++` bind tighter than `|>`, so those are left as-is.
+  defp fix_pipe({:|>, _pm, [{:|>, _, _}, {{:., _, [{_, _, [:Kernel]}, op]}, _, _}]} = pipe) when op in @kernel_ops,
+    do: pipe
+
+  # binary op: `lhs |> Kernel.op(rhs)` => `lhs op rhs`
+  defp fix_pipe({:|>, _pm, [{_, lhs_meta, _} = lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, [rhs]}]})
+       when op in @kernel_ops, do: Style.set_line({op, [line: lhs_meta[:line]], [lhs, rhs]}, lhs_meta[:line])
+
+  # unary op: `lhs |> Kernel.op()` => `op lhs` (e.g. `a |> Kernel.-()` => `-a`)
+  defp fix_pipe({:|>, _pm, [{_, lhs_meta, _} = lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, []}]}) when op in @kernel_ops,
+    do: Style.set_line({op, [line: lhs_meta[:line]], [lhs]}, lhs_meta[:line])
 
   defp fix_pipe(node), do: node
 

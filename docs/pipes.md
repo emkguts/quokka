@@ -41,6 +41,31 @@ if_result
 |> IO.inspect()
 ```
 
+### Fold `Kernel` operators at the start of a pipe
+
+When a `Kernel` operator (`++`, `||`, `<>`, `/`, `-`, etc.) is the *first* function in a pipe, Quokka folds it back into an inline expression so it becomes the chain's start rather than an awkward `Kernel.op(...)` call. This is not configurable.
+
+```elixir
+foo
+|> Kernel.||(bar)
+|> Enum.map(&transform/1)
+|> ...
+
+# Styled:
+(foo || bar)
+|> Enum.map(&transform/1)
+|> ...
+```
+
+Only the very first step is folded in this way; a `Kernel` operator later in the chain is left alone.
+
+```elixir
+# Left as-is:
+a
+|> b()
+|> Kernel.++(c)
+```
+
 ### Add parenthesis to function calls in pipes
 
 This addresses [`Credo.Check.Readability.OneArityFunctionInPipe`](https://hexdocs.pm/credo/Credo.Check.Readability.OneArityFunctionInPipe.html). This is not configurable.
