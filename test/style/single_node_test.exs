@@ -1493,4 +1493,106 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("enum |> Enum.reduce(0, &+/2)", "enum |> Enum.sum()")
     end
   end
+
+  describe "String.starts_with?/ends_with?/contains? or-chains => list form" do
+    test "combines two single-string checks" do
+      for function <- [:starts_with?, :ends_with?, :contains?] do
+        assert_style(
+          ~s|String.#{function}(foo, "bar") or String.#{function}(foo, "baz")|,
+          ~s|String.#{function}(foo, ["bar", "baz"])|
+        )
+
+        assert_style(
+          ~s'String.#{function}(foo, "bar") || String.#{function}(foo, "baz")',
+          ~s|String.#{function}(foo, ["bar", "baz"])|
+        )
+      end
+    end
+
+    test "combines a list and a single string" do
+      for function <- [:starts_with?, :ends_with?, :contains?] do
+        assert_style(
+          ~s|String.#{function}(foo, ["bar", "baz"]) or String.#{function}(foo, "bop")|,
+          ~s|String.#{function}(foo, ["bar", "baz", "bop"])|
+        )
+      end
+    end
+
+    test "combines a single string and a list" do
+      assert_style(
+        ~s|String.starts_with?(foo, "bar") or String.starts_with?(foo, ["baz", "bop"])|,
+        ~s|String.starts_with?(foo, ["bar", "baz", "bop"])|
+      )
+    end
+
+    test "combines two lists" do
+      assert_style(
+        ~s|String.ends_with?(foo, ["bar", "baz"]) or String.ends_with?(foo, ["bop", "whiz"])|,
+        ~s|String.ends_with?(foo, ["bar", "baz", "bop", "whiz"])|
+      )
+    end
+
+    test "combines a chain of three or more" do
+      assert_style(
+        ~s'String.starts_with?(foo, "a") or String.starts_with?(foo, "b") || String.starts_with?(foo, "c")',
+        ~s|String.starts_with?(foo, ["a", "b", "c"])|
+      )
+
+      combiners =
+        Stream.repeatedly(fn -> Enum.random([:or, :||]) end)
+        |> Stream.take(4)
+
+      a_through_d =
+        combiners
+        |> Enum.zip(["a", "b", ["c"], "d"])
+        |> Enum.map(fn {combiner, arg} -> ~s'String.starts_with?(foo, #{inspect(arg)}) #{combiner} ' end)
+
+      assert_style(
+        ~s'#{a_through_d} String.starts_with?(foo, "e") ',
+        ~s|String.starts_with?(foo, ["a", "b", "c", "d", "e"])|
+      )
+    end
+
+    test "works with a non-variable subject" do
+      assert_style(
+        ~s|String.starts_with?(get_str(), "bar") or String.starts_with?(get_str(), "baz")|,
+        ~s|String.starts_with?(get_str(), ["bar", "baz"])|
+      )
+    end
+
+    test "does not touch chains with a non-literal sought argument" do
+      assert_style(~s|String.ends_with?(foo, bar) or String.ends_with?(foo, baz)|)
+      assert_style(~s'String.starts_with?(foo, "bar") || String.starts_with?(foo, baz)')
+      assert_style(~s|String.contains?(foo, [bar, "baz"]) or String.contains?(foo, "bop")|)
+    end
+
+    test "does not combine mismatched functions" do
+      assert_style(~s|String.starts_with?(foo, "bar") or String.ends_with?(foo, "baz")|)
+      assert_style(~s|String.contains?(foo, "bar") or String.starts_with?(foo, "baz")|)
+      assert_style(~s'String.contains?(foo, "bar") || String.ends_with?(foo, "baz")')
+    end
+
+    test "does not combine mismatched subjects" do
+      assert_style(~s|String.starts_with?(foo, "bar") or String.starts_with?(bar, "baz")|)
+    end
+
+    test "only combines adjacent matches in a mixed chain" do
+      assert_style(
+        ~s|String.starts_with?(foo, "a") or flag or String.starts_with?(foo, "b") or String.starts_with?(foo, "c")|,
+        ~s|String.starts_with?(foo, "a") or flag or String.starts_with?(foo, ["b", "c"])|
+      )
+    end
+
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+      assert_style(~s|String.starts_with?(foo, "bar") or String.starts_with?(foo, "baz")|)
+
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        ~s|String.starts_with?(foo, "bar") or String.starts_with?(foo, "baz")|,
+        ~s|String.starts_with?(foo, ["bar", "baz"])|
+      )
+    end
+  end
 end
