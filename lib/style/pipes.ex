@@ -21,6 +21,7 @@ defmodule Quokka.Style.Pipes do
     * Credo.Check.Readability.PipeIntoAnonymousFunctions
     * Credo.Check.Readability.SinglePipe
     * Credo.Check.Refactor.FilterCount
+    * Credo.Check.Refactor.FilterFilter
     * Credo.Check.Refactor.MapInto
     * Credo.Check.Refactor.MapJoin
     * Credo.Check.Refactor.PipeChainStart, excluded_functions: ["from"]
@@ -421,6 +422,33 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, {count, [line: meta[:line]], [filterer]}]}
   end
 
+  # Credo.Check.Refactor.FilterFilter
+  # `lhs |> Enum.filter(p1) |> Enum.filter(p2)` => `lhs |> Enum.filter(combined)`
+  # The two predicates are combined with `&&`, which preserves short-circuit semantics:
+  # `p2` only ever runs on items that already passed `p1`, exactly as the two filters did.
+  defp fix_pipe(
+         pipe_chain(
+           pm,
+           lhs,
+           {{:., dm, [{_, _, [mod]} = enum, :filter]}, meta, [p1]},
+           {{:., _, [{_, _, [mod]}, :filter]}, _, [p2]}
+         ) = node
+       )
+       when mod in @enum do
+    if Quokka.Config.filter_filter?() do
+      case combine_filters(p1, p2, meta[:line]) do
+        :bail ->
+          node
+
+        combined ->
+          # recurse so a chain of 3+ filters collapses into one (the predicates fold left)
+          fix_pipe({:|>, pm, [lhs, {{:., dm, [enum, :filter]}, [line: meta[:line]], [combined]}]})
+      end
+    else
+      node
+    end
+  end
+
   # `lhs |> Enum.drop(offset) |> Enum.take(count)` => `lhs |> Enum.slice(offset, count)`
   # Only rewrites when both args are non-negative integer literals — a negative value passed to
   # `Enum.drop` / `Enum.take` operates from the end of the enum, which `Enum.slice/3` does not
@@ -588,6 +616,122 @@ defmodule Quokka.Style.Pipes do
   end
 
   defp fix_pipe(node), do: node
+
+  # Combine two `Enum.filter`/`Stream.filter` predicates (Credo.Check.Refactor.FilterFilter).
+  # Two captures collapse into a single capture joined with `&&`; anything involving an
+  # anonymous function becomes a single `fn` using the `if p1 do p2 else false end` form.
+  # Returns `:bail` (leaving the chain untouched) for shapes we can't safely combine.
+  defp combine_filters(p1, p2, line) do
+    case {classify_predicate(p1), classify_predicate(p2)} do
+      {:bail, _} -> :bail
+      {_, :bail} -> :bail
+      {{:capture, b1}, {:capture, b2}} -> combine_captures(b1, b2, line)
+      {c1, c2} -> combine_to_fn(c1, c2, line)
+    end
+  end
+
+  # `&fun/1` expands to `fun(&1)` so it can join other captures; higher arities bail.
+  defp classify_predicate({:&, meta, [{:/, _, [fun, arity]}]}) do
+    if capture_arity(arity) == 1, do: {:capture, function_capture_call(fun, meta)}, else: :bail
+  end
+
+  defp classify_predicate({:&, _, [body]} = capture) do
+    # multi-arity captures (`&2` and friends) operate on more than the filtered element
+    if max_capture_arg(capture) >= 2, do: :bail, else: {:capture, body}
+  end
+
+  # only single-clause, single plain-variable, guard-free anonymous functions
+  defp classify_predicate({:fn, _, [{:->, _, [[{param, _, ctx}], body]}]})
+       when is_atom(param) and is_atom(ctx) and param != :_, do: {:fn, param, body}
+
+  # bare variables, function references, multi-clause/multi-arg/guarded fns, etc.
+  defp classify_predicate(_), do: :bail
+
+  defp capture_arity(1), do: 1
+  defp capture_arity({:__block__, _, [1]}), do: 1
+  defp capture_arity(_), do: :bail
+
+  defp function_capture_call(fun, meta) do
+    arg = {:&, meta, [1]}
+
+    case fun do
+      {{:., dot_meta, [target, func]}, call_meta, []} ->
+        {{:., dot_meta, [target, func]}, call_meta, [arg]}
+
+      {name, name_meta, _ctx} when is_atom(name) ->
+        {name, name_meta, [arg]}
+    end
+  end
+
+  defp max_capture_arg(ast) do
+    {_, max} =
+      Macro.prewalk(ast, 0, fn
+        {:&, _, [n]} = node, acc when is_integer(n) -> {node, max(acc, n)}
+        node, acc -> {node, acc}
+      end)
+
+    max
+  end
+
+  # `&(b1)` + `&(b2)` => `&(b1 && b2)`, flattened so the `&&` tree is left-associative
+  # (the formatter renders `a && b && c` paren-free only when left-nested). Folding left
+  # also keeps the result stable when a longer chain is collapsed pair-by-pair.
+  defp combine_captures(b1, b2, line) do
+    merged =
+      (flatten_and(b1) ++ flatten_and(b2))
+      |> Enum.reduce(fn next, acc -> {:&&, [line: line], [acc, next]} end)
+
+    Style.set_line({:&, [line: line], [merged]}, line)
+  end
+
+  defp flatten_and({:&&, _, [lhs, rhs]}), do: flatten_and(lhs) ++ [rhs]
+  defp flatten_and(node), do: [node]
+
+  # `if <p1> do <p2> else false end`, wrapped in a single-arg `fn`. `p1` is the first
+  # filter's predicate (the condition), `p2` is the second (the then-branch); `false`
+  # short-circuits exactly as chaining the two filters did.
+  defp combine_to_fn(c1, c2, line) do
+    param = fn_param(c1) || fn_param(c2)
+
+    with {:ok, cond_ast} <- predicate_as_expr(c1, param, :condition),
+         {:ok, then_ast} <- predicate_as_expr(c2, param, :body) do
+      if_ast = {:if, [line: line], [cond_ast, [do: then_ast, else: false]]}
+      fn_ast = {:fn, [line: line], [{:->, [line: line], [[{param, [line: line], nil}], if_ast]}]}
+      Style.set_line(fn_ast, line)
+    else
+      _ -> :bail
+    end
+  end
+
+  defp fn_param({:fn, param, _}), do: param
+  defp fn_param(_), do: nil
+
+  # capture: rewrite `&1` to the chosen parameter variable
+  defp predicate_as_expr({:capture, body}, param, _role) do
+    {:ok,
+     Macro.prewalk(body, fn
+       {:&, meta, [1]} -> {param, meta, nil}
+       node -> node
+     end)}
+  end
+
+  # fn: a block can be a then-branch but not an `if` condition; rename the param if needed
+  defp predicate_as_expr({:fn, fn_param, body}, param, role) do
+    if role == :condition and match?({:__block__, _, [_, _ | _]}, body) do
+      :bail
+    else
+      {:ok, rename_var(body, fn_param, param)}
+    end
+  end
+
+  defp rename_var(body, from, from), do: body
+
+  defp rename_var(body, from, to) do
+    Macro.prewalk(body, fn
+      {^from, meta, ctx} when is_atom(ctx) -> {to, meta, ctx}
+      node -> node
+    end)
+  end
 
   # Credo.Check.Readability.OnePipePerLine
   defp maybe_break_one_pipe_per_line({:|>, _, _} = pipe) do
