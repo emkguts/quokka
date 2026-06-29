@@ -660,6 +660,101 @@ defmodule Quokka.Style.BlocksTest do
     end
   end
 
+  describe "case statements that can be rewritten as `if`" do
+    test "replaces explicit true/false" do
+      assert_style(
+        """
+        case foo do
+          true -> b
+          false -> c
+        end
+        """,
+        """
+        if foo do
+          b
+        else
+          c
+        end
+        """
+      )
+    end
+
+    test "replaces when only true is specified" do
+      assert_style(
+        """
+        case foo do
+          true -> b
+          _ -> c
+        end
+        """,
+        """
+        if foo do
+          b
+        else
+          c
+        end
+        """
+      )
+    end
+
+    test "replaces when there's a function call involved" do
+      assert_style(
+        """
+        case foo?(bar) do
+          true -> b
+          _ -> c
+        end
+        """,
+        """
+        if foo?(bar) do
+          b
+        else
+          c
+        end
+        """
+      )
+    end
+
+    test "replaces when piping into case" do
+      assert_style(
+        """
+        foo
+        |> bar?()
+        |> case do
+          true -> b
+          false -> c
+        end
+        """,
+        """
+        if bar?(foo) do
+          b
+        else
+          c
+        end
+        """
+      )
+
+      assert_style(
+        """
+        foo
+        |> bar()
+        |> baz?()
+        |> case do
+          true -> b
+          false -> c
+        end
+        """,
+        """
+        if foo |> bar() |> baz?() do
+          b
+        else
+          c
+        end
+        """
+      )
+    end
+  end
+
   describe "pipe into case" do
     test "transforms case with pipe chain subject to pipe into case" do
       assert_style(

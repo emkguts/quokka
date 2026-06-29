@@ -5,6 +5,8 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+- Added rewrite for `case` expressions that can be rewritten as `if`.
+
 ## [2.13.1] - 2026-05-19
 
 ### Fixes

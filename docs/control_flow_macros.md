@@ -90,6 +90,69 @@ else
 end
 ```
 
+## `case`
+
+Quokka rewrites trivial two-clause `case` expressions to `if` expressions. This applies when the first clause matches `true` and the second matches `false` or a catch-all (`_`).
+
+```elixir
+case foo do
+  true -> b
+  false -> c
+end
+# Styled:
+if foo do
+  b
+else
+  c
+end
+```
+
+```elixir
+case foo?(bar) do
+  true -> b
+  _ -> c
+end
+# Styled:
+if foo?(bar) do
+  b
+else
+  c
+end
+```
+
+This also applies when piping into `case`. A single pipe is folded into a function call; longer chains stay piped.
+
+```elixir
+foo
+|> bar?()
+|> case do
+  true -> b
+  false -> c
+end
+# Styled:
+if bar?(foo) do
+  b
+else
+  c
+end
+```
+
+```elixir
+foo
+|> bar()
+|> baz?()
+|> case do
+  true -> b
+  _ -> c
+end
+# Styled:
+if foo |> bar() |> baz?() do
+  b
+else
+  c
+end
+```
+
 ## `with`
 
 This addresses [`Credo.Check.Readability.WithSingleClause`](https://hexdocs.pm/credo/Credo.Check.Readability.WithSingleClause.html), [`Credo.Check.Refactor.RedundantWithClauseResult`](https://hexdocs.pm/credo/Credo.Check.Refactor.RedundantWithClauseResult.html), and [`Credo.Check.Refactor.WithClauses`](https://hexdocs.pm/credo/Credo.Check.Refactor.WithClauses.html). This is not configurable.

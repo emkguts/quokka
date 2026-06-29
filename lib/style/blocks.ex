@@ -32,13 +32,47 @@ defmodule Quokka.Style.Blocks do
   defguardp is_negator(n) when elem(n, 0) in [:!, :not, :!=, :!==]
   defguardp is_empty_body(n) when elem(n, 0) == :__block__ and elem(n, 2) in [[nil], []]
 
-  # Pipe into case: case foo |> bar() do ... end => foo |> bar() |> case do ... end
-  def run({{:case, case_meta, [{:|>, _, _} = pipe_chain, clauses]}, _} = zipper, ctx) do
-    if Quokka.Config.pipe_into_case?() do
-      new_node = {:|>, [line: case_meta[:line]], [pipe_chain, {:case, case_meta, [clauses]}]}
-      {:cont, Zipper.replace(zipper, new_node), ctx}
-    else
-      {:cont, zipper, ctx}
+  # Pipe-into-case to if: `foo |> bar() |> case do true -> a; false -> b end`
+  def run({{:|>, _, [pipe_chain, {:case, _, [[{{:__block__, _, [:do]}, clauses}]]}]}, _} = zipper, ctx) do
+    case trivial_case_to_if(clauses) do
+      {:ok, {do_body, else_body}} ->
+        case_to_if_ast(zipper, case_subject(pipe_chain), do_body, else_body, ctx)
+
+      :error ->
+        {:cont, zipper, ctx}
+    end
+  end
+
+  # Handles both:
+  # - Pipe into case: case foo |> bar() do ... end => foo |> bar() |> case do ... end
+  # - Case to if: case expr do true -> a; false -> b end => if expr do a else b end
+  def run({{:case, case_meta, args}, _} = zipper, ctx) do
+    case args do
+      [{:|>, _, _} = pipe_chain, [{{:__block__, _, [:do]}, clauses}] = do_and_clauses] ->
+        case trivial_case_to_if(clauses) do
+          {:ok, {do_body, else_body}} ->
+            case_to_if_ast(zipper, case_subject(pipe_chain), do_body, else_body, ctx)
+
+          :error ->
+            if Quokka.Config.pipe_into_case?() do
+              new_node = {:|>, [line: case_meta[:line]], [pipe_chain, {:case, case_meta, [do_and_clauses]}]}
+              {:cont, Zipper.replace(zipper, new_node), ctx}
+            else
+              {:cont, zipper, ctx}
+            end
+        end
+
+      [subject, [{{:__block__, _, [:do]}, clauses}]] ->
+        case trivial_case_to_if(clauses) do
+          {:ok, {do_body, else_body}} ->
+            case_to_if_ast(zipper, case_subject(subject), do_body, else_body, ctx)
+
+          :error ->
+            {:cont, zipper, ctx}
+        end
+
+      _ ->
+        {:cont, zipper, ctx}
     end
   end
 
@@ -388,4 +422,60 @@ defmodule Quokka.Style.Blocks do
   defp invert({:not, _, [condition]}), do: condition
   defp invert({:in, m, [_, _]} = ast), do: {:not, m, [ast]}
   defp invert({_, m, _} = ast), do: {:!, [line: m[:line]], [ast]}
+
+  defp trivial_case_to_if([{:->, _, [[true_pattern], do_body]}, {:->, _, [[else_pattern], else_body]}]) do
+    if true_clause_pattern?(true_pattern) and catch_all_clause_pattern?(else_pattern) do
+      {:ok, {do_body, else_body}}
+    else
+      :error
+    end
+  end
+
+  defp trivial_case_to_if(_), do: :error
+
+  defp case_to_if_ast(zipper, head, do_body, else_body, ctx) do
+    {head, do_body, else_body} =
+      if is_negator(head) and Config.negated_conditions_with_else?() do
+        {invert(head), else_body, do_body}
+      else
+        {head, do_body, else_body}
+      end
+
+    if_ast(zipper, head, do_body, else_body, ctx)
+  end
+
+  defp true_clause_pattern?({:__block__, _, [true]}), do: true
+  defp true_clause_pattern?(true) when true == true, do: true
+  defp true_clause_pattern?(_), do: false
+
+  defp catch_all_clause_pattern?({:__block__, _, [false]}), do: true
+  defp catch_all_clause_pattern?(false), do: true
+  defp catch_all_clause_pattern?({:_, _, nil}), do: true
+  defp catch_all_clause_pattern?(_), do: false
+
+  # `foo |> bar?() |> case` becomes `if bar?(foo)`, but longer chains stay piped:
+  # `foo |> bar() |> baz?() |> case` becomes `if foo |> bar() |> baz?()`
+  defp case_subject({:|>, _, [lhs, _rhs]} = pipe_chain) do
+    if match?({:|>, _, _}, lhs), do: inline_pipe_chain(pipe_chain), else: fold_pipe_to_call(pipe_chain)
+  end
+
+  defp case_subject(other), do: other
+
+  defp inline_pipe_chain(pipe_chain) do
+    line = pipe_chain_start_line(pipe_chain)
+
+    pipe_chain
+    |> Style.set_line(line)
+    |> Style.update_all_meta(&Keyword.delete(&1, :end_of_expression))
+  end
+
+  defp pipe_chain_start_line({:|>, _, [lhs, _]}), do: pipe_chain_start_line(lhs)
+  defp pipe_chain_start_line({_, meta, _}), do: meta[:line]
+
+  defp fold_pipe_to_call({:|>, _, [lhs, rhs]}), do: prepend_pipe_arg(fold_pipe_to_call(lhs), rhs)
+  defp fold_pipe_to_call(other), do: other
+
+  defp prepend_pipe_arg(lhs, {fun, meta, args}) when is_atom(fun), do: {fun, meta, [lhs | args || []]}
+
+  defp prepend_pipe_arg(lhs, {{:., m, [mod, fun]}, meta, args}), do: {{:., m, [mod, fun]}, meta, [lhs | args || []]}
 end
