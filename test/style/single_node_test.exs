@@ -383,14 +383,11 @@ defmodule Quokka.Style.SingleNodeTest do
           false -> :empty
         end
         """,
-        # We would have to run `Blocks` twice in the `@style_pipeline` of `Quokka.Config`
-        # get the rewrite that swaps the true/false clauses. While we *could* do that,
-        # it's probably not worth the performance hit.
         """
-        if not Enum.empty?(items) do
-          :has_items
-        else
+        if Enum.empty?(items) do
           :empty
+        else
+          :has_items
         end
         """
       )
