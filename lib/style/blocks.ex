@@ -34,12 +34,9 @@ defmodule Quokka.Style.Blocks do
 
   # Pipe-into-case to if: `foo |> bar() |> case do true -> a; false -> b end`
   def run({{:|>, _, [pipe_chain, {:case, _, [[{{:__block__, _, [:do]}, clauses}]]}]}, _} = zipper, ctx) do
-    case trivial_case_to_if(clauses) do
-      {:ok, {do_body, else_body}} ->
-        case_to_if_ast(zipper, case_subject(pipe_chain), do_body, else_body, ctx)
-
-      :error ->
-        {:cont, zipper, ctx}
+    case not piping_case_into_case?(pipe_chain) and trivial_case_to_if(clauses) do
+      {:ok, {do_body, else_body}} -> case_to_if_ast(zipper, case_subject(pipe_chain), do_body, else_body, ctx)
+      _ -> {:cont, zipper, ctx}
     end
   end
 
@@ -452,6 +449,10 @@ defmodule Quokka.Style.Blocks do
   defp catch_all_clause_pattern?(false), do: true
   defp catch_all_clause_pattern?({:_, _, nil}), do: true
   defp catch_all_clause_pattern?(_), do: false
+
+  defp piping_case_into_case?({:case, _, _}), do: true
+  defp piping_case_into_case?({:|>, _, [lhs, rhs]}), do: piping_case_into_case?(lhs) or piping_case_into_case?(rhs)
+  defp piping_case_into_case?(_), do: false
 
   # `foo |> bar?() |> case` becomes `if bar?(foo)`, but longer chains stay piped:
   # `foo |> bar() |> baz?() |> case` becomes `if foo |> bar() |> baz?()`

@@ -753,6 +753,32 @@ defmodule Quokka.Style.BlocksTest do
         """
       )
     end
+
+    test "does not attempt to rewrite piping case into case because the results are horrifyingly inelegant" do
+      assert_style("""
+      case val do
+        x when x > 10 -> true
+        _ -> false
+      end
+      |> case do
+        true -> :ok
+        false -> :error
+      end
+      """)
+
+      assert_style("""
+      from(cb in CallBot, where: cb.ext_bot_id == ^id)
+      |> Repo.one()
+      |> case do
+        %{val: x} when x > 10 -> true
+        _ -> false
+      end
+      |> case do
+        true -> :ok
+        false -> :error
+      end
+      """)
+    end
   end
 
   describe "pipe into case" do
