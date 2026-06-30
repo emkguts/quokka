@@ -58,8 +58,8 @@ in `.formatter.exs` to fine tune your setup:
   quokka: [
     autosort: [:map, :defstruct, :schema],
     files: %{
-      included: ["lib/", ...],
-      excluded: ["lib/example.ex", ...]
+      included: ["lib/", "test/**/*.exs"],
+      excluded: ["lib/example.ex", "config/*.exs"]
     },
     only: [
       # Config-driven autosort for maps, defstructs, and schemas
@@ -121,7 +121,7 @@ in `.formatter.exs` to fine tune your setup:
 | `:autosort` | Config-driven sorting for maps, defstructs, and/or schemas. Separate from `# quokka:sort`, which always runs. See [Autosort](docs/autosort.md) and [Comment Directives](docs/comment_directives.md). | `:map, :defstruct, :schema` | `[]` |
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
 | `exclude: [:autosort]` | Disables config-driven autosort (`# quokka:sort` still runs) | | |
-| `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |
+| `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. Entries may be directory prefixes or glob patterns. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |
 | `:only` | Only include the given modules. `# quokka:sort` always runs. The special `:line_length` option excludes all other changes except line length fixups. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests]` | `[]` (all modules included) |
 | `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case`). `# quokka:sort` cannot be disabled. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case]` | `[]` (all rewrites included) |
 | `exclude: [:inefficient_functions]` | Excludes rewriting inefficient functions to more efficient form |  |  |
