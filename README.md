@@ -56,6 +56,8 @@ in `.formatter.exs` to fine tune your setup:
 [
   plugins: [Quokka],
   quokka: [
+    # Explicitly set the Elixir version for deprecation checks. Defaults to System.version().
+    elixir_version: "1.17.0",
     autosort: [:map, :defstruct, :schema],
     files: %{
       included: ["lib/", ...],
@@ -118,6 +120,7 @@ in `.formatter.exs` to fine tune your setup:
 
 | Option | Description | Options | Default |
 |--------|-------------|---------|---------|
+| `:elixir_version` | Elixir version used to determine which deprecation rewrites apply. Accepts plain versions (`"1.17.0"`) or version requirements (`">= 1.17.0"`, `"~> 1.16"`). | Any valid version string | `System.version()` |
 | `:autosort` | Config-driven sorting for maps, defstructs, and/or schemas. Separate from `# quokka:sort`, which always runs. See [Autosort](docs/autosort.md) and [Comment Directives](docs/comment_directives.md). | `:map, :defstruct, :schema` | `[]` |
 | `autosort: [schema: [:field, :has_many, ...]]` | Custom type ordering for schemas | All Ecto schema types | `[:field, :belongs_to, :has_many, :has_one, :many_to_many, :embeds_many, :embeds_one]` |
 | `exclude: [:autosort]` | Disables config-driven autosort (`# quokka:sort` still runs) | | |

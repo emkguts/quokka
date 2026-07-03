@@ -141,32 +141,24 @@ defmodule Quokka.ConfigTest do
     MapSet.member?(Quokka.Config.lift_alias_excluded_namespaces(), "File")
   end
 
-  test "parses elixir version from mix.exs with different requirement formats" do
+  test "parses elixir_version from .formatter.exs with different requirement formats" do
     test_cases = [
-      {~s("~> 1"), "1.0.0"},
-      {~s("~> 1.15"), "1.15.0"},
-      {~s(">= 1.16.0"), "1.16.0"},
-      {~s("== 1.17.0"), "1.17.0"},
-      {~s("> 1.18.0"), "1.18.0"},
-      {~s(">= 1.15.0 and < 2.0.0"), "1.15.0"},
-      {~s(">= 1.15.0-dev"), "1.15.0-dev"}
+      {~s(~> 1), "1.0.0"},
+      {~s(~> 1.15), "1.15.0"},
+      {~s(>= 1.16.0), "1.16.0"},
+      {~s(== 1.17.0), "1.17.0"},
+      {~s(> 1.18.0), "1.18.0"},
+      {~s(>= 1.15.0 and < 2.0.0), "1.15.0"},
+      {~s(>= 1.15.0-dev), "1.15.0-dev"}
     ]
 
     Enum.each(test_cases, fn {requirement, expected} ->
-      Mimic.stub(Mix.Project, :config, fn ->
-        [elixir: requirement]
-      end)
-
-      assert :ok = Quokka.Config.set!([])
+      assert :ok = Quokka.Config.set!(quokka: [elixir_version: requirement])
       assert expected == Quokka.Config.elixir_version()
     end)
   end
 
-  test "falls back to System.version() if mix.exs cannot be read" do
-    Mimic.stub(Mix.Project, :config, fn ->
-      [elixir: "bogus"]
-    end)
-
+  test "falls back to System.version() when elixir_version is not set" do
     assert :ok = Quokka.Config.set!([])
     assert System.version() == Quokka.Config.elixir_version()
   end
