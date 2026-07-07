@@ -39,6 +39,47 @@ defmodule Quokka.AliasEnv do
     end)
   end
 
+  @doc """
+  Resolve just the leading module path of an `alias` directive against `env`.
+
+  Unlike `expand/2`, this only rewrites the alias's own module path (and, for brace-multi forms,
+  the namespace to the left of the `.{}`). Child segments of a `Foo.{Bar, Baz}` form are not
+  aliases in their own right, so they're left untouched.
+  """
+  def dealias_directive(env, ast, opts \\ [])
+  def dealias_directive(env, ast, _opts) when map_size(env) == 0, do: ast
+  def dealias_directive(_env, {:alias, m, [{:__aliases__, _, [Elixir | _]} = aliases]}, _), do: {:alias, m, [aliases]}
+
+  def dealias_directive(env, {:alias, m, [{:__aliases__, am, modules} | rest]}, opts) do
+    {:alias, m, [{:__aliases__, am, expand_alias_path(env, modules, opts)} | rest]}
+  end
+
+  def dealias_directive(env, {:alias, m, [{{:., dm, [{:__aliases__, nm, namespace}, :{}]}, cm, children}]}, opts) do
+    {:alias, m, [{{:., dm, [{:__aliases__, nm, expand_alias_path(env, namespace, opts)}, :{}]}, cm, children}]}
+  end
+
+  def dealias_directive(_env, ast, _opts), do: ast
+
+  defp expand_alias_path(env, modules, opts) do
+    case do_expand(env, modules) do
+      ^modules ->
+        modules
+
+      expanded ->
+        if Access.get(opts, :disambiguate, false) do
+          disambiguate_or_keep(modules)
+        else
+          expanded
+        end
+    end
+  end
+
+  # After sorting, an alias like `B.E` can end up below `alias A.B` even though it was written first and
+  # meant top-level `B.E`. Prefix with `Elixir.` to preserve that meaning. `D.D`-style paths are left
+  # alone since the repeated segment already pins the module path.
+  defp disambiguate_or_keep([first | rest] = modules) when rest != [] and rest != [first], do: [:"Elixir" | modules]
+  defp disambiguate_or_keep(modules), do: modules
+
   # if the list of modules is itself already aliased, dealias it with the compound alias
   # given:
   #   alias Foo.Bar
@@ -49,6 +90,21 @@ defmodule Quokka.AliasEnv do
   #   alias Foo.Bar.Baz.Bop
   #   Bop.baz()
   defp do_expand(env, [first | rest] = modules) do
-    if dealias = env[first], do: dealias ++ rest, else: modules
+    case env[first] do
+      nil ->
+        modules
+
+      # A self-referential alias (e.g. `alias Foo.Foo`, `as: Foo`) resolves its own leading segment
+      # back to a path that still begins with that segment. Appending a remainder to it would deepen
+      # the path without bound (`Foo.Foo.Bar` -> `Foo.Foo.Foo.Bar` -> ...) and never reach a
+      # fixpoint, and it also covers a redundant duplicate of the alias itself. In those cases treat
+      # the segment as top-level and leave the path alone. (Resolving the bare alias name, where
+      # there's no remainder, is still fine and idempotent.)
+      [^first | _] when rest != [] ->
+        modules
+
+      dealias ->
+        dealias ++ rest
+    end
   end
 end

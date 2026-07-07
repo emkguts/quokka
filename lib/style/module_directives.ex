@@ -469,7 +469,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
           ast =
             if Quokka.Config.rewrite_multi_alias?() do
-              expand(ast)
+              expand(ast, acc.dealiases)
             else
               [sort_multi_children(ast)]
             end
@@ -477,7 +477,16 @@ defmodule Quokka.Style.ModuleDirectives do
           # import and use might get hoisted above aliases, so need to dealias depending on the layout order
           needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
 
-          ast = if needs_dealiasing, do: AliasEnv.expand(acc.dealiases, ast), else: ast
+          ast =
+            cond do
+              needs_dealiasing -> AliasEnv.expand(acc.dealiases, ast)
+              # A later alias can reference an earlier one (`alias Foo.Bar` then `alias Bar.Baz`
+              # means `alias Foo.Bar.Baz`). Sorting reorders aliases, which would move the referenced
+              # alias after the line that uses it and silently change the meaning of every dependent alias,
+              # so we need to resolve each alias to its full path first and let it sort by that. (#179)
+              directive == :alias -> Enum.map(ast, &AliasEnv.dealias_directive(acc.dealiases, &1))
+              true -> ast
+            end
 
           dealiases =
             if directive == :alias, do: AliasEnv.define(acc.dealiases, ast), else: acc.dealiases
@@ -499,7 +508,10 @@ defmodule Quokka.Style.ModuleDirectives do
         {:use, uses} ->
           {:use, uses |> Enum.reverse() |> Style.reset_newlines()}
 
-        {directive, to_sort} when directive in ~w(behaviour import alias require)a ->
+        {:alias, to_sort} ->
+          {:alias, to_sort |> sort(false) |> resolve_alias_dependencies()}
+
+        {directive, to_sort} when directive in ~w(behaviour import require)a ->
           {directive, sort(to_sort, false)}
 
         {:dealiases, d} ->
@@ -756,42 +768,52 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   # Deletes root level aliases ala (`alias Foo` -> ``)
-  defp expand({:alias, _, [{:__aliases__, _, [_]}]}), do: []
+  defp expand(ast, env \\ %{})
+
+  defp expand({:alias, _, [{:__aliases__, _, [_]}]}, _env), do: []
 
   # import Foo.{Bar, Baz}
   # =>
   # import Foo.Bar
   # import Foo.Baz
-  defp expand({directive, meta, [{{:., _, [{:__aliases__, _, module}, :{}]}, _, right}]}) do
+  defp expand({directive, meta, [{{:., _, [{:__aliases__, _, module}, :{}]}, _, right}]}, env) do
     expanded =
-      Enum.map(right, fn {_, child_meta, segments} ->
-        {directive, child_meta, [{:__aliases__, [line: child_meta[:line]], module ++ segments}]}
+      Enum.flat_map(right, fn {_, child_meta, segments} ->
+        modules = module ++ segments
+        as = List.last(modules)
+
+        if alias_as_taken?(env, as, modules) do
+          []
+        else
+          [{directive, child_meta, [{:__aliases__, [line: child_meta[:line]], modules}]}]
+        end
       end)
 
-    # Preserve the end_of_expression metadata from the original node on the last expanded node
-    case expanded do
-      [] ->
-        []
-
-      [single] ->
-        {dir, child_meta, args} = single
-        [{dir, Keyword.merge(child_meta, Keyword.take(meta, [:end_of_expression])), args}]
-
-      list ->
-        {last_dir, last_meta, last_args} = List.last(list)
-        most = Enum.drop(list, -1)
-        most ++ [{last_dir, Keyword.merge(last_meta, Keyword.take(meta, [:end_of_expression])), last_args}]
-    end
+    preserve_end_of_expression(expanded, meta)
   end
 
   # alias __MODULE__.{Bar, Baz}
-  defp expand({directive, meta, [{{:., _, [{:__MODULE__, _, _} = module, :{}]}, _, right}]}) do
+  defp expand({directive, meta, [{{:., _, [{:__MODULE__, _, _} = module, :{}]}, _, right}]}, _env) do
     expanded =
       Enum.map(right, fn {_, child_meta, segments} ->
         {directive, child_meta, [{:__aliases__, [line: child_meta[:line]], [module | segments]}]}
       end)
 
-    # Preserve the end_of_expression metadata from the original node on the last expanded node
+    preserve_end_of_expression(expanded, meta)
+  end
+
+  defp expand(other, _env), do: [other]
+
+  defp alias_as_taken?(env, as, modules) do
+    case env[as] do
+      nil -> false
+      ^modules -> false
+      _ -> true
+    end
+  end
+
+  # Preserves the end_of_expression metadata from the original node on the last expanded node
+  defp preserve_end_of_expression(expanded, meta) do
     case expanded do
       [] ->
         []
@@ -806,8 +828,6 @@ defmodule Quokka.Style.ModuleDirectives do
         most ++ [{last_dir, Keyword.merge(last_meta, Keyword.take(meta, [:end_of_expression])), last_args}]
     end
   end
-
-  defp expand(other), do: [other]
 
   # When multi directives are not expanded, maintain brace form but sort inner items
   defp sort_multi_children({directive, dm, [{{:., m, [{left_type, _, _} = left, :{}]}, meta, right}]})
@@ -816,6 +836,31 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   defp sort_multi_children(other), do: other
+
+  # Sorting can reorder an alias ahead of another alias it depended on, silently changing its meaning (#179).
+  # Once sorted, we need to resolve each alias against the aliases that now precede it and re-sort,
+  # repeating until the list stops changing. Resolving only ever qualifies a path further (or leaves it be),
+  # so this converges.
+  defp resolve_alias_dependencies(aliases) do
+    resolved =
+      aliases
+      |> Enum.reduce({%{}, []}, fn ast, {env, acc} ->
+        ast = AliasEnv.dealias_directive(env, ast, disambiguate: true)
+        {AliasEnv.define(env, ast), [ast | acc]}
+      end)
+      |> elem(1)
+      |> Enum.reverse()
+      |> sort(false)
+
+    if same_aliases?(resolved, aliases),
+      do: aliases,
+      else: resolve_alias_dependencies(resolved)
+  end
+
+  # Compare by module path (metadata like line numbers shifts each pass and would never settle).
+  defp same_aliases?(a, b) do
+    Enum.map(a, &Macro.to_string/1) == Enum.map(b, &Macro.to_string/1)
+  end
 
   defp sort(directives, skip_sorting?) do
     directives
