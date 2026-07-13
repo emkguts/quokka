@@ -5,6 +5,10 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+### Fixes
+
+- Config-driven autosort no longer reorders a map, `defstruct`, or schema block that contains comments. This restores the pre-2.13.0 behaviour: in real codebases, a comment inside such a collection typically heads a section of multiple entries, and sorting alphabetically disperses the section, scattering the comment away from the lines it documented. Per-value sorting is still available via `# quokka:sort`, which is unaffected and continues to attach comments to the entry they belong to.
+
 ## [2.13.1] - 2026-05-19
 
 ### Fixes

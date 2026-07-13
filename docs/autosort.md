@@ -4,7 +4,7 @@ Config-driven sorting for maps, `defstruct`s, and Ecto schemas.
 
 ## Autosort vs `# quokka:sort`
 
-Quokka has two complementary ways to sort values. Both use the same sorting implementation and comment rules.
+Quokka has two complementary ways to sort values. Both use the same sorting implementation. They differ in how they handle comments: config autosort skips any entity that contains comments, while `# quokka:sort` always sorts and attaches comments to the entry they belong to.
 
 | | Config autosort | `# quokka:sort` |
 |---|---|---|
@@ -53,27 +53,19 @@ The default schema order is: `[:field, :belongs_to, :has_many, :has_one, :many_t
 
 ## When autosort runs
 
-For each sortable entity (map, `defstruct`, or schema block), autosort **sorts** unless one of these applies:
+For each sortable entity (map, `defstruct`, or schema block), config autosort **sorts** unless one of these applies:
 
 1. **`# quokka:skip-sort`** on the line above the entity — opt out of autosort for that value only.
-2. **Ecto query context** (when `exclude: [:autosort_ecto]` is set) — maps inside detected `from` queries are not sorted. See [Ecto queries](#ecto-queries) below.
+2. **The entity contains comments** — a comment in a map, `defstruct`, or schema block typically heads a human-meaningful section. Sorting the entries alphabetically scatters the section, so config autosort leaves any commented entity untouched. To sort a commented entity, use `# quokka:sort` on the line above it.
+3. **Ecto query context** (when `exclude: [:autosort_ecto]` is set) — maps inside detected `from` queries are not sorted. See [Ecto queries](#ecto-queries) below.
 
 ## Comments
 
-Autosort passes comments through to the formatter so they stay with the code they annotate. The general rule (shared with [`# quokka:sort`](comment_directives.md)) is:
+Config autosort skips any entity containing comments (rule 2 above). For values you do want sorted in spite of comments, opt in per-value with [`# quokka:sort`](comment_directives.md), which still sorts and attaches comments to the entry they belong to:
 
 - A comment on the same lines as an entry, or on the line(s) immediately above it, belongs to that entry.
 - After sorting, comments are placed on lines above the entry they belong to.
 - End-of-line comments (for example `b: 5, # note`) are moved onto their own line above the entry, matching `mix format` behavior.
-
-How that applies depends on what is being autosorted:
-
-| Type | What gets sorted | Comment handling |
-|------|------------------|------------------|
-| **`:map`** | Map keys (and map-update keyword lists) | Each key is sorted with its comments as a group; comments stay above that key after formatting. |
-| **`:defstruct`** (keyword form) | Fields like `defstruct b: 1, a: 2` | Same as maps. |
-| **`:defstruct`** (atom list) | Fields like `defstruct [:c, :b, :a]` | Fields are sorted, then line numbers and comments are adjusted together via the shared comment-ordering logic. |
-| **`:schema`** | `schema`, `typed_schema`, and `embedded_schema` fields | Fields are grouped by type (`:field`, `:has_many`, and so on), sorted within each group, then comments are re-laid-out with the sorted fields. Association macros keep blank lines between groups. |
 
 For values that autosort does not cover (plain lists, sigils, `@type` maps without autosort enabled, and so on), use [`# quokka:sort`](comment_directives.md). That directive uses the same sorting implementation and the same comment association rules.
 
@@ -114,15 +106,15 @@ would yield
 %{a: 1, b: 2, c: 3}
 
 %{
+  c: 3,
   a: 1,
   # this is a weird case
   # and the comment is multiline
-  b: 2,
-  c: 3
+  b: 2
 }
 ```
 
-The plain map is sorted. The `# quokka:skip-sort` map is left unchanged. See [Comments](#comments) for how comments move with their keys.
+The plain map is sorted. The `# quokka:skip-sort` map is left unchanged. The commented map is left unchanged because config autosort skips any entity containing comments (see [When autosort runs](#when-autosort-runs)). To sort a commented value explicitly, use [`# quokka:sort`](comment_directives.md).
 
 ## Defstruct examples
 
