@@ -596,8 +596,6 @@ defmodule Quokka.Style.SingleNode do
     |> String.starts_with?("&")
   end
 
-  defp anonymous_arg?(_), do: false
-
   # Helper function to rewrite Repo.one calls in expressions
   defp rewrite_repo_one_in_conditional(ast) do
     # If the condition is a pattern match, don't rewrite any Repo.one calls inside it

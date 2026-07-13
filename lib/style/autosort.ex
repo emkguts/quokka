@@ -252,18 +252,20 @@ defmodule Quokka.Style.Autosort do
     {{:@, attr_meta, [{attr, annotation_meta, [assignment]}]}, comments}
   end
 
-  defp do_sort({:embedded_schema, meta, [[{{:__block__, _, [:do]}, {:__block__, block_meta, fields}}]]}, comments) do
+  defp do_sort({:embedded_schema, meta, [[{{:__block__, do_meta, [:do]}, {:__block__, block_meta, fields}}]]}, comments) do
     {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:line])
-    {{:embedded_schema, meta, [[{{:__block__, [], [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
+    {{:embedded_schema, meta, [[{{:__block__, do_meta, [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
   end
 
   defp do_sort(
-         {schema_type, meta, [table_name, [{{:__block__, _, [:do]}, {:__block__, block_meta, fields}}]]},
+         {schema_type, meta, [table_name, [{{:__block__, do_meta, [:do]}, {:__block__, block_meta, fields}}]]},
          comments
        )
        when schema_type in [:schema, :typed_schema] do
     {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:line])
-    {{schema_type, meta, [table_name, [{{:__block__, [], [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
+
+    {{schema_type, meta, [table_name, [{{:__block__, do_meta, [:do]}, {:__block__, block_meta, sorted_fields}}]]},
+     comments}
   end
 
   defp do_sort({key, value}, comments) do
