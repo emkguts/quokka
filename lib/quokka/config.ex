@@ -198,7 +198,7 @@ defmodule Quokka.Config do
       autosort_schema_order: autosort_schema_order,
       directories_excluded: Map.get(quokka[:files] || %{}, :excluded, []),
       directories_included: Map.get(quokka[:files] || %{}, :included, []),
-      elixir_version: parse_elixir_version(),
+      elixir_version: parse_elixir_version(quokka[:elixir_version]),
       exclude_nums_with_underscores: :nums_with_underscores in exclude,
       exclude_styles: exclude,
       inefficient_function_rewrites: inefficient_function_rewrites,
@@ -316,10 +316,12 @@ defmodule Quokka.Config do
     }
   end
 
-  defp parse_elixir_version() do
-    project_elixir = Keyword.get(Mix.Project.config(), :elixir) || ""
+  defp parse_elixir_version(nil) do
+    System.version()
+  end
 
-    case Regex.run(~r/(?:==|>=|>|~>)?\s*(\d+(?:\.\d+(?:\.\d+(?:-\w+)?)?)?)\b/, project_elixir) do
+  defp parse_elixir_version(configured_version) do
+    case Regex.run(~r/(?:==|>=|>|~>)?\s*(\d+(?:\.\d+(?:\.\d+(?:-\w+)?)?)?)\b/, configured_version) do
       [_, version] ->
         case String.split(version, ".") do
           [major] -> "#{major}.0.0"

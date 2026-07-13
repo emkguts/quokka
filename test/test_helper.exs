@@ -11,7 +11,6 @@
 
 Mimic.copy(Quokka.Config)
 Mimic.copy(Credo.ConfigFile)
-Mimic.copy(Mix.Project)
 Quokka.Config.set([])
 
 ExUnit.start(capture_log: true, formatters: [JUnitFormatter, ExUnit.CLIFormatter])
