@@ -831,6 +831,41 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
       """
     end
 
+    test "does not rewrite references inside a quote block" do
+      assert_style(
+        """
+        defmodule Foo do
+          @moduledoc false
+          Foo.Bar.Baz.hello()
+          Foo.Bar.Baz.world()
+
+          defmacro __using__(_opts) do
+            quote do
+              import Foo.Bar.Baz
+              import Foo.Bar.Qux
+            end
+          end
+        end
+        """,
+        """
+        defmodule Foo do
+          @moduledoc false
+          alias Foo.Bar.Baz
+
+          Baz.hello()
+          Baz.world()
+
+          defmacro __using__(_opts) do
+            quote do
+              import Foo.Bar.Baz
+              import Foo.Bar.Qux
+            end
+          end
+        end
+        """
+      )
+    end
+
     test "collisions with other callsites :(" do
       # if the last module of a list in an alias
       # is the first of any other
