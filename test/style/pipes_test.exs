@@ -1700,4 +1700,220 @@ defmodule Quokka.Style.PipesTest do
       assert_style("NaiveDateTime.truncate(NaiveDateTime.utc_now(), :millisecond)")
     end
   end
+
+  describe "FilterFilter" do
+    setup do
+      stub(Quokka.Config, :filter_filter?, fn -> true end)
+      :ok
+    end
+
+    test "combines two captures with &&" do
+      assert_style(
+        """
+        items
+        |> Enum.filter(&feature_flag_enabled?(&1, admin_user))
+        |> Enum.filter(&matches_filter?(&1, term))
+        |> Enum.split_with(&item_accessible?(admin_permissions, &1))
+        """,
+        """
+        items
+        |> Enum.filter(&(feature_flag_enabled?(&1, admin_user) && matches_filter?(&1, term)))
+        |> Enum.split_with(&item_accessible?(admin_permissions, &1))
+        """
+      )
+    end
+
+    test "combines three captures into a flat, left-associative && chain" do
+      assert_style(
+        ~S"""
+        events
+        |> Enum.filter(&(&1["activity_code_id"] != 1))
+        |> Enum.filter(&(&1["completed"] == false))
+        |> Enum.filter(&("#{&1["category_id"]}" == calendar_id))
+        |> OccurrenceExpander.expand_all(range_start, range_end)
+        """,
+        ~S"""
+        events
+        |> Enum.filter(&(&1["activity_code_id"] != 1 && &1["completed"] == false && "#{&1["category_id"]}" == calendar_id))
+        |> OccurrenceExpander.expand_all(range_start, range_end)
+        """
+      )
+    end
+
+    test "combines captures that use /1" do
+      assert_style(
+        "types |> Enum.filter(&foo?/1) |> Enum.filter(&bar?/1) |> Enum.filter(&baz?/1)",
+        "Enum.filter(types, &(foo?(&1) && bar?(&1) && baz?(&1)))"
+      )
+    end
+
+    test "combines a capture and an fn into an `if p1 do p2 else false end` fn" do
+      assert_style(
+        """
+        user
+        |> Integrations.list()
+        |> Enum.filter(&(&1.service in document_services))
+        |> Enum.filter(fn integration ->
+          if crm?(integration) do
+            match?({:ok, _}, check(integration))
+          else
+            true
+          end
+        end)
+        """,
+        """
+        user
+        |> Integrations.list()
+        |> Enum.filter(fn integration ->
+          if integration.service in document_services do
+            if crm?(integration) do
+              match?({:ok, _}, check(integration))
+            else
+              true
+            end
+          else
+            false
+          end
+        end)
+        """
+      )
+    end
+
+    test "combines an fn followed by a capture (fn's param wins)" do
+      assert_style(
+        """
+        a
+        |> Enum.filter(fn x -> x.active end)
+        |> Enum.filter(&(&1.score > 5))
+        |> bar()
+        """,
+        """
+        a
+        |> Enum.filter(fn x ->
+          if x.active do
+            x.score > 5
+          else
+            false
+          end
+        end)
+        |> bar()
+        """
+      )
+
+      assert_style(
+        """
+        a
+        |> Enum.filter(&(&1.score > 5))
+        |> Enum.filter(fn x -> x.active end)
+        |> bar()
+        """,
+        """
+        a
+        |> Enum.filter(fn x ->
+          if x.score > 5 do
+            x.active
+          else
+            false
+          end
+        end)
+        |> bar()
+        """
+      )
+    end
+
+    test "unpipes the resulting single filter" do
+      assert_style(
+        "a |> Enum.filter(&(&1 > 1)) |> Enum.filter(&(&1 < 10))",
+        "Enum.filter(a, &(&1 > 1 && &1 < 10))"
+      )
+    end
+
+    test "preserves an existing `and` inside a combined capture" do
+      assert_style(
+        "a |> Enum.filter(&(&1 > 0 and &1 < 10)) |> Enum.filter(&(&1 != 5)) |> bar()",
+        "a |> Enum.filter(&((&1 > 0 and &1 < 10) && &1 != 5)) |> bar()"
+      )
+    end
+
+    test "combines Stream.filter chains too" do
+      assert_style(
+        "a |> Stream.filter(&(&1 > 1)) |> Stream.filter(&(&1 < 10)) |> bar()",
+        "a |> Stream.filter(&(&1 > 1 && &1 < 10)) |> bar()"
+      )
+    end
+
+    test "composes with FilterCount (the trailing filter |> count folds into count first)" do
+      # The rightmost `filter |> count` pair matches FilterCount before this chain's filters
+      # merge; the result still counts items matching both predicates, in two passes -> one.
+      assert_style(
+        "x |> Enum.filter(&(&1 > 1)) |> Enum.filter(&(&1 < 10)) |> Enum.count()",
+        "x |> Enum.filter(&(&1 > 1)) |> Enum.count(&(&1 < 10))"
+      )
+    end
+
+    test "does not combine non-consecutive filters" do
+      assert_style("a |> Enum.filter(p1) |> bar() |> Enum.filter(p2)")
+    end
+
+    test "does not mix Enum and Stream" do
+      assert_style("a |> Enum.filter(&(&1 > 1)) |> Stream.filter(&(&1 < 10)) |> bar()")
+    end
+
+    test "bails on bare-variable predicates" do
+      assert_style("a |> Enum.filter(fun1) |> Enum.filter(fun2) |> bar()")
+    end
+
+    test "bails on pattern matches we can't combine" do
+      assert_style("""
+      enum
+      |> Enum.filter(& &1)
+      |> Enum.filter(fn {field, _} -> field in fields_to_include end)
+      """)
+
+      assert_style("""
+      enum
+      |> Enum.filter(fn {_, val} -> val end)
+      |> Enum.filter(fn {key, _} -> key in keys_to_include end)
+      """)
+    end
+
+    test "bails on nonsensical function-capture predicates" do
+      assert_style("a |> Enum.filter(&foo/2) |> Enum.filter(&bar/2) |> baz()")
+    end
+
+    test "bails on multi-arity captures" do
+      assert_style("a |> Enum.filter(&(&1 > &2)) |> Enum.filter(&(&1 < 10)) |> bar()")
+    end
+
+    test "bails on multi-clause anonymous functions" do
+      assert_style("""
+      a
+      |> Enum.filter(fn
+        x when is_integer(x) -> x > 1
+        _ -> false
+      end)
+      |> Enum.filter(fn y -> y end)
+      |> bar()
+      """)
+    end
+
+    test "bails on guarded anonymous functions" do
+      assert_style("a |> Enum.filter(fn x when is_integer(x) -> x > 1 end) |> Enum.filter(fn y -> y end) |> bar()")
+    end
+
+    test "bails on multi-argument anonymous functions" do
+      assert_style("a |> Enum.filter(fn x, y -> x end) |> Enum.filter(fn z -> z end) |> bar()")
+    end
+  end
+
+  describe "FilterFilter when credo check disabled" do
+    setup do
+      stub(Quokka.Config, :filter_filter?, fn -> false end)
+      :ok
+    end
+
+    test "does not combine consecutive filters" do
+      assert_style("a |> Enum.filter(&(&1 > 1)) |> Enum.filter(&(&1 < 10)) |> bar()")
+    end
+  end
 end

@@ -5,6 +5,10 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+### Improvements
+
+- Add support for `Credo.Check.Refactor.FilterFilter`: consecutive `Enum.filter/2` (or `Stream.filter/2`) calls in a pipe are combined into a single filter. Two captures are joined with `&&` (e.g. `Enum.filter(&(&1.x > 0)) |> Enum.filter(&(&1.y < 0))` becomes `Enum.filter(&(&1.x > 0 && &1.y < 0))`); when an anonymous function is involved the predicates become an `if p1 do p2 else false end`. Enabled by adding the check to `.credo.exs`.
+
 ## [2.13.1] - 2026-05-19
 
 ### Fixes
