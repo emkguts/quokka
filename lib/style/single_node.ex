@@ -29,6 +29,7 @@ defmodule Quokka.Style.SingleNode do
 
   @behaviour Quokka.Style
 
+  alias Quokka.Style
   alias Quokka.Zipper
 
   @closing_delimiters [~s|"|, ")", "}", "|", "]", "'", ">", "/"]
@@ -594,7 +595,73 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # `String.starts_with?(s, "a") or String.starts_with?(s, "b")` => `String.starts_with?(s, ["a", "b"])`
+  # Same for `String.ends_with?/2` and `String.contains?/2`, and for `||` chains. All three accept a
+  # list of patterns, so collapsing an `or`-chain of checks against the same subject into a single
+  # call is more efficient and more readable. Only literal search arguments are combined; a variable
+  # might be a string or a list, so we leave it.
+  defp style({op, _, [_, _]} = node) when op in [:or, :||] do
+    if Quokka.Config.inefficient_function_rewrites?(),
+      do: merge_string_affix_checks(node),
+      else: node
+  end
+
   defp style(node), do: node
+
+  defp merge_string_affix_checks({op, m, _} = node) when op in [:or, :||] do
+    operands = flatten_or(node)
+
+    merged =
+      operands
+      |> Enum.reduce([], fn operand, acc ->
+        with [prev | rest] <- acc,
+             {fun, subject, searches} <- string_affix_check(operand),
+             {^fun, prev_subject, prev_searches} <- string_affix_check(prev),
+             true <- Style.without_meta(subject) == Style.without_meta(prev_subject) do
+          [combine_affix_check(prev, prev_searches ++ searches) | rest]
+        else
+          _ -> [operand | acc]
+        end
+      end)
+      |> Enum.reverse()
+
+    if length(merged) == length(operands) do
+      node
+    else
+      [first | rest] = merged
+      Enum.reduce(rest, first, fn operand, acc -> {op, m, [acc, operand]} end)
+    end
+  end
+
+  defp flatten_or({op, _, [lhs, rhs]}) when op in [:or, :||], do: flatten_or(lhs) ++ flatten_or(rhs)
+  defp flatten_or(node), do: [node]
+
+  # Returns `{fun, subject, search_nodes}` for a `String.starts_with?/2`, `String.ends_with?/2`, or
+  # `String.contains?/2` call whose second argument is a string literal or a list of string
+  # literals; `nil` otherwise.
+  defp string_affix_check({{:., _, [{:__aliases__, _, [:String]}, fun]}, _, [subject, sought]})
+       when fun in [:starts_with?, :ends_with?, :contains?] do
+    case literal_searches(sought) do
+      nil -> nil
+      searches -> {fun, subject, searches}
+    end
+  end
+
+  defp string_affix_check(_), do: nil
+
+  defp literal_searches({:__block__, _, [string]} = node) when is_binary(string), do: [node]
+
+  defp literal_searches({:__block__, _, [list]}) when is_list(list) do
+    if Enum.all?(list, &match?({:__block__, _, [s]} when is_binary(s), &1)), do: list
+  end
+
+  defp literal_searches(_), do: nil
+
+  # Rebuilds an affix-check call, reusing the original call's AST and replacing only its
+  # second argument with the combined list of search literals.
+  defp combine_affix_check({fun_dot, m, [subject, _sought]}, searches) do
+    {fun_dot, m, [subject, {:__block__, m, [searches]}]}
+  end
 
   # True when the name is something like :"&1" or :"&2"
   defp anonymous_arg?(name) when is_atom(name) do

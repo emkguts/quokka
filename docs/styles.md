@@ -78,6 +78,43 @@ if foo |> MyModule.transform() |> Enum.count(enum) > 0, do: "not empty"
 if foo |> MyModule.transform() |> Enum.count(enum) > 0, do: "not empty"
 ```
 
+### Or-chains of `String.starts_with?`/`String.ends_with?`/`String.contains?` -> list form
+
+`String.starts_with?/2`, `String.ends_with?/2`, and `String.contains?/2` all accept a list of
+patterns as their second argument, returning `true` if any of them match. When multiple checks
+against the *same* subject are combined with `or`/`||`, Quokka collapses them into a single call with a
+list. When the input string is large, this is a significant performance improvement for `String.contains/2`
+because internally, it will use `:binary.match/2` to only scan the input string once. In the other cases,
+it's more or less a wash—just a nice readability improvement.
+
+Only literal patterns (a string or a list of strings) are combined. If any pattern is a variable,
+Quokka leaves the chain alone, since the variable could be either a string or a list.
+
+```elixir
+# Before
+String.starts_with?(foo, "bar") or String.starts_with?(foo, "baz")
+# Styled
+String.starts_with?(foo, ["bar", "baz"])
+
+# Before (lists and strings mix freely)
+String.starts_with?(foo, ["bar", "baz"]) || String.starts_with?(foo, "bop")
+# Styled
+String.starts_with?(foo, ["bar", "baz", "bop"])
+
+# Before
+String.ends_with?(foo, ["bar", "baz"]) or String.ends_with?(foo, ["bop", "whiz"])
+# Styled
+String.ends_with?(foo, ["bar", "baz", "bop", "whiz"])
+
+# Before
+String.contains?(foo, "bar") || String.contains?(foo, "baz")
+# Styled
+String.contains?(foo, ["bar", "baz"])
+
+# Left unchanged: the sought value is a variable, so it might be a string or a list
+String.ends_with?(foo, bar) or String.ends_with?(foo, baz)
+```
+
 ### `Enum.into` -> `X.new`
 
 This rewrite is applied when the collectable is a new map, keyword list, or mapset via `Enum.into/2,3`.
