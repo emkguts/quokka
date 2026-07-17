@@ -725,32 +725,38 @@ defmodule Quokka.Style.ModuleDirectives do
   defp do_lift_aliases(ast, to_alias) do
     ast
     |> Zipper.zip()
-    |> Zipper.traverse(fn
+    |> Zipper.traverse_while(fn
       {{defx, _, [{:__aliases__, _, _} | _]}, _} = zipper
       when defx in ~w(defmodule defimpl defprotocol)a ->
         # move the focus to the body block, zkipping over the alias (and the `for` keyword for `defimpl`)
-        zipper
-        |> Zipper.down()
-        |> Zipper.rightmost()
-        |> Zipper.down()
-        |> Zipper.down()
-        |> Zipper.right()
+        {:cont,
+         zipper
+         |> Zipper.down()
+         |> Zipper.rightmost()
+         |> Zipper.down()
+         |> Zipper.down()
+         |> Zipper.right()}
+
+      {{:quote, _, _}, _} = zipper ->
+        # don't rewrite references inside a quote block: the lifted alias does not
+        # exist at the macro's expansion site, so shortening breaks the expansion
+        {:skip, zipper}
 
       {{:alias, _, [{:__aliases__, _, [_, _ | _] = aliases}]}, _} = zipper ->
         # the alias was aliased deeper down. we've lifted that alias to a root, so delete this alias
         if aliases in to_alias and Enum.all?(aliases, &is_atom/1) and
              length(aliases) > Quokka.Config.lift_alias_depth(),
-           do: Zipper.remove(zipper),
-           else: zipper
+           do: {:cont, Zipper.remove(zipper)},
+           else: {:cont, zipper}
 
       {{:__aliases__, meta, [_, _ | _] = aliases}, _} = zipper ->
         if aliases in to_alias and Enum.all?(aliases, &is_atom/1) and
              length(aliases) > Quokka.Config.lift_alias_depth(),
-           do: Zipper.replace(zipper, {:__aliases__, meta, [List.last(aliases)]}),
-           else: zipper
+           do: {:cont, Zipper.replace(zipper, {:__aliases__, meta, [List.last(aliases)]})},
+           else: {:cont, zipper}
 
       zipper ->
-        zipper
+        {:cont, zipper}
     end)
     |> Zipper.node()
   end
