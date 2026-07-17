@@ -71,7 +71,8 @@ defmodule Quokka.Style.Deprecations do
 
   for {erl, ex} <- [hours: :hour, minutes: :minute, seconds: :second] do
     defp style({{:., _, [{:__block__, _, [:timer]}, unquote(erl)]}, fm, [x]} = node) do
-      if Version.match?(Quokka.Config.elixir_version(), ">= 1.17.0-dev") do
+      # `to_timeout/1` raises on negative durations, so leave those `:timer` calls untouched
+      if Version.match?(Quokka.Config.elixir_version(), ">= 1.17.0-dev") and not contains_negative?(x) do
         {:to_timeout, fm, [[{{:__block__, [format: :keyword, line: fm[:line]], [unquote(ex)]}, x}]]}
       else
         node
@@ -121,6 +122,13 @@ defmodule Quokka.Style.Deprecations do
 
   defp rewrite_range_match({:.., dm, [first, {_, m, _} = last]}), do: {:..//, dm, [first, last, {:_, m, nil}]}
   defp rewrite_range_match(x), do: x
+
+  # Detects a unary minus (negative literal) anywhere in the AST
+  defp contains_negative?({:-, _, [_single]}), do: true
+  defp contains_negative?({_, _, args}) when is_list(args), do: Enum.any?(args, &contains_negative?/1)
+  defp contains_negative?({left, right}), do: contains_negative?(left) or contains_negative?(right)
+  defp contains_negative?(list) when is_list(list), do: Enum.any?(list, &contains_negative?/1)
+  defp contains_negative?(_), do: false
 
   defp add_step_to_date_range?(first, last) do
     with {:ok, f} <- extract_date_value(first),
