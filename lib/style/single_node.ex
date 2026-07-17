@@ -565,23 +565,30 @@ defmodule Quokka.Style.SingleNode do
   end
 
   defp style({:&, meta, [{fun, fun_meta, [{:&, _, [arg_num]}]}]} = node) when is_integer(arg_num) do
-    if Quokka.Config.inefficient_function_rewrites?() do
-      fun_name =
-        case fun do
-          name when is_atom(name) ->
-            {name, fun_meta, Elixir}
+    # Don't rewrite when the call target is an anonymous arg (e.g. `& &1.run(&2)`),
+    # which can't be expressed as a function capture.
+    capture_target =
+      case fun do
+        name when is_atom(name) ->
+          {name, fun_meta, Elixir}
 
-          {:., dot_meta, [module, method]} ->
-            updated_meta = [no_parens: true] ++ (fun_meta |> Keyword.take([:line]))
-            {{:., dot_meta, [module, method]}, updated_meta, []}
-        end
+        {:., _, [{:&, _, [_]}, _method]} ->
+          nil
 
+        {:., dot_meta, [module, method]} ->
+          {{:., dot_meta, [module, method]}, [no_parens: true] ++ Keyword.take(fun_meta, [:line]), []}
+
+        _ ->
+          nil
+      end
+
+    if capture_target && Quokka.Config.inefficient_function_rewrites?() do
       arity_meta = fun_meta |> Keyword.take([:line]) |> Keyword.put(:token, Integer.to_string(arg_num))
       arity_block = {:__block__, arity_meta, [arg_num]}
 
       div_meta = Keyword.take(fun_meta, [:line])
 
-      {:&, meta, [{:/, div_meta, [fun_name, arity_block]}]}
+      {:&, meta, [{:/, div_meta, [capture_target, arity_block]}]}
     else
       node
     end

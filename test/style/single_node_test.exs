@@ -1349,6 +1349,9 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("&func(some_arg, &1)")
       assert_style("&(&1 + &2)")
       assert_style("& &1.(&2)")
+      assert_style("Enum.reduce(actions, 0, & &1.run/2)")
+      assert_style("Enum.reduce(actions, state, & &1.run(&2))")
+      assert_style("Enum.reduce(actions, state, & &1.run(&1, &2))")
     end
   end
 
