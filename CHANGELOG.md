@@ -5,6 +5,10 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+### Fixes
+
+- Support glob patterns in `files.included`/`files.excluded` (e.g. `"config/*.exs"`), like `:inputs`. Fixes [#174](https://github.com/emkguts/quokka/issues/174).
+
 ## [2.13.1] - 2026-05-19
 
 ### Fixes

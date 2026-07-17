@@ -177,12 +177,35 @@ defmodule Quokka.Config do
     relative_path = Path.relative_to_cwd(file)
     included_dirs = get(:directories_included)
     excluded_dirs = get(:directories_excluded)
+    included_globs = get(:files_included)
+    excluded_globs = get(:files_excluded)
 
     cond do
-      Enum.any?(excluded_dirs, &String.starts_with?(relative_path, &1)) -> false
+      matches_files?(relative_path, excluded_dirs, excluded_globs) -> false
       Enum.empty?(included_dirs) -> true
-      true -> Enum.any?(included_dirs, &String.starts_with?(relative_path, &1))
+      true -> matches_files?(relative_path, included_dirs, included_globs)
     end
+  end
+
+  # A path matches when it is prefixed by one of the configured entries (the
+  # historical `String.starts_with?/2` behaviour, kept for bare directory
+  # prefixes like `"config/"`) or when it is among the files expanded from a
+  # glob pattern (e.g. `"config/*.exs"`), mirroring how `mix format` resolves
+  # `:inputs`/`:excludes` via `Path.wildcard/2`.
+  defp matches_files?(relative_path, prefixes, globbed_files) do
+    Enum.any?(prefixes, &String.starts_with?(relative_path, &1)) or
+      MapSet.member?(globbed_files, relative_path)
+  end
+
+  # Expand the configured `:included`/`:excluded` entries into the concrete set
+  # of cwd-relative files they match, the same way `mix format` expands its
+  # `:inputs`/`:excludes`. Bare directory prefixes (e.g. `"config/"`) expand to
+  # nothing here and are handled by the prefix check in `matches_files?/3`.
+  defp expand_file_globs(patterns) do
+    patterns
+    |> List.wrap()
+    |> Enum.flat_map(&Path.wildcard(Path.expand(&1, File.cwd!()), match_dot: true))
+    |> MapSet.new(&Path.relative_to_cwd/1)
   end
 
   defp build_config_map(formatter_opts, quokka, credo, exclude, plugins, plugin_opts) do
@@ -201,6 +224,8 @@ defmodule Quokka.Config do
       elixir_version: parse_elixir_version(quokka[:elixir_version]),
       exclude_nums_with_underscores: :nums_with_underscores in exclude,
       exclude_styles: exclude,
+      files_excluded: expand_file_globs(Map.get(quokka[:files] || %{}, :excluded, [])),
+      files_included: expand_file_globs(Map.get(quokka[:files] || %{}, :included, [])),
       inefficient_function_rewrites: inefficient_function_rewrites,
       only_styles: quokka[:only] || [],
       pipe_into_case: :pipe_into_case not in exclude,

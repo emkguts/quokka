@@ -162,4 +162,48 @@ defmodule Quokka.ConfigTest do
     assert :ok = Quokka.Config.set!([])
     assert System.version() == Quokka.Config.elixir_version()
   end
+
+  describe "allowed_directory?/1 with `:files`" do
+    test "excludes via a bare directory prefix (legacy behaviour)" do
+      assert :ok = set!(quokka: [files: %{excluded: ["lib/quokka/"]}])
+
+      refute Quokka.Config.allowed_directory?("lib/quokka/config.ex")
+      assert Quokka.Config.allowed_directory?("lib/styler.ex")
+    end
+
+    test "excludes via a single-segment glob pattern" do
+      assert :ok = set!(quokka: [files: %{excluded: ["lib/quokka/*.ex"]}])
+
+      refute Quokka.Config.allowed_directory?("lib/quokka/config.ex")
+      # `*` does not cross directory boundaries
+      assert Quokka.Config.allowed_directory?("lib/quokka/config/credo.ex")
+    end
+
+    test "excludes via a recursive `**` glob pattern" do
+      assert :ok = set!(quokka: [files: %{excluded: ["lib/**/*.ex"]}])
+
+      refute Quokka.Config.allowed_directory?("lib/quokka/config.ex")
+      refute Quokka.Config.allowed_directory?("lib/quokka/config/credo.ex")
+    end
+
+    test "includes only files matching a glob pattern" do
+      assert :ok = set!(quokka: [files: %{included: ["lib/quokka/*.ex"]}])
+
+      assert Quokka.Config.allowed_directory?("lib/quokka/config.ex")
+      refute Quokka.Config.allowed_directory?("lib/styler.ex")
+    end
+
+    test "exclusion wins over inclusion" do
+      assert :ok = set!(quokka: [files: %{included: ["lib/**/*.ex"], excluded: ["lib/quokka/*.ex"]}])
+
+      refute Quokka.Config.allowed_directory?("lib/quokka/config.ex")
+      assert Quokka.Config.allowed_directory?("lib/styler.ex")
+    end
+
+    test "empty `:files` allows everything" do
+      assert :ok = set!([])
+
+      assert Quokka.Config.allowed_directory?("lib/quokka/config.ex")
+    end
+  end
 end
