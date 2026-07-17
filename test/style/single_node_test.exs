@@ -36,6 +36,46 @@ defmodule Quokka.Style.SingleNodeTest do
     assert_style ~s/"\\"\\"\\"\\" \/>']|})"/, ~s|~s("""" />']\|}\\))|
   end
 
+  describe "folds non-piped Kernel operators into inline expressions" do
+    test "binary operator" do
+      assert_style "Kernel./(total, size)", "total / size"
+      assert_style "Kernel.++(a, b)", "a ++ b"
+      assert_style "Kernel.<>(a, b)", "a <> b"
+      assert_style "Kernel.in(a, b)", "a in b"
+      assert_style "Kernel.and(a, b)", "a and b"
+    end
+
+    test "every binary Kernel operator" do
+      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+        assert_style "Kernel.#{op}(a, b)", "a #{op} b"
+      end
+    end
+
+    test "unary operator" do
+      assert_style "Kernel.-(x)", "-x"
+      assert_style "Kernel.+(x)", "+x"
+      assert_style "Kernel.!(x)", "!x"
+      assert_style "Kernel.not(x)", "not x"
+    end
+
+    test "folds when nested in other expressions" do
+      assert_style "foo(Kernel./(a, b))", "foo(a / b)"
+      assert_style "x = Kernel.*(a, b)", "x = a * b"
+      assert_style "Kernel./(a, b) + c", "a / b + c"
+    end
+
+    test "preserves operator precedence with parens" do
+      # `*` binds tighter than `+`, so the folded subtraction needs parens to keep its meaning
+      assert_style "Kernel.*(Kernel.-(a, b), c)", "(a - b) * c"
+    end
+
+    test "leaves a piped Kernel operator alone (the Pipes style owns those)" do
+      # later in a chain the operand count differs and folding would change semantics
+      assert_style "a |> b() |> Kernel.++(c)"
+      assert_style "a |> b() |> Kernel.-(c)"
+    end
+  end
+
   describe "{Keyword/Map}.merge/2 of a single key => *.put/3" do
     test "in a pipe" do
       for module <- ~w(Map Keyword) do

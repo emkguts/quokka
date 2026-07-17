@@ -34,6 +34,12 @@ defmodule Quokka.Style.SingleNode do
 
   @closing_delimiters [~s|"|, ")", "}", "|", "]", "'", ">", "/"]
 
+  # Kernel infix/unary operators, mirroring `Quokka.Style.Pipes`. `!` and `not` are unary-only;
+  # everything else is a binary operator, with `-` and `+` doubling as unary operators.
+  @kernel_ops ~w(++ -- && || in - * + / > < <= >= == and or != !== === <> ! not)a
+  @kernel_unary_ops ~w(- + ! not)a
+  @kernel_binary_ops @kernel_ops -- ~w(! not)a
+
   # `|> Timex.now()` => `|> Timex.now()`
   # skip over pipes into `Timex.now/1` so that we don't accidentally rewrite it as DateTime.utc_now/1
   def run({{:|>, _, [_, {{:., _, [{:__aliases__, _, [:Timex]}, :now]}, _, []}]}, _} = zipper, ctx),
@@ -68,7 +74,33 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # Fold a non-piped `Kernel` operator call back into an inline operator expression:
+  #
+  #     Kernel./(total, size)  =>  total / size
+  #     Kernel.-(x)            =>  -x
+  #
+  # Piped `Kernel` ops (`a |> Kernel.++(b)`) are intentionally left alone.
+  def run({{{:., _, [{:__aliases__, _, [:Kernel]}, op]}, meta, args}, _} = zipper, ctx) when op in @kernel_ops do
+    if piped_rhs?(zipper) or not valid_kernel_arity?(op, args) do
+      {:cont, zipper, ctx}
+    else
+      {:cont, Zipper.replace(zipper, {op, [line: meta[:line]], args}), ctx}
+    end
+  end
+
   def run({node, meta}, ctx), do: {:cont, {style(node), meta}, ctx}
+
+  # True when the focused node is the right-hand side of a pipe (`lhs |> focused`).
+  defp piped_rhs?(zipper) do
+    case Zipper.up(zipper) do
+      {{:|>, _, [_lhs, rhs]}, _} -> rhs == Zipper.node(zipper)
+      _ -> false
+    end
+  end
+
+  defp valid_kernel_arity?(op, [_]), do: op in @kernel_unary_ops
+  defp valid_kernel_arity?(op, [_, _]), do: op in @kernel_binary_ops
+  defp valid_kernel_arity?(_op, _args), do: false
 
   # rewrite double-quote strings with >= 4 escaped double-quotes as sigils
   defp style({:__block__, [{:delimiter, ~s|"|} | meta], [string]} = node) when is_binary(string) do

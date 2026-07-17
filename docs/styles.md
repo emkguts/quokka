@@ -37,6 +37,26 @@ If you're concerned that this breaks your team's formatting for things like "cen
 | `55333.22 `        | `55_333.22`                                           |
 | `-123456728.0001 ` | `-123_456_728.0001`                                   |
 
+## Fold `Kernel` operators into inline expressions
+
+When a `Kernel` operator (`++`, `||`, `<>`, `/`, `-`, etc.) is called in its fully-qualified function form, Quokka folds it back into the equivalent inline operator expression. This is not configurable.
+
+```elixir
+# Before
+Kernel./(total, size)
+Kernel.++(list, [extra])
+Kernel.-(x)
+
+# Styled
+total / size
+list ++ [extra]
+-x
+```
+
+Operator precedence is preserved (the formatter adds parentheses where needed), so `Kernel.*(Kernel.-(a, b), c)` becomes `(a - b) * c`.
+
+A `Kernel` operator that appears later in a pipe chain (`a |> b() |> Kernel.++(c)`) is left alone, since the pipe supplies its left operand; folding there is handled by the [pipes style](pipes.md#fold-kernel-operators-at-the-start-of-a-pipe) only when the operator starts the chain.
+
 ## Efficient Function Rewrites
 
 All these rewrites are configurable by setting the `exclude: [:inefficient_functions]` option in your `.formatter.exs` file. See the [README](../README.md#configuration) for more information.

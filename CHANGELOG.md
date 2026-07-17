@@ -5,6 +5,11 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+### Improvements
+
+- Fold a `Kernel` operator that starts a pipe back into an inline expression (e.g. `foo |> Kernel.||(bar) |> Enum.map(...)` becomes `(foo || bar) |> Enum.map(...)`). This applies to all `Kernel` infix/unary operators (`++`, `||`, `<>`, `/`, `-`, etc.), but only when the operator is the very first function in the pipe.
+- Fold a non-piped `Kernel` operator call back into an inline expression (e.g. `Kernel./(total, size)` becomes `total / size`, `Kernel.-(x)` becomes `-x`). This applies to all `Kernel` infix/unary operators, while operators in pipe position are left to the pipe-folding rewrite above.
+
 ## [2.13.1] - 2026-05-19
 
 ### Fixes
