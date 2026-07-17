@@ -44,7 +44,6 @@ defmodule Quokka.Config do
 
   # CommentDirectives is not configurable; # quokka:sort always runs.
   @style_pipeline [
-    Blocks,
     CommentDirectives,
     Autosort,
     Configs,
@@ -53,6 +52,7 @@ defmodule Quokka.Config do
     ModuleDirectives,
     Pipes,
     SingleNode,
+    Blocks,
     Tests
   ]
 

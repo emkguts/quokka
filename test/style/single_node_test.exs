@@ -384,9 +384,10 @@ defmodule Quokka.Style.SingleNodeTest do
         end
         """,
         """
-        case not Enum.empty?(items) do
-          true -> :has_items
-          false -> :empty
+        if Enum.empty?(items) do
+          :empty
+        else
+          :has_items
         end
         """
       )
