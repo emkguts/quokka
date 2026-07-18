@@ -777,8 +777,8 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style("import Foo")
     end
 
-    test "sorts, dedupes & expands alias/require/import while respecting groups" do
-      for d <- ~w(alias require import) do
+    test "sorts, dedupes & expands require/import while respecting groups" do
+      for d <- ~w(require import) do
         assert_style(
           """
           #{d} D.D
@@ -803,6 +803,41 @@ defmodule Quokka.Style.ModuleDirectivesTest do
           """
         )
       end
+    end
+
+    test "sorts, dedupes & expands aliases while respecting groups and dependencies" do
+      # `alias A.{B}` aliases `B` to `A.B`, so the later `alias B.B` resolves to `A.B.B`.
+      # Expanding it keeps the meaning stable regardless of alias ordering (#179).
+      # Having aliased `A.B`, though, if we later aliased `B.E`, it would resolve to `A.B.E`.
+      # The only way to unambiguously resolve `B.E` at that point is to alias it as `Elixir.B.E`.
+      #
+      # Along similar lines, the original aliasing `A.B`, then `B.B` is actually an alias to `A.B.B`.
+      assert_style(
+        """
+        alias D.D
+        alias B.E
+        alias A.{B}
+        alias A.{
+          A.A,
+          B,
+          C,
+          D
+        }
+        alias A.B
+
+        alias B.B
+        alias A.A
+        """,
+        """
+        alias A.A
+        alias A.A.A
+        alias A.B
+        alias A.B.B
+        alias A.C
+        alias D.D
+        alias Elixir.B.E
+        """
+      )
     end
 
     test "expands __MODULE__" do
@@ -855,7 +890,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """
         alias A.A
         alias A.B
-        alias B.B
+        alias A.B.B
         alias D.D
 
         require A.A
@@ -1056,6 +1091,8 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         import D
       end
       """,
+      # `A.B.C` is aliased as `D`, so `alias D.F.C` would mean `alias A.B.C.F.C`.
+      # Expanding it to `Elixir.D.F.C` is the only way to unambiguously resolve it at that point (#179).
       """
       defmodule MyModule do
         @moduledoc "Implements \#{A.B.C.foo()}!"
@@ -1068,7 +1105,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
 
         alias A.B, as: D
         alias A.B.C
-        alias D.F.C
+        alias Elixir.D.F.C
         alias G.H.C
         alias Z.X.C
       end

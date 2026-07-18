@@ -83,10 +83,12 @@ defmodule Quokka.Style.ModuleDirectives.AliasLiftingTest do
         A.B.C.foo()
       end
       """,
+      # `A.B.C` is aliased as `D`, so `alias D.E.F` means `alias A.B.C.E.F`.
+      # Expanding it keeps the meaning stable regardless of alias ordering (#179).
       """
       defmodule A do
         alias A.B.C, as: D
-        alias D.E.F, as: C
+        alias A.B.C.E.F, as: C
 
         C.foo()
 
