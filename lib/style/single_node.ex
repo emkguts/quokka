@@ -287,6 +287,15 @@ defmodule Quokka.Style.SingleNode do
   end
 
   # assert Repo.one(query) => assert Repo.exists?(query)
+  # refute Repo.one(query) => refute Repo.exists?(query)
+  #
+  # Skips the rewrite if query might return a single value (false, nil),
+  # in which case return values of Repo.one/1 and Repo.exists?/1 are different
+  defp style({assertion, _, [{{:., _, [{:__aliases__, _, _modules}, :one]}, _, [{name, _, context}]}]} = node)
+       when assertion in [:assert, :refute] and is_atom(name) and (is_atom(context) or is_nil(context)) do
+    node
+  end
+
   defp style({:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]} = node) do
     if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
       {:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}

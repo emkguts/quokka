@@ -831,13 +831,20 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("assert %{id: ^my_id} = Repo.one(query)")
       assert_style("assert Repo.one(query) |> Map.get(:my_key)")
 
-      assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
-      assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
-
       assert_style(
         "assert DB.Repo.one(from(u in User, where: u.active))",
         "assert DB.Repo.exists?(from(u in User, where: u.active))"
       )
+    end
+
+    # For query like from(u in User, where: u.id == ^id, select: u.is_admin)
+    # Repo.one/1 can return false or nil, while Repo.exists?/1 would return true
+    # because the row exists
+    test "doesn't rewrite raw asserts and asserts checking primitives" do
+      assert_style("assert Repo.one(query)")
+      assert_style("assert MyApp.Repo.one(query)")
+      assert_style("assert Repo.one(query) == false")
+      assert_style("assert Repo.one(query) == nil")
     end
 
     test "preserves arguments and complex queries" do
@@ -893,9 +900,6 @@ defmodule Quokka.Style.SingleNodeTest do
       # Make sure legitimate comparisons are not rewritten
       assert_style("refute Repo.one(query) |> Map.get(:my_key)")
 
-      assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
-      assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
-
       assert_style(
         "refute DB.Repo.one(from(u in User, where: u.active))",
         "refute DB.Repo.exists?(from(u in User, where: u.active))"
@@ -911,6 +915,13 @@ defmodule Quokka.Style.SingleNodeTest do
         "refute MyApp.Repo.one(query, timeout: 5000)",
         "refute MyApp.Repo.exists?(query, timeout: 5000)"
       )
+    end
+
+    test "doesn't rewrite when query might return false or nil" do
+      assert_style("refute Repo.one(query)")
+      assert_style("refute MyApp.Repo.one(query)")
+      assert_style("refute Repo.one(query) == false")
+      assert_style("refute Repo.one(query) == nil")
     end
 
     test "handles piped Repo.one calls in refute statements" do
@@ -944,16 +955,32 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "respects inefficient_functions config" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
-      assert_style("assert Repo.one(query)")
-      assert_style("assert MyApp.Repo.one(query)")
-      assert_style("refute Repo.one(query)")
-      assert_style("refute MyApp.Repo.one(query)")
+      assert_style("assert Repo.one(from(u in User, where: u.active))")
+      assert_style("assert MyApp.Repo.one(from(u in User, where: u.active))")
+      assert_style("refute Repo.one(from(u in User, where: u.active))")
+      assert_style("refute MyApp.Repo.one(from(u in User, where: u.active))")
 
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
-      assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
-      assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
-      assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
-      assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
+
+      assert_style(
+        "assert Repo.one(from(u in User, where: u.active))",
+        "assert Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      assert_style(
+        "assert MyApp.Repo.one(from(u in User, where: u.active))",
+        "assert MyApp.Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      assert_style(
+        "refute Repo.one(from(u in User, where: u.active))",
+        "refute Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      assert_style(
+        "refute MyApp.Repo.one(from(u in User, where: u.active))",
+        "refute MyApp.Repo.exists?(from(u in User, where: u.active))"
+      )
     end
   end
 
