@@ -1548,12 +1548,26 @@ defmodule Quokka.Style.PipesTest do
 
       assert_style(
         "mapping |> Map.values() |> Enum.map(& &1.quantity) |> Enum.product()",
-        "mapping |> Map.values() |> Enum.product_by(& &1.quantity)"
+        "Enum.product_by(mapping, fn {_, value} -> value.quantity end)"
       )
 
       assert_style(
         "items |> Enum.map(mapper) |> Enum.product() |> IO.inspect()",
         "items |> Enum.product_by(mapper) |> IO.inspect()"
+      )
+    end
+
+    test "Map.values/product_by multiplies mapped map values directly" do
+      enable_product_by_rewrite()
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.product_by(mapper)",
+        "Enum.product_by(mapping, fn {_, value} -> mapper.(value) end)"
+      )
+
+      assert_style(
+        "mapping |> Map.values |> Enum.product_by(& &1.quantity)",
+        "Enum.product_by(mapping, fn {_, value} -> value.quantity end)"
       )
     end
 
@@ -1597,22 +1611,36 @@ defmodule Quokka.Style.PipesTest do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
 
       assert_style("items |> Enum.map(mapper) |> Enum.product()")
+      assert_style("mapping |> Map.values() |> Enum.product_by(mapper)")
     end
 
     test "map/product preserves results for numeric mapper outputs" do
       if Version.match?(System.version(), ">= 1.18.0-dev") do
         enable_product_by_rewrite()
 
-        source = "items |> Enum.map(& &1.quantity) |> Enum.product()"
-        {_, styled, _} = style(source)
-
-        for items <- [
+        sources_and_items = [
+          {
+            "items |> Enum.map(& &1.quantity) |> Enum.product()",
+            [
               [],
               [%{quantity: 0}],
               [%{quantity: 1}, %{quantity: 2}, %{quantity: 3}],
               [%{quantity: -2}, %{quantity: 3}, %{quantity: 4}],
               [%{quantity: 2}, %{quantity: 2.5}, %{quantity: -0.5}]
-            ] do
+            ]
+          },
+          {
+            "items |> Map.values() |> Enum.product_by(& &1.quantity)",
+            [%{}, %{a: %{quantity: -2}, b: %{quantity: 3}, c: %{quantity: 4}}]
+          },
+          {
+            "items |> Map.values() |> Enum.map(& &1.quantity) |> Enum.product()",
+            [%{}, %{a: %{quantity: 2}, b: %{quantity: 2.5}, c: %{quantity: -0.5}}]
+          }
+        ]
+
+        for {source, collections} <- sources_and_items, items <- collections do
+          {_, styled, _} = style(source)
           {original_result, _binding} = Code.eval_string(source, items: items)
           {styled_result, _binding} = Code.eval_string(styled, items: items)
 

@@ -470,17 +470,19 @@ defmodule Quokka.Style.Pipes do
 
   # `map |> Map.values() |> Enum.sum_by(mapper)`
   #   => `map |> Enum.sum_by(fn {_, value} -> mapper.(value) end)`
+  # The same applies to Enum.product_by/2.
   defp fix_pipe(
          pipe_chain(
            pm,
            lhs,
            {{:., dm, [{_, _, [:Map]}, :values]}, values_meta, []},
-           {{:., _, [{_, _, [:Enum]} = enum, :sum_by]}, _, [mapper]}
+           {{:., _, [{_, _, [:Enum]} = enum, aggregate_by]}, _, [mapper]}
          ) = node
-       ) do
+       )
+       when aggregate_by in [:sum_by, :product_by] do
     if Quokka.Config.inefficient_function_rewrites?() and safely_closable_mapper?(mapper) do
       mapper = map_value_mapper(mapper, values_meta)
-      {:|>, pm, [lhs, {{:., dm, [enum, :sum_by]}, values_meta, [mapper]}]}
+      {:|>, pm, [lhs, {{:., dm, [enum, aggregate_by]}, values_meta, [mapper]}]}
     else
       node
     end
