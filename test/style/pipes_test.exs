@@ -1329,13 +1329,142 @@ defmodule Quokka.Style.PipesTest do
 
       assert_style(
         "mapping |> Map.values() |> Enum.map(& &1.total_accounts) |> Enum.sum()",
-        "mapping |> Map.values() |> Enum.sum_by(& &1.total_accounts)"
+        "Enum.sum_by(mapping, fn {_, value} -> value.total_accounts end)"
       )
 
       assert_style(
         "items |> Enum.map(mapper) |> Enum.sum() |> IO.inspect()",
         "items |> Enum.sum_by(mapper) |> IO.inspect()"
       )
+    end
+
+    test "Map.values/sum_by sums mapped map values directly" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.sum_by(mapper)",
+        "Enum.sum_by(mapping, fn {_, value} -> mapper.(value) end)"
+      )
+
+      assert_style(
+        "mapping |> Map.values |> Enum.sum_by(& &1.amount)",
+        "Enum.sum_by(mapping, fn {_, value} -> value.amount end)"
+      )
+
+      assert_style(
+        "input |> load_mapping() |> Map.values() |> Enum.sum_by(&amount/1) |> round()",
+        "input |> load_mapping() |> Enum.sum_by(fn {_, value} -> amount(value) end) |> round()"
+      )
+    end
+
+    test "Map.values/sum_by avoids shadowing variables used by the mapper" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.sum_by(value)",
+        "Enum.sum_by(mapping, fn {_, value2} -> value.(value2) end)"
+      )
+    end
+
+    test "Map.values/sum_by merges an anonymous mapper's argument pattern" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.sum_by(fn val -> grok(val) end)",
+        "Enum.sum_by(mapping, fn {_, val} -> grok(val) end)"
+      )
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.map(fn val -> grok(val) end) |> Enum.sum()",
+        "Enum.sum_by(mapping, fn {_, val} -> grok(val) end)"
+      )
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.sum_by(fn %{amount: amount} -> amount end)",
+        "Enum.sum_by(mapping, fn {_, %{amount: amount}} -> amount end)"
+      )
+    end
+
+    test "Map.values/sum_by preserves anonymous mapper clauses, guards, and comments" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        """
+        mapping
+        |> Map.values()
+        |> Enum.sum_by(fn
+          val when val > 0 ->
+            # Transform positive values.
+            grok(val)
+
+          _ ->
+            0
+        end)
+        """,
+        """
+        Enum.sum_by(
+          mapping,
+          fn
+            {_, val} when val > 0 ->
+              # Transform positive values.
+              grok(val)
+
+            {_, _} ->
+              0
+          end
+        )
+        """
+      )
+    end
+
+    test "Map.values/map/sum sums mapped map values directly" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        "mapping |> Map.values() |> Enum.map(mapper) |> Enum.sum()",
+        "Enum.sum_by(mapping, fn {_, value} -> mapper.(value) end)"
+      )
+
+      assert_style(
+        "mapping |> Map.values() |> Stream.map(& &1.amount) |> Enum.sum()",
+        "Enum.sum_by(mapping, fn {_, value} -> value.amount end)"
+      )
+    end
+
+    test "Map.values/sum_by does not rewrite if a mapper might have side-effects" do
+      enable_sum_by_rewrite()
+
+      assert_style("mapping |> Map.values() |> Enum.sum_by(build_mapper())")
+    end
+
+    test "Map.values/sum_by only rewrites calls to Map.values and Enum.sum_by" do
+      enable_sum_by_rewrite()
+
+      assert_style("mapping |> Other.values() |> Enum.sum_by(mapper)")
+      assert_style("mapping |> Map.values() |> Other.sum_by(mapper)")
+    end
+
+    test "Map.values/sum_by preserves results" do
+      if Version.match?(System.version(), ">= 1.18.0-dev") do
+        enable_sum_by_rewrite()
+
+        sources = [
+          "mapping |> Map.values() |> Enum.sum_by(mapper)",
+          "mapping |> Map.values() |> Enum.map(mapper) |> Enum.sum()"
+        ]
+
+        for source <- sources do
+          {_, styled, _} = style(source)
+
+          for mapping <- [%{}, %{a: 1}, %{a: -2, b: 3, c: 4.5}] do
+            binding = [mapping: mapping, mapper: &(&1 * 2)]
+            {original_result, _binding} = Code.eval_string(source, binding)
+            {styled_result, _binding} = Code.eval_string(styled, binding)
+
+            assert styled_result == original_result
+          end
+        end
+      end
     end
 
     test "map/sum preserves a multiline mapper and its comments" do
@@ -1378,6 +1507,7 @@ defmodule Quokka.Style.PipesTest do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
 
       assert_style("items |> Enum.map(mapper) |> Enum.sum()")
+      assert_style("mapping |> Map.values() |> Enum.sum_by(mapper)")
     end
 
     test "map/sum preserves results for numeric mapper outputs" do

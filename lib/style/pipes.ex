@@ -468,6 +468,24 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, rhs]}
   end
 
+  # `map |> Map.values() |> Enum.sum_by(mapper)`
+  #   => `map |> Enum.sum_by(fn {_, value} -> mapper.(value) end)`
+  defp fix_pipe(
+         pipe_chain(
+           pm,
+           lhs,
+           {{:., dm, [{_, _, [:Map]}, :values]}, values_meta, []},
+           {{:., _, [{_, _, [:Enum]} = enum, :sum_by]}, _, [mapper]}
+         ) = node
+       ) do
+    if Quokka.Config.inefficient_function_rewrites?() and safely_closable_mapper?(mapper) do
+      mapper = map_value_mapper(mapper, values_meta)
+      {:|>, pm, [lhs, {{:., dm, [enum, :sum_by]}, values_meta, [mapper]}]}
+    else
+      node
+    end
+  end
+
   # `list |> Enum.map(mapper) |> Enum.sum()` => `list |> Enum.sum_by(mapper)`
   # `list |> Enum.map(mapper) |> Enum.product()` => `list |> Enum.product_by(mapper)`
   defp fix_pipe(
@@ -482,7 +500,9 @@ defmodule Quokka.Style.Pipes do
     if Quokka.Config.inefficient_function_rewrites?() and
          Version.match?(Quokka.Config.elixir_version(), ">= 1.18.0-dev") do
       aggregate_by = if aggregate == :sum, do: :sum_by, else: :product_by
-      {:|>, pm, [lhs, {{:., dm, [enum, aggregate_by]}, em, [mapper]}]}
+      # Recurse so a preceding Map.values/1 can be folded into the new callback
+      # during the same pre-order traversal.
+      fix_pipe({:|>, pm, [lhs, {{:., dm, [enum, aggregate_by]}, em, [mapper]}]})
     else
       node
     end
@@ -636,6 +656,114 @@ defmodule Quokka.Style.Pipes do
     do: Style.set_line({op, [line: lhs_meta[:line]], [lhs]}, lhs_meta[:line])
 
   defp fix_pipe(node), do: node
+
+  defp safely_closable_mapper?({name, _, context}) when is_atom(name) and (is_atom(context) or is_nil(context)),
+    do: true
+
+  defp safely_closable_mapper?({:&, _, _}), do: true
+  defp safely_closable_mapper?({:fn, _, _}), do: true
+  defp safely_closable_mapper?(_), do: false
+
+  defp map_value_mapper({:fn, fn_meta, arrows} = mapper, meta) do
+    case map_value_arrows(arrows, meta) do
+      {:ok, arrows} -> {:fn, fn_meta, arrows}
+      :error -> wrap_map_value_mapper(mapper, meta)
+    end
+  end
+
+  defp map_value_mapper(mapper, meta), do: wrap_map_value_mapper(mapper, meta)
+
+  defp wrap_map_value_mapper(mapper, meta) do
+    line_meta = Keyword.take(meta, [:line])
+    value = {fresh_value_name(mapper), line_meta, nil}
+    pattern = {{:_, line_meta, nil}, value}
+    body = call_mapper(mapper, value, line_meta)
+
+    {:fn, line_meta, [{:->, line_meta, [[pattern], body]}]}
+  end
+
+  defp map_value_arrows(arrows, fallback_meta) do
+    Enum.reduce_while(arrows, {:ok, []}, fn
+      {:->, arrow_meta, [[argument], body]}, {:ok, mapped} ->
+        argument = map_value_argument(argument, fallback_meta)
+        {:cont, {:ok, [{:->, arrow_meta, [[argument], body]} | mapped]}}
+
+      _arrow, _mapped ->
+        {:halt, :error}
+    end)
+    |> case do
+      {:ok, mapped} -> {:ok, Enum.reverse(mapped)}
+      :error -> :error
+    end
+  end
+
+  defp map_value_argument({:when, meta, [argument | guards]}, fallback_meta) do
+    {:when, meta, [map_value_argument(argument, fallback_meta) | guards]}
+  end
+
+  defp map_value_argument(argument, fallback_meta) do
+    line_meta =
+      case argument do
+        {_, meta, _} when is_list(meta) -> Keyword.take(meta, [:line])
+        _ -> Keyword.take(fallback_meta, [:line])
+      end
+
+    {{:_, line_meta, nil}, argument}
+  end
+
+  # Inline one-argument expression captures, producing `value.amount` rather
+  # than the noisier `(& &1.amount).(value)`.
+  defp call_mapper({:&, _, [{:/, _, [{name, call_meta, context}, {:__block__, _, [1]}]}]}, value, _meta)
+       when is_atom(name) and (is_atom(context) or is_nil(context)), do: {name, call_meta, [value]}
+
+  defp call_mapper({:&, _, [{:/, _, [{remote, call_meta, []}, {:__block__, _, [1]}]}]}, value, _meta),
+    do: {remote, Keyword.delete(call_meta, :no_parens), [value]}
+
+  defp call_mapper({:&, _, [body]} = mapper, value, meta) do
+    if capture_arity(body) == 1 do
+      Macro.prewalk(body, fn
+        {:&, _, [1]} -> value
+        node -> node
+      end)
+    else
+      invoke_mapper(mapper, value, meta)
+    end
+  end
+
+  defp call_mapper(mapper, value, meta), do: invoke_mapper(mapper, value, meta)
+
+  defp invoke_mapper(mapper, value, meta), do: {{:., meta, [mapper]}, meta, [value]}
+
+  defp capture_arity(body) do
+    {_body, arity} =
+      Macro.prewalk(body, 0, fn
+        {:&, _, [index]} = node, arity when is_integer(index) -> {node, max(index, arity)}
+        node, arity -> {node, arity}
+      end)
+
+    arity
+  end
+
+  defp fresh_value_name(mapper) do
+    {_mapper, used_names} =
+      Macro.prewalk(mapper, MapSet.new(), fn
+        {name, _, context} = node, names when is_atom(name) and (is_atom(context) or is_nil(context)) ->
+          {node, MapSet.put(names, name)}
+
+        node, names ->
+          {node, names}
+      end)
+
+    Stream.iterate(0, &(&1 + 1))
+    |> Enum.find_value(fn
+      0 ->
+        if :value not in used_names, do: :value
+
+      suffix ->
+        candidate = :"value#{suffix + 1}"
+        if candidate not in used_names, do: candidate
+    end)
+  end
 
   # Credo.Check.Readability.OnePipePerLine
   defp maybe_break_one_pipe_per_line({:|>, _, _} = pipe) do
