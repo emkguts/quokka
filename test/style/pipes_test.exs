@@ -1338,6 +1338,24 @@ defmodule Quokka.Style.PipesTest do
       )
     end
 
+    test "Map.values/map/sum rewrites inside a keyword-style map" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        "%{total_accounts: hierarchy_index |> Map.values() |> Enum.map(& &1.total_accounts) |> Enum.sum()}",
+        "%{total_accounts: Enum.sum_by(hierarchy_index, fn {_, value} -> value.total_accounts end)}"
+      )
+    end
+
+    test "Map.values/sum_by merges an anonymous mapper inside a keyword-style map" do
+      enable_sum_by_rewrite()
+
+      assert_style(
+        "%{total_accounts: hierarchy_index |> Map.values() |> Enum.sum_by(fn account -> account.total_accounts end)}",
+        "%{total_accounts: Enum.sum_by(hierarchy_index, fn {_, account} -> account.total_accounts end)}"
+      )
+    end
+
     test "Map.values/sum_by sums mapped map values directly" do
       enable_sum_by_rewrite()
 

@@ -678,7 +678,7 @@ defmodule Quokka.Style.Pipes do
   defp wrap_map_value_mapper(mapper, meta) do
     line_meta = Keyword.take(meta, [:line])
     value = {fresh_value_name(mapper), line_meta, nil}
-    pattern = {{:_, line_meta, nil}, value}
+    pattern = map_entry_pattern(value, line_meta)
     body = call_mapper(mapper, value, line_meta)
 
     {:fn, line_meta, [{:->, line_meta, [[pattern], body]}]}
@@ -710,7 +710,14 @@ defmodule Quokka.Style.Pipes do
         _ -> Keyword.take(fallback_meta, [:line])
       end
 
-    {{:_, line_meta, nil}, argument}
+    map_entry_pattern(argument, line_meta)
+  end
+
+  defp map_entry_pattern(value, line_meta) do
+    tuple = {{:_, line_meta, nil}, value}
+    tuple_meta = Keyword.put(line_meta, :closing, line_meta)
+
+    {:__block__, tuple_meta, [tuple]}
   end
 
   # Inline one-argument expression captures, producing `value.amount` rather
