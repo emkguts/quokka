@@ -135,6 +135,28 @@ defmodule Quokka.ConfigTest do
     assert_style("if !foo, do: :bar, else: :baz")
   end
 
+  test "merges nested .credo.exs files that use the `extra` form" do
+    # Outside the project, so the project's own .credo.exs is not picked up
+    tmp_dir = Path.join(System.tmp_dir!(), "quokka-credo-#{System.unique_integer([:positive])}")
+    on_exit(fn -> File.rm_rf!(tmp_dir) end)
+    nested = Path.join(tmp_dir, "nested")
+    File.mkdir_p!(nested)
+
+    File.write!(Path.join(tmp_dir, ".credo.exs"), """
+    %{configs: [%{name: "default", checks: %{extra: [{Credo.Check.Readability.MultiAlias, []}]}}]}
+    """)
+
+    File.write!(Path.join(nested, ".credo.exs"), """
+    %{configs: [%{name: "default", checks: %{extra: [{Credo.Check.Design.AliasUsage, [if_nested_deeper_than: 1]}]}}]}
+    """)
+
+    File.cd!(nested, fn -> assert :ok = set!([]) end)
+
+    assert Quokka.Config.rewrite_multi_alias?()
+    assert Quokka.Config.lift_alias?()
+    assert Quokka.Config.lift_alias_depth() == 1
+  end
+
   test "parses autosort in both formats" do
     assert :ok = set!(quokka: [autosort: [:map, schema: [:field, :belongs_to]]])
     assert [:map, :schema] == Quokka.Config.autosort()

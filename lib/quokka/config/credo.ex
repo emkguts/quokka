@@ -47,8 +47,12 @@ defmodule Quokka.Config.Credo do
     |> Map.fetch!(:enabled)
   end
 
+  # Seed an empty base config like `mix credo` seeds its defaults, so user configs
+  # (including several `.credo.exs` found in parent directories) merge the same way.
+  @base_config ~s(%{configs: [%{name: "default", checks: %{enabled: []}}]})
+
   defp read_config() do
-    exec = Credo.Execution.build()
+    exec = Credo.Execution.append_config_file(Credo.Execution.build(), {:quokka, nil, @base_config})
     dir = File.cwd!()
 
     case Credo.ConfigFile.read_or_default(exec, dir) do
