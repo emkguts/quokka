@@ -135,6 +135,24 @@ defmodule Quokka.ConfigTest do
     assert_style("if !foo, do: :bar, else: :baz")
   end
 
+  test "reads checks added via the extra section" do
+    stub_credo_checks(%{extra: [{AliasUsage, [if_nested_deeper_than: 1]}, {MultiAlias, []}]})
+
+    assert :ok = set!([])
+
+    assert Quokka.Config.lift_alias?()
+    assert Quokka.Config.lift_alias_depth() == 1
+    assert Quokka.Config.rewrite_multi_alias?()
+  end
+
+  test "disabled Credo checks override entries in the extra section" do
+    stub_credo_checks(%{extra: [{MultiAlias, []}], disabled: [{MultiAlias, []}]})
+
+    assert :ok = set!([])
+
+    refute Quokka.Config.rewrite_multi_alias?()
+  end
+
   test "parses autosort in both formats" do
     assert :ok = set!(quokka: [autosort: [:map, schema: [:field, :belongs_to]]])
     assert [:map, :schema] == Quokka.Config.autosort()

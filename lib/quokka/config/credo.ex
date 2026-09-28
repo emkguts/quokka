@@ -39,7 +39,10 @@ defmodule Quokka.Config.Credo do
   end
 
   defp merge_checks(checks) do
-    enabled = %Credo.ConfigFile{checks: %{enabled: Map.get(checks, :enabled) || []}}
+    # Without Credo's default config as a base, checks added via `extra` are never
+    # merged into `enabled`, so fall back to them when `enabled` is absent.
+    enabled_checks = Map.get(checks, :enabled) || Map.get(checks, :extra) || []
+    enabled = %Credo.ConfigFile{checks: %{enabled: enabled_checks}}
     disabled = %Credo.ConfigFile{checks: %{disabled: Map.get(checks, :disabled) || []}}
 
     enabled
