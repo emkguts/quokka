@@ -18,6 +18,10 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 - Read Credo checks added via the `extra` section of `.credo.exs` when there's no `enabled` section. Fixes [#200](https://github.com/emkguts/quokka/issues/200).
 - Stop rewriting `with true <- x, do: body` to `if x, do: body`. That rewrite changed semantics: `with` returns the unmatched value (`false`, `:foo`, etc.) while `if` treats the head as truthy/falsey. Fixes [#187](https://github.com/emkguts/quokka/issues/187).
 
+### Fixes
+
+- Only rewrite `Repo.one(query)` to `Repo.exists?(query)` (in `assert`, `refute`, `if`, and `unless`, piped or not) when the query is visibly built from a schema, like `User`, `from(u in User, where: ...)`, or `User |> where(...)`, with no `select` or `select_merge`. Queries held in variables, returned from other functions, or with an explicit `select` may return `false` or `nil` for a row that exists, where `Repo.exists?` would return `true`.
+
 ## [2.13.1] - 2026-05-19
 
 ### Fixes
