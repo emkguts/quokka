@@ -835,27 +835,40 @@ defmodule Quokka.Style.SingleNodeTest do
         "assert DB.Repo.one(from(u in User, where: u.active))",
         "assert DB.Repo.exists?(from(u in User, where: u.active))"
       )
+
+      assert_style("assert Repo.one(User)", "assert Repo.exists?(User)")
+      assert_style("assert Repo.one(from(User))", "assert Repo.exists?(from(User))")
+      assert_style("assert Repo.one(where(User, id: ^id))", "assert Repo.exists?(where(User, id: ^id))")
     end
 
-    # For query like from(u in User, where: u.id == ^id, select: u.is_admin)
+    # For a query like from(u in User, where: u.id == ^id, select: u.is_admin),
     # Repo.one/1 can return false or nil, while Repo.exists?/1 would return true
     # because the row exists
-    test "doesn't rewrite raw asserts and asserts checking primitives" do
+    test "doesn't rewrite when the query might select a falsey value" do
       assert_style("assert Repo.one(query)")
       assert_style("assert MyApp.Repo.one(query)")
+      assert_style("assert MyApp.Repo.one(query, timeout: 5000)")
+      assert_style("assert Repo.one(build_query())")
+      assert_style("assert Repo.one(from(u in query, where: u.active))")
+      assert_style("assert Repo.one(where(query, id: ^id))")
+      assert_style("assert Repo.one(from(u in User, where: u.id == ^id, select: u.is_admin))")
+      assert_style("assert Repo.one(from(u in User, where: u.id == ^id, select: u))")
+      assert_style("assert Repo.one(from(u in User, where: u.id == ^id, select_merge: %{admin: u.is_admin}))")
+      assert_style("assert Repo.one(select(User, [u], u.is_admin))")
+      assert_style("assert Repo.one(Ecto.Query.select(User, [u], u.is_admin))")
       assert_style("assert Repo.one(query) == false")
       assert_style("assert Repo.one(query) == nil")
     end
 
     test "preserves arguments and complex queries" do
       assert_style(
-        "assert Repo.one(from(u in User, where: u.id == ^id, select: u.id))",
-        "assert Repo.exists?(from(u in User, where: u.id == ^id, select: u.id))"
+        "assert Repo.one(from(u in User, join: p in assoc(u, :posts), where: u.id == ^id, preload: [posts: p]))",
+        "assert Repo.exists?(from(u in User, join: p in assoc(u, :posts), where: u.id == ^id, preload: [posts: p]))"
       )
 
       assert_style(
-        "assert MyApp.Repo.one(query, timeout: 5000)",
-        "assert MyApp.Repo.exists?(query, timeout: 5000)"
+        "assert MyApp.Repo.one(User, timeout: 5000)",
+        "assert MyApp.Repo.exists?(User, timeout: 5000)"
       )
     end
 
@@ -875,25 +888,30 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "handles piped Repo.one calls in assertions" do
       assert_style(
-        "assert from(stuff) |> Repo.one()",
-        "assert from(stuff) |> Repo.exists?()"
-      )
-
-      assert_style(
-        "assert query |> MyApp.Repo.one()",
-        "assert query |> MyApp.Repo.exists?()"
-      )
-
-      assert_style(
         "assert from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000)",
         "assert from(u in User, where: u.active) |> DB.Repo.exists?(timeout: 5000)"
       )
 
       # Complex piped expressions
       assert_style(
-        "assert query |> transform() |> Repo.one()",
-        "assert query |> transform() |> Repo.exists?()"
+        "assert User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.one()",
+        "assert User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.exists?()"
       )
+
+      assert_style(
+        "assert User |> Ecto.Query.where(id: ^id) |> MyApp.Repo.one()",
+        "assert User |> Ecto.Query.where(id: ^id) |> MyApp.Repo.exists?()"
+      )
+    end
+
+    test "doesn't rewrite piped Repo.one calls when the query might select a falsey value" do
+      assert_style("assert query |> MyApp.Repo.one()")
+      assert_style("assert from(stuff) |> Repo.one()")
+      assert_style("assert query |> transform() |> Repo.one()")
+      assert_style("assert User |> transform() |> Repo.one()")
+      assert_style("assert from(u in User, where: u.id == ^id, select: u.is_admin) |> Repo.one()")
+      assert_style("assert User |> where(id: ^id) |> select(:is_admin) |> Repo.one()")
+      assert_style("assert User |> where(id: ^id) |> Ecto.Query.select([u], u.is_admin) |> Repo.one()")
     end
 
     test "rewrites Repo.one in refute statements to Repo.exists?" do
@@ -907,32 +925,29 @@ defmodule Quokka.Style.SingleNodeTest do
 
       # Preserves arguments and complex queries
       assert_style(
-        "refute Repo.one(from(u in User, where: u.id == ^id, select: u.id))",
-        "refute Repo.exists?(from(u in User, where: u.id == ^id, select: u.id))"
+        "refute Repo.one(from(u in User, where: u.id == ^id, preload: :posts))",
+        "refute Repo.exists?(from(u in User, where: u.id == ^id, preload: :posts))"
       )
 
       assert_style(
-        "refute MyApp.Repo.one(query, timeout: 5000)",
-        "refute MyApp.Repo.exists?(query, timeout: 5000)"
+        "refute MyApp.Repo.one(User, timeout: 5000)",
+        "refute MyApp.Repo.exists?(User, timeout: 5000)"
       )
     end
 
-    test "doesn't rewrite when query might return false or nil" do
+    test "doesn't rewrite refutes when the query might select a falsey value" do
       assert_style("refute Repo.one(query)")
       assert_style("refute MyApp.Repo.one(query)")
+      assert_style("refute MyApp.Repo.one(query, timeout: 5000)")
+      assert_style("refute Repo.one(from(u in User, where: u.id == ^id, select: u.is_admin))")
       assert_style("refute Repo.one(query) == false")
       assert_style("refute Repo.one(query) == nil")
     end
 
     test "handles piped Repo.one calls in refute statements" do
       assert_style(
-        "refute from(stuff) |> Repo.one()",
-        "refute from(stuff) |> Repo.exists?()"
-      )
-
-      assert_style(
-        "refute query |> MyApp.Repo.one()",
-        "refute query |> MyApp.Repo.exists?()"
+        "refute from(User) |> Repo.one()",
+        "refute from(User) |> Repo.exists?()"
       )
 
       assert_style(
@@ -942,9 +957,14 @@ defmodule Quokka.Style.SingleNodeTest do
 
       # Complex piped expressions
       assert_style(
-        "refute query |> transform() |> Repo.one()",
-        "refute query |> transform() |> Repo.exists?()"
+        "refute User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.one()",
+        "refute User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.exists?()"
       )
+
+      assert_style("refute query |> MyApp.Repo.one()")
+      assert_style("refute from(stuff) |> Repo.one()")
+      assert_style("refute query |> transform() |> Repo.one()")
+      assert_style("refute User |> where(id: ^id) |> select(:is_admin) |> Repo.one()")
     end
 
     test "does not rewrite non-Repo modules in refute statements" do
@@ -988,12 +1008,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in if statements" do
       assert_style(
         """
-        if Repo.one(query) do
+        if Repo.one(User) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) do
+        if Repo.exists?(User) do
           :ok
         end
         """
@@ -1001,12 +1021,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if MyApp.Repo.one(query) do
+        if MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if MyApp.Repo.exists?(query) do
+        if MyApp.Repo.exists?(User) do
           :ok
         end
         """
@@ -1029,12 +1049,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in unless statements" do
       assert_style(
         """
-        unless Repo.one(query) do
+        unless Repo.one(User) do
           :ok
         end
         """,
         """
-        if !Repo.exists?(query) do
+        if !Repo.exists?(User) do
           :ok
         end
         """
@@ -1042,12 +1062,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless MyApp.Repo.one(query) do
+        unless MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.exists?(query) do
+        if !MyApp.Repo.exists?(User) do
           :ok
         end
         """
@@ -1070,12 +1090,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in complex conditional expressions" do
       assert_style(
         """
-        if Repo.one(query) && other_condition do
+        if Repo.one(User) && other_condition do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) && other_condition do
+        if Repo.exists?(User) && other_condition do
           :ok
         end
         """
@@ -1083,12 +1103,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if other_condition || Repo.one(query) do
+        if other_condition || Repo.one(User) do
           :ok
         end
         """,
         """
-        if other_condition || Repo.exists?(query) do
+        if other_condition || Repo.exists?(User) do
           :ok
         end
         """
@@ -1096,12 +1116,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless !Repo.one(query) do
+        unless !Repo.one(User) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) do
+        if Repo.exists?(User) do
           :ok
         end
         """
@@ -1111,12 +1131,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "preserves arguments and complex queries in conditionals" do
       assert_style(
         """
-        if Repo.one(from(u in User, where: u.id == ^id, select: u.id)) do
+        if Repo.one(from(u in User, where: u.id == ^id, preload: :posts)) do
           :ok
         end
         """,
         """
-        if Repo.exists?(from(u in User, where: u.id == ^id, select: u.id)) do
+        if Repo.exists?(from(u in User, where: u.id == ^id, preload: :posts)) do
           :ok
         end
         """
@@ -1124,12 +1144,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless MyApp.Repo.one(query, timeout: 5000) do
+        unless MyApp.Repo.one(User, timeout: 5000) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.exists?(query, timeout: 5000) do
+        if !MyApp.Repo.exists?(User, timeout: 5000) do
           :ok
         end
         """
@@ -1154,19 +1174,19 @@ defmodule Quokka.Style.SingleNodeTest do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
 
       assert_style("""
-      if Repo.one(query) do
+      if Repo.one(User) do
         :ok
       end
       """)
 
       assert_style(
         """
-        unless MyApp.Repo.one(query) do
+        unless MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.one(query) do
+        if !MyApp.Repo.one(User) do
           :ok
         end
         """
@@ -1176,12 +1196,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if Repo.one(query) do
+        if Repo.one(User) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) do
+        if Repo.exists?(User) do
           :ok
         end
         """
@@ -1189,12 +1209,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless MyApp.Repo.one(query) do
+        unless MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.exists?(query) do
+        if !MyApp.Repo.exists?(User) do
           :ok
         end
         """
@@ -1204,12 +1224,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "handles multiple Repo.one calls in conditionals" do
       assert_style(
         """
-        if Repo.one(query1) && Repo.one(query2) do
+        if Repo.one(User) && Repo.one(Post) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query1) && Repo.exists?(query2) do
+        if Repo.exists?(User) && Repo.exists?(Post) do
           :ok
         end
         """
@@ -1217,12 +1237,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless Repo.one(query1) || MyApp.Repo.one(query2) do
+        unless Repo.one(User) || MyApp.Repo.one(Post) do
           :ok
         end
         """,
         """
-        if !(Repo.exists?(query1) || MyApp.Repo.exists?(query2)) do
+        if !(Repo.exists?(User) || MyApp.Repo.exists?(Post)) do
           :ok
         end
         """
@@ -1272,32 +1292,6 @@ defmodule Quokka.Style.SingleNodeTest do
     test "handles piped Repo.one calls in conditionals" do
       assert_style(
         """
-        if from(stuff) |> Repo.one() do
-          :ok
-        end
-        """,
-        """
-        if from(stuff) |> Repo.exists?() do
-          :ok
-        end
-        """
-      )
-
-      assert_style(
-        """
-        if query |> MyApp.Repo.one() do
-          :ok
-        end
-        """,
-        """
-        if query |> MyApp.Repo.exists?() do
-          :ok
-        end
-        """
-      )
-
-      assert_style(
-        """
         if from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000) do
           :ok
         end
@@ -1311,16 +1305,54 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if query |> transform() |> Repo.one() && other_condition do
+        if User |> where(active: true) |> order_by(:inserted_at) |> Repo.one() && other_condition do
           :ok
         end
         """,
         """
-        if query |> transform() |> Repo.exists?() && other_condition do
+        if User |> where(active: true) |> order_by(:inserted_at) |> Repo.exists?() && other_condition do
           :ok
         end
         """
       )
+    end
+
+    test "does not rewrite Repo.one in conditionals when the query might select a falsey value" do
+      assert_style("""
+      if Repo.one(query) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Repo.one(from(u in User, where: u.id == ^id, select: u.is_admin)) && other_condition do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if from(stuff) |> Repo.one() do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if query |> MyApp.Repo.one() do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if query |> transform() |> Repo.one() && other_condition do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if User |> where(id: ^id) |> select(:is_admin) |> Repo.one() do
+        :ok
+      end
+      """)
     end
   end
 

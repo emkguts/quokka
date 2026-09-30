@@ -289,49 +289,23 @@ defmodule Quokka.Style.SingleNode do
   # assert Repo.one(query) => assert Repo.exists?(query)
   # refute Repo.one(query) => refute Repo.exists?(query)
   #
-  # Skips the rewrite if query might return a single value (false, nil),
+  # Skips the rewrite if the query might select something other than a struct (false, nil),
   # in which case return values of Repo.one/1 and Repo.exists?/1 are different
-  defp style({assertion, _, [{{:., _, [{:__aliases__, _, _modules}, :one]}, _, [{name, _, context}]}]} = node)
-       when assertion in [:assert, :refute] and is_atom(name) and (is_atom(context) or is_nil(context)) do
-    node
-  end
-
-  defp style({:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]} = node) do
-    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
-      {:assert, am, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}
+  defp style({assertion, am, [{{:., _, [{:__aliases__, _, _}, :one]}, _, _} = repo_one]} = node)
+       when assertion in [:assert, :refute] do
+    if Quokka.Config.inefficient_function_rewrites?() do
+      {assertion, am, [repo_one_to_exists(repo_one)]}
     else
       node
     end
   end
 
   # assert query |> Repo.one() => assert query |> Repo.exists?()
-  defp style(
-         {:assert, am, [{:|>, pipe_meta, [lhs, {{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]}]} =
-           node
-       ) do
-    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
-      {:assert, am, [{:|>, pipe_meta, [lhs, {{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}]}
-    else
-      node
-    end
-  end
-
-  # refute Repo.one(query) => refute Repo.exists?(query)
-  defp style({:refute, rm, [{{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]} = node) do
-    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
-      {:refute, rm, [{{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}
-    else
-      node
-    end
-  end
-
   # refute query |> Repo.one() => refute query |> Repo.exists?()
-  defp style(
-         {:refute, rm, [{:|>, pipe_meta, [lhs, {{:., dm, [{:__aliases__, alias_meta, modules}, :one]}, funm, args}]}]} =
-           node
-       ) do
-    if Quokka.Config.inefficient_function_rewrites?() and List.last(modules) == :Repo do
-      {:refute, rm, [{:|>, pipe_meta, [lhs, {{:., dm, [{:__aliases__, alias_meta, modules}, :exists?]}, funm, args}]}]}
+  defp style({assertion, am, [{:|>, _, [_, {{:., _, [{:__aliases__, _, _}, :one]}, _, _}]} = repo_one]} = node)
+       when assertion in [:assert, :refute] do
+    if Quokka.Config.inefficient_function_rewrites?() do
+      {assertion, am, [repo_one_to_exists(repo_one)]}
     else
       node
     end
@@ -738,23 +712,72 @@ defmodule Quokka.Style.SingleNode do
     if is_pattern_match?(ast) do
       ast
     else
-      Macro.prewalk(ast, fn
-        {{:., dm, [{:__aliases__, alias_metadata, modules}, :one]}, function_metadata, args} = node ->
-          if List.last(modules) == :Repo do
-            {{:., dm, [{:__aliases__, alias_metadata, modules}, :exists?]}, function_metadata, args}
-          else
-            node
-          end
-
-        node ->
-          node
-      end)
+      Macro.prewalk(ast, &repo_one_to_exists/1)
     end
   end
 
   # Check if the AST represents a pattern match (assignment)
   defp is_pattern_match?({:=, _, _}), do: true
   defp is_pattern_match?(_), do: false
+
+  # Repo.one(query) => Repo.exists?(query)
+  # query |> Repo.one() => query |> Repo.exists?()
+  #
+  # Repo.one/1 returns whatever the query selects, which can be `false` or `nil` for a row that exists
+  # (e.g. `select: u.is_admin`), in which case Repo.exists?/1 would return `true` instead. So we only
+  # rewrite when we can see that the query returns whole schema structs, which are always truthy.
+  defp repo_one_to_exists({{:., dm, [{:__aliases__, _, modules} = repo, :one]}, meta, [query | _] = args} = node) do
+    if List.last(modules) == :Repo and selects_schema_structs?(query) do
+      {{:., dm, [repo, :exists?]}, meta, args}
+    else
+      node
+    end
+  end
+
+  defp repo_one_to_exists({:|>, pm, [query, {{:., dm, [{:__aliases__, _, modules} = repo, :one]}, meta, args}]} = node) do
+    if List.last(modules) == :Repo and selects_schema_structs?(query) do
+      {:|>, pm, [query, {{:., dm, [repo, :exists?]}, meta, args}]}
+    else
+      node
+    end
+  end
+
+  defp repo_one_to_exists(node), do: node
+
+  # Ecto.Query macros that don't change what a query selects
+  @select_preserving_query_macros ~w(where or_where join order_by limit offset preload distinct first last)a
+
+  # True when the query is a schema module (`User`), or is built from one with `from` and the macros above,
+  # with no `select` or `select_merge`. Variables and other function calls may hide a `select`, so we can't
+  # know what they return.
+  defp selects_schema_structs?({:__aliases__, _, _}), do: true
+
+  defp selects_schema_structs?({:|>, _, [query, {macro, m, args}]}) when is_list(args) do
+    selects_schema_structs?({macro, m, [query | args]})
+  end
+
+  defp selects_schema_structs?({{:., _, [{:__aliases__, _, [:Ecto, :Query]}, macro]}, m, args}) do
+    selects_schema_structs?({macro, m, args})
+  end
+
+  defp selects_schema_structs?({:from, _, [source | opts]}) do
+    source = with {:in, _, [_binding, schema]} <- source, do: schema
+    selects_schema_structs?(source) and Enum.all?(opts, &keyword_without_select?/1)
+  end
+
+  defp selects_schema_structs?({macro, _, [query | _]}) when macro in @select_preserving_query_macros do
+    selects_schema_structs?(query)
+  end
+
+  defp selects_schema_structs?(_), do: false
+
+  defp keyword_without_select?({:__block__, _, [opts]}), do: keyword_without_select?(opts)
+
+  defp keyword_without_select?(opts) when is_list(opts) do
+    not Enum.any?(opts, &match?({{:__block__, _, [key]}, _} when key in [:select, :select_merge], &1))
+  end
+
+  defp keyword_without_select?(_), do: false
 
   # True when the reducer function just sums its two arguments (in either order).
   # Matches `fn a, b -> a + b end`, `fn a, b -> b + a end`, `&(&1 + &2)`, `&(&2 + &1)`,

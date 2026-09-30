@@ -20,7 +20,7 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ### Fixes
 
-- Do not rewrite direct `assert` or `refute` calls from `Repo.one(query)` to `Repo.exists?(query)` when the query is held in a variable, because it may select `false` or `nil` and change the test result.
+- Only rewrite `Repo.one(query)` to `Repo.exists?(query)` (in `assert`, `refute`, `if`, and `unless`, piped or not) when the query is visibly built from a schema, like `User`, `from(u in User, where: ...)`, or `User |> where(...)`, with no `select` or `select_merge`. Queries held in variables, returned from other functions, or with an explicit `select` may return `false` or `nil` for a row that exists, where `Repo.exists?` would return `true`.
 
 ## [2.13.1] - 2026-05-19
 
