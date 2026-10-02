@@ -1452,6 +1452,20 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("Enum.reduce(actions, state, & &1.run(&2))")
       assert_style("Enum.reduce(actions, state, & &1.run(&1, &2))")
     end
+
+    test "does not rewrite captures of special forms" do
+      assert_style("Enum.map(xs, &<<&1>>)")
+      assert_style("Enum.map(xs, &{&1})")
+      assert_style("Enum.map(xs, &<<&1::utf8>>)")
+      assert_style("Enum.map(xs, &{&1, &2})")
+      assert_style("Enum.map(xs, &[&1])")
+      assert_style("Enum.map(xs, &%{a: &1})")
+    end
+
+    test "still rewrites captures of Kernel macros and operators" do
+      assert_style("Enum.map(xs, &to_string(&1))", "Enum.map(xs, &to_string/1)")
+      assert_style("Enum.map(xs, &is_nil(&1))", "Enum.map(xs, &is_nil/1)")
+    end
   end
 
   describe "Enum.reduce summing => Enum.sum" do
