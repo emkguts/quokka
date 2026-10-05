@@ -57,13 +57,25 @@ foo
 |> ...
 ```
 
-Only the very first step is folded in this way; a `Kernel` operator later in the chain is left alone.
+Normally, only the very first step is folded in this way; a `Kernel` operator later in a longer chain is left alone.
 
 ```elixir
 # Left as-is:
 a
 |> b()
 |> Kernel.++(c)
+|> d()
+```
+
+There is one exception: if a chain has exactly two pipe operators and ends in a binary `Kernel` operator, Quokka first unpipes the function call and then folds the operator. This rewrite does not depend on a Credo check, though explicit `piped_functions` exclusions still apply.
+
+```elixir
+list
+|> Enum.sum_by(& &1.amount)
+|> Kernel./(@divisor)
+
+# Styled:
+Enum.sum_by(list, & &1.amount) / @divisor
 ```
 
 ### Add parenthesis to function calls in pipes

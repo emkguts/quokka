@@ -37,16 +37,20 @@ defmodule Quokka.Style.Pipes do
   # most of these values were lifted directly from credo's pipe_chain_start.ex
   @literal ~w(__block__ __aliases__ unquote)a
   @value_constructors ~w(% %{} .. ..// <<>> @ {} ^ & fn from)a
-  @kernel_ops ~w(++ -- && || in - * + / > < <= >= == and or != !== === <> ! not)a
+  @kernel_infix_ops ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>)a
+  @kernel_ops @kernel_infix_ops ++ ~w(! not)a
   @special_ops ~w(||| &&& <<< >>> <<~ ~>> <~ ~> <~>)a
   @special_ops @literal ++ @value_constructors ++ @kernel_ops ++ @special_ops
 
   def run({{:|>, _, _}, _} = zipper, ctx) do
     case fix_pipe_start(zipper) do
       {{:|>, _, _}, _} = zipper ->
-        case Zipper.traverse(zipper, fn {node, meta} ->
-               {node |> fix_pipe() |> maybe_break_one_pipe_per_line(), meta}
-             end) do
+        zipper =
+          Zipper.traverse(zipper, fn {node, meta} ->
+            {node |> fix_pipe() |> maybe_break_one_pipe_per_line(), meta}
+          end)
+
+        case maybe_fold_two_step_infix(zipper) do
           {{:|>, _, [{:|>, _, _}, _]}, _} = chain_zipper ->
             {:cont, find_pipe_start(chain_zipper), ctx}
 
@@ -56,13 +60,7 @@ defmodule Quokka.Style.Pipes do
 
           # unpipe a single pipe zipper
           {{:|>, _, [{lhs_fun, _, _} = lhs, {fun, _, _} = rhs]}, _} = single_pipe_zipper ->
-            exclusions = Quokka.Config.piped_function_exclusions()
-
-            if Quokka.Config.single_pipe_flag?() and
-                 lhs_fun not in exclusions and
-                 alias_function_usage_to_existing_atom(lhs_fun) not in exclusions and
-                 fun not in exclusions and
-                 alias_function_usage_to_existing_atom(fun) not in exclusions do
+            if single_pipe_rewritable?(lhs_fun, fun) do
               {fun, rhs_meta, args} = rhs
               {_, lhs_meta, _} = lhs
               lhs_line = lhs_meta[:line]
@@ -231,6 +229,45 @@ defmodule Quokka.Style.Pipes do
   end
 
   defp alias_function_usage_to_existing_atom(_), do: nil
+
+  defp maybe_fold_two_step_infix(
+         {{:|>, _,
+           [
+             {:|>, _, [{lhs_fun, lhs_meta, _} = lhs, {fun, fun_meta, args}]},
+             {{:., _, [{_, _, [:Kernel]}, op]}, _, [rhs]}
+           ]}, _} = zipper
+       )
+       when op in @kernel_infix_ops and lhs_fun != :|> do
+    if terminal_pipe_chain?(zipper) and piped_functions_rewritable?(lhs_fun, fun) do
+      function_call = {fun, fun_meta, [lhs | args || []]}
+      line = lhs_meta[:line]
+      Zipper.replace(zipper, Style.set_line({op, [line: line], [function_call, rhs]}, line))
+    else
+      zipper
+    end
+  end
+
+  defp maybe_fold_two_step_infix(zipper), do: zipper
+
+  defp terminal_pipe_chain?({pipe, _} = zipper) do
+    case Zipper.up(zipper) do
+      {{:|>, _, [^pipe, _]}, _} -> false
+      _ -> true
+    end
+  end
+
+  defp single_pipe_rewritable?(lhs_fun, fun) do
+    Quokka.Config.single_pipe_flag?() and piped_functions_rewritable?(lhs_fun, fun)
+  end
+
+  defp piped_functions_rewritable?(lhs_fun, fun) do
+    exclusions = Quokka.Config.piped_function_exclusions()
+
+    lhs_fun not in exclusions and
+      alias_function_usage_to_existing_atom(lhs_fun) not in exclusions and
+      fun not in exclusions and
+      alias_function_usage_to_existing_atom(fun) not in exclusions
+  end
 
   defp fix_pipe_start({pipe, zmeta} = zipper) do
     {{:|>, pipe_meta, [lhs, rhs]}, _} = start_zipper = find_pipe_start({pipe, nil})

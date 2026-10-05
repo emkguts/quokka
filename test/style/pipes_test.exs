@@ -1032,7 +1032,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "reverse/Kernel.++" do
-      assert_style("a |> Enum.reverse(bar) |> Kernel.++(foo)")
+      assert_style("a |> Enum.reverse(bar) |> Kernel.++(foo)", "Enum.reverse(a, bar) ++ foo")
       assert_style("a |> Enum.reverse() |> Kernel.++(foo)", "Enum.reverse(a, foo)")
 
       assert_style(
@@ -1126,12 +1126,44 @@ defmodule Quokka.Style.PipesTest do
       assert_style("a |> Kernel.+() |> c()", "+a |> c()")
     end
 
-    test "only folds a Kernel op when it's the first function in the pipe" do
+    test "only folds a later Kernel op at the end of an exact two-step pipe" do
       stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
 
-      # later in the chain, the lhs is itself a pipe, so folding would change semantics
-      assert_style("a |> b() |> Kernel.++(c)")
+      assert_style("a |> b() |> Kernel.++(c)", "b(a) ++ c")
       assert_style("a |> b() |> Kernel.++(c) |> d()")
+    end
+
+    test "folds a two-step pipe ending in a Kernel infix operator" do
+      assert_style(
+        "list |> Enum.sum_by(& &1.amount) |> Kernel./(@divisor)",
+        "Enum.sum_by(list, & &1.amount) / @divisor"
+      )
+
+      assert_style(
+        "list |> Enum.map(fn x -> x / 100 end) |> Kernel.*(1.6)",
+        "Enum.map(list, fn x -> x / 100 end) * 1.6"
+      )
+
+      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+        assert_style("a |> b() |> Kernel.#{op}(c)", "b(a) #{op} c")
+      end
+    end
+
+    test "only folds an infix operator at the end of an exact two-step pipe" do
+      assert_style("a |> b() |> Kernel.++(c) |> d()")
+      assert_style("a |> b() |> c() |> Kernel.++(d)")
+      assert_style("a |> b() |> Kernel.-()")
+      assert_style("a |> b() |> Kernel.!()")
+    end
+
+    test "two-step infix folding does not depend on SinglePipe" do
+      stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
+      assert_style("a |> b() |> Kernel.++(c)", "b(a) ++ c")
+    end
+
+    test "two-step infix folding respects piped function exclusions" do
+      stub(Quokka.Config, :piped_function_exclusions, fn -> [:b] end)
+      assert_style("a |> b() |> Kernel.++(c)")
     end
 
     test "folded single pipe gets unpiped when single pipe rewriting is enabled" do

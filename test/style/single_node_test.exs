@@ -69,10 +69,12 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style "Kernel.*(Kernel.-(a, b), c)", "(a - b) * c"
     end
 
-    test "leaves a piped Kernel operator alone (the Pipes style owns those)" do
-      # later in a chain the operand count differs and folding would change semantics
-      assert_style "a |> b() |> Kernel.++(c)"
-      assert_style "a |> b() |> Kernel.-(c)"
+    test "lets the Pipes style own piped Kernel operators" do
+      assert_style "a |> b() |> Kernel.++(c)", "b(a) ++ c"
+      assert_style "a |> b() |> Kernel.-(c)", "b(a) - c"
+
+      # A non-terminal operator in a longer chain is still left alone.
+      assert_style "a |> b() |> Kernel.++(c) |> d()"
     end
   end
 
