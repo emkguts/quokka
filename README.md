@@ -105,6 +105,8 @@ in `.formatter.exs` to fine tune your setup:
       | piped_functions: [:subquery, :"Repo.update", ...]
       # Don't rewrite `case foo |> bar() |> baz() do` into `foo |> bar() |> baz() |> case do`
       | :pipe_into_case
+      # Don't rewrite `~w(foo bar)a` into `[:foo, :bar]`
+      | :sigils
     ],
     requires: [
       # Files matched by the `:requires` list will be compiled for use in the plugin system
@@ -126,12 +128,13 @@ in `.formatter.exs` to fine tune your setup:
 | `exclude: [:autosort]` | Disables config-driven autosort (`# quokka:sort` still runs) | | |
 | `:files` | Quokka gets files from `.formatter.exs[:inputs]`. However, in some cases you may need to selectively exclude/include files you wish to still run in `mix format`, but have different behavior with Quokka. | `%{included: [], excluded: []}` (all files included, none excluded) | `%{included: [], excluded: []}` |
 | `:only` | Only include the given modules. `# quokka:sort` always runs. The special `:line_length` option excludes all other changes except line length fixups. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests]` | `[]` (all modules included) |
-| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case`). `# quokka:sort` cannot be disabled. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case]` | `[]` (all rewrites included) |
+| `:exclude` | Rewrites to exclude. This filters from the `:only` list, and includes additional exclusion options (`:nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case, :sigils`). `# quokka:sort` cannot be disabled. | `[:autosort, :blocks, :configs, :defs, :deprecations, :line_length, :module_directives, :pipes, :single_node, :tests, :nums_with_underscores, :autosort_ecto, :inefficient_functions, :piped_functions, :pipe_into_case, :sigils]` | `[]` (all rewrites included) |
 | `exclude: [:inefficient_functions]` | Excludes rewriting inefficient functions to more efficient form |  |  |
 | `exclude: [piped_functions: []]` | Allows you to specify certain functions that won't be rewritten into a pipe. Particularly good for things like Ecto's `subquery` macro. | `[:subquery, :"Repo.update", ...]` | `[]` |
 | `exclude: [:autosort_ecto]` | Skips autosorting within ecto queries. Particularly useful if you use union. | | |
 | `exclude: [:nums_with_underscores]` | Doesn't re-underscore numbers that already have it. Particularly useful if you have numbers like 100_00 in your codebase. | | |
 | `exclude: [:pipe_into_case]` | Disables rewriting `case foo \|> bar() do` into `foo \|> bar() \|> case do`. | | |
+| `exclude: [:sigils]` | Disables rewriting `~w` word-list sigils into literal lists (e.g., `~w(foo bar)a` into `[:foo, :bar]`). | | |
 
 ## Credo inspired rewrites
 
@@ -214,6 +217,7 @@ Beyond Credo-inspired checks, Quokka provides additional style improvements:
 |---------|-------------|---------------|
 | Test Styling | Rewrites tests to be efficent and idiomatic | [Test Assertions](docs/tests.md) |
 | Unnecessary reduces | Rewrites eligible `Enum.reduce/3` calls to `Map.new/2` or appropriate function from `Enum` module. | [`Enum.reduce` rewrites](docs/styles.md#enumreduce-rewrites-to-purpose-built-functions) |
+| Word sigils to lists | Rewrites `~w` sigils to literal lists of strings or atoms. Disable with `exclude: [:sigils]`. | [Word Sigils to Lists](docs/styles.md#word-sigils-to-lists) |
 
 ## Custom rewrites
 

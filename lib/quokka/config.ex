@@ -122,39 +122,28 @@ defmodule Quokka.Config do
   end
 
   def get_styles() do
-    enabled_styles =
-      cond do
-        :line_length in only_styles() ->
-          MapSet.new()
+    only = only_styles()
+    exclude = exclude_styles()
 
-        only_styles() == [] ->
-          MapSet.new(Map.values(@styles_by_atom))
-
-        true ->
-          only_styles()
-          |> Enum.map(&@styles_by_atom[&1])
-          |> Enum.reject(&is_nil/1)
-          |> MapSet.new()
+    enabled_modules =
+      for {style, module} <- @styles_by_atom,
+          style_enabled?(style, only, exclude),
+          into: MapSet.new() do
+        module
       end
 
-    excluded_styles =
-      exclude_styles()
-      |> Enum.reject(&(&1 == :comment_directives))
-      |> Enum.map(&@styles_by_atom[&1])
-      |> Enum.reject(&is_nil/1)
-      |> MapSet.new()
-
-    builtin_styles =
-      Enum.filter(@style_pipeline, fn
-        CommentDirectives ->
-          true
-
-        style ->
-          MapSet.member?(enabled_styles, style) and not MapSet.member?(excluded_styles, style)
-      end)
+    builtin_styles = Enum.filter(@style_pipeline, &(&1 == CommentDirectives or MapSet.member?(enabled_modules, &1)))
 
     # Plugins run after built-in styles, in declaration order
     builtin_styles ++ (plugins() || [])
+  end
+
+  defp style_enabled?(style, only, exclude) do
+    cond do
+      :line_length in only -> false
+      only != [] and style not in only -> false
+      true -> style not in exclude
+    end
   end
 
   def pipe_chain_start_excluded_functions() do
@@ -206,7 +195,8 @@ defmodule Quokka.Config do
       pipe_into_case: :pipe_into_case not in exclude,
       piped_function_exclusions: piped_function_exclusions,
       plugin_opts: plugin_opts,
-      plugins: plugins
+      plugins: plugins,
+      sigils: :sigils not in exclude
     }
     |> Map.merge(credo_settings(credo, formatter_opts))
   end

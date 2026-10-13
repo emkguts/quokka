@@ -141,6 +141,58 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
+  # `~w(foo bar)a` => `[:foo, :bar]`, `~w(foo bar)` => `["foo", "bar"]`
+  #
+  # Leaves alone sigils with interpolation or escape sequences (`~w(foo\sbar)` is two words), and `c` modifiers.
+  # (The parser has already unescaped escaped delimiters like `~w(foo\)bar)`, so those are fine.)
+  # A sorted multi-line sigil (`# quokka:sort`) has several binary parts, hence joining them.
+  defp style({:sigil_w, meta, [{:<<>>, _, parts}, modifiers]} = node) do
+    with true <- Quokka.Config.sigils?(),
+         true <- modifiers in [[], ~c"s", ~c"a"],
+         true <- Enum.all?(parts, &is_binary/1),
+         string = Enum.join(parts),
+         false <- String.contains?(string, "\\") do
+      heredoc? = meta[:delimiter] in [~s|"""|, ~s|'''|]
+
+      first_line =
+        if heredoc? do
+          meta[:line] + 1
+        else
+          meta[:line]
+        end
+
+      [first_text | rest] = lines = String.split(string, "\n")
+
+      words =
+        for {text, line} <- Enum.with_index(lines, first_line),
+            word <- String.split(text) do
+          case modifiers do
+            ~c"a" -> {:__block__, [line: line], [String.to_atom(word)]}
+            _string_modifiers -> {:__block__, [delimiter: ~s|"|, line: line], [word]}
+          end
+        end
+
+      opens_with_newline? = heredoc? or (rest != [] and String.trim(first_text) == "")
+
+      if opens_with_newline? do
+        [{:newlines, 1} | base_list_meta]
+      else
+        base_list_meta
+      end
+
+      list_meta =
+        if opens_with_newline? do
+          [{:newlines, 1} | base_list_meta]
+        else
+          base_list_meta
+        end
+
+      {:__block__, list_meta, [words]}
+    else
+      _ -> node
+    end
+  end
+
   # Add / Correct `_` location in large numbers. Formatter handles large number (>5 digits) rewrites,
   # but doesn't rewrite typos like `100_000_0`, so it's worthwhile to have Quokka do this
   #

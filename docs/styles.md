@@ -19,6 +19,42 @@ The delimiter will be one of `" ( { | [ ' < /`, chosen by which would require th
 ~s({"errors":["Not Authorized"]})
 ```
 
+## `~w` (Word List Sigils) to Lists
+
+Rewrites `~w` word-list sigils to literal lists of strings (default) or atoms (when given the `a` modifier, like `~w(foo bar baz)a`).
+
+By making these explicit, it becomes easier to search the codebase for uses of these values. For instance, if a teammate wants to know where the atom `:developer` is used, they'll probably search for the string `:developer`, which would miss `~w(developer)a`. Similarly, if you want to know where the string `"developer"` originates from, it's natural to start by searching for the quoted value, which `~w(developer)` would obscure. This becomes more important the more common the term is—for instance, your codebase might have thousands of uses of the word `user`, but only a few uses of the explicitly-atom version `:user`.
+
+Disable this with `exclude: [:sigils]`.
+
+```elixir
+# Before
+@roles ~w(developer qa_engineer pm em designer)a
+@person_keys ~w(name github slack_id)
+
+# Styled
+@roles [:developer, :qa_engineer, :pm, :em, :designer]
+@person_keys ["name", "github", "slack_id"]
+```
+
+A sigil that starts with a newline (including heredocs) stays multi-line:
+
+```elixir
+# Before
+@keys ~w(
+  name
+  github
+)a
+
+# Styled
+@keys [
+  :name,
+  :github
+]
+```
+
+Sigils with interpolation (`~w(foo #{bar})`) or escape sequences (`~w(foo\sbar)`) are left alone, as are `~W` sigils and charlist (`c`) sigils.
+
 ## Large Base 10 Numbers
 
 This addresses [`Credo.Check.Readability.LargeNumbers`](https://hexdocs.pm/credo/Credo.Check.Readability.LargeNumbers.html). Quokka will respect the `:only_greater_than` Credo opt.
