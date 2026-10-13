@@ -36,9 +36,32 @@ defmodule Quokka.Style.SingleNode do
 
   # Kernel infix/unary operators, mirroring `Quokka.Style.Pipes`. `!` and `not` are unary-only;
   # everything else is a binary operator, with `-` and `+` doubling as unary operators.
-  @kernel_ops ~w(++ -- && || in - * + / > < <= >= == and or != !== === <> ! not)a
-  @kernel_unary_ops ~w(- + ! not)a
-  @kernel_binary_ops @kernel_ops -- ~w(! not)a
+  @kernel_ops [
+    :++,
+    :--,
+    :&&,
+    :||,
+    :in,
+    :-,
+    :*,
+    :+,
+    :/,
+    :>,
+    :<,
+    :<=,
+    :>=,
+    :==,
+    :and,
+    :or,
+    :!=,
+    :!==,
+    :===,
+    :<>,
+    :!,
+    :not
+  ]
+  @kernel_unary_ops [:-, :+, :!, :not]
+  @kernel_binary_ops @kernel_ops -- [:!, :not]
 
   # `|> Timex.now()` => `|> Timex.now()`
   # skip over pipes into `Timex.now/1` so that we don't accidentally rewrite it as DateTime.utc_now/1
@@ -172,13 +195,8 @@ defmodule Quokka.Style.SingleNode do
           end
         end
 
+      base_list_meta = [closing: [line: first_line + length(lines) - 1], line: meta[:line]]
       opens_with_newline? = heredoc? or (rest != [] and String.trim(first_text) == "")
-
-      if opens_with_newline? do
-        [{:newlines, 1} | base_list_meta]
-      else
-        base_list_meta
-      end
 
       list_meta =
         if opens_with_newline? do
@@ -329,7 +347,7 @@ defmodule Quokka.Style.SingleNode do
   defp style(
          {:==, _, [{{:., dm, [{:__aliases__, am, [mod]}, :compare]}, funm, args}, {:__block__, _, [result]}]} = node
        )
-       when mod in ~w[DateTime NaiveDateTime Time Date]a and result in [:lt, :gt] do
+       when mod in [:DateTime, :NaiveDateTime, :Time, :Date] and result in [:lt, :gt] do
     if Quokka.Config.inefficient_function_rewrites?() do
       fun = if result == :lt, do: :before?, else: :after?
       {{:., dm, [{:__aliases__, am, [mod]}, fun]}, funm, args}
@@ -384,24 +402,24 @@ defmodule Quokka.Style.SingleNode do
   end
 
   # `Credo.Check.Readability.PreferImplicitTry`
-  defp style({def, dm, [head, [{_, {:try, _, [try_children]}}]]}) when def in ~w(def defp)a,
+  defp style({def, dm, [head, [{_, {:try, _, [try_children]}}]]}) when def in [:def, :defp],
     do: style({def, dm, [head, try_children]})
 
   # Remove parens from 0 arity funs (Credo.Check.Readability.ParenthesesOnZeroArityDefs)
-  defp style({def, dm, [{fun, funm, []} | rest]} = node) when def in ~w(def defp)a and is_atom(fun) do
+  defp style({def, dm, [{fun, funm, []} | rest]} = node) when def in [:def, :defp] and is_atom(fun) do
     if Quokka.Config.zero_arity_parens?() == false,
       do: style({def, dm, [{fun, Keyword.delete(funm, :closing), nil} | rest]}),
       else: node
   end
 
   # Add parens to 0 arity funs (Credo.Check.Readability.ParenthesesOnZeroArityDefs)
-  defp style({def, dm, [{fun, funm, nil} | rest]} = node) when def in ~w(def defp)a and is_atom(fun) do
+  defp style({def, dm, [{fun, funm, nil} | rest]} = node) when def in [:def, :defp] and is_atom(fun) do
     if Quokka.Config.zero_arity_parens?() == true,
       do: {def, dm, [{fun, Keyword.put(funm, :closing, line: funm[:line]), []} | rest]},
       else: node
   end
 
-  defp style({def, dm, [{fun, funm, params} | rest]}) when def in ~w(def defp)a,
+  defp style({def, dm, [{fun, funm, params} | rest]}) when def in [:def, :defp],
     do: {def, dm, [{fun, funm, put_matches_on_right(params)} | rest]}
 
   # `Enum.reverse(foo) ++ bar` => `Enum.reverse(foo, bar)`
@@ -595,7 +613,7 @@ defmodule Quokka.Style.SingleNode do
   defp style({:fn, m, arrows}), do: {:fn, m, rewrite_arrows(arrows)}
 
   defp style({:to_timeout, meta, [[{{:__block__, um, [unit]}, {:*, _, [left, right]}}]]} = node)
-       when unit in ~w(day hour minute second millisecond)a do
+       when unit in [:day, :hour, :minute, :second, :millisecond] do
     [l, r] =
       Enum.map([left, right], fn
         {_, _, [x]} -> x
@@ -1010,7 +1028,7 @@ defmodule Quokka.Style.SingleNode do
 
   defp replace_into({:., dm, [{_, am, _} = enum, _]}, collectable, rest) do
     case Quokka.Config.inefficient_function_rewrites?() and collectable do
-      {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in ~w(Map Keyword MapSet)a ->
+      {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in [:Map, :Keyword, :MapSet] ->
         {:., dm, [{:__aliases__, am, [mod]}, :new]}
 
       {:%{}, _, []} ->

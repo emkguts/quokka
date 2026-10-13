@@ -186,7 +186,7 @@ defmodule Quokka.Style.Autosort do
     {pair, placed_comments, last_line + 1}
   end
 
-  defp do_sort({parent, meta, [list]} = node, comments) when parent in ~w(defstruct __block__)a and is_list(list) do
+  defp do_sort({parent, meta, [list]} = node, comments) when parent in [:defstruct, :__block__] and is_list(list) do
     line = meta[:line]
 
     {list, comments} =

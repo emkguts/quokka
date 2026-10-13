@@ -46,7 +46,28 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "every binary Kernel operator" do
-      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+      for op <- [
+            "++",
+            "--",
+            "&&",
+            "||",
+            "in",
+            "-",
+            "*",
+            "+",
+            "/",
+            ">",
+            "<",
+            "<=",
+            ">=",
+            "==",
+            "and",
+            "or",
+            "!=",
+            "!==",
+            "===",
+            "<>"
+          ] do
         assert_style "Kernel.#{op}(a, b)", "a #{op} b"
       end
     end
@@ -78,7 +99,7 @@ defmodule Quokka.Style.SingleNodeTest do
 
   describe "{Keyword/Map}.merge/2 of a single key => *.put/3" do
     test "in a pipe" do
-      for module <- ~w(Map Keyword) do
+      for module <- ["Map", "Keyword"] do
         assert_style(
           "foo |> #{module}.merge(%{one_key: :bar}) |> bop()",
           "foo |> #{module}.put(:one_key, :bar) |> bop()"
@@ -87,7 +108,7 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "normal call" do
-      for module <- ~w(Map Keyword) do
+      for module <- ["Map", "Keyword"] do
         assert_style(
           "#{module}.merge(foo, %{one_key: :bar})",
           "#{module}.put(foo, :one_key, :bar)"
@@ -103,8 +124,8 @@ defmodule Quokka.Style.SingleNodeTest do
   end
 
   test "{Map/Keyword}.drop with a single key" do
-    for module <- ~w(Map Keyword) do
-      for singular <- ~w(:key key %{} [] 1 "key") do
+    for module <- ["Map", "Keyword"] do
+      for singular <- [":key", "key", "%{}", "[]", "1", "\"key\""] do
         assert_style("#{module}.drop(foo, [#{singular}])", "#{module}.delete(foo, #{singular})")
 
         assert_style(
@@ -567,7 +588,7 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "prefers implicit try" do
-      for def_style <- ~w(def defp) do
+      for def_style <- ["def", "defp"] do
         assert_style(
           """
           #{def_style} foo() do
@@ -1604,7 +1625,7 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "rewrites nested map and aggregate calls" do
       for {aggregate, aggregate_by} <- [sum: :sum_by, product: :product_by],
-          mapper_module <- ~w(Enum Stream) do
+          mapper_module <- ["Enum", "Stream"] do
         assert_style(
           "Enum.#{aggregate}(#{mapper_module}.map(groups, fn g -> length(g.rows) end))",
           "Enum.#{aggregate_by}(groups, fn g -> length(g.rows) end)"
