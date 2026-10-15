@@ -815,7 +815,18 @@ defmodule Quokka.Style.SingleNode do
   defp repo_one_to_exists(node), do: node
 
   # Ecto.Query macros that don't change what a query selects
-  @select_preserving_query_macros ~w(where or_where join order_by limit offset preload distinct first last)a
+  @select_preserving_query_macros [
+    :where,
+    :or_where,
+    :join,
+    :order_by,
+    :limit,
+    :offset,
+    :preload,
+    :distinct,
+    :first,
+    :last
+  ]
 
   # True when the query is a schema module (`User`), or is built from one with `from` and the macros above,
   # with no `select` or `select_merge`. Variables and other function calls may hide a `select`, so we can't
