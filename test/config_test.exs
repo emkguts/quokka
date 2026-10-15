@@ -85,6 +85,14 @@ defmodule Quokka.ConfigTest do
   end
 
   describe ":sigils" do
+    test "boolean accessor reflects whether sigils are excluded" do
+      assert :ok = set!([])
+      assert Quokka.Config.sigils?()
+
+      assert :ok = set!(quokka: [exclude: [:sigils]])
+      refute Quokka.Config.sigils?()
+    end
+
     test "only: [:single_node] rewrites sigils along with the other single-node rewrites" do
       assert :ok = set!(quokka: [only: [:single_node]])
       assert [CommentDirectives, SingleNode] == Quokka.Config.get_styles()
