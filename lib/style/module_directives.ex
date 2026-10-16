@@ -223,20 +223,22 @@ defmodule Quokka.Style.ModuleDirectives do
     nondirectives: [],
     dealiases: %{},
     attrs: MapSet.new(),
-    attr_lifts: []
+    attr_lifts: [],
+    in_quote?: false
   }
 
   defp lift_module_attrs({node, _, _} = ast, %{attrs: attrs} = acc) do
     if Enum.empty?(attrs) do
       {ast, acc}
     else
-      use? = node == :use
+      # `use` receives its args as AST, and inside a quote nothing sees the lifted variable, so both need unquoting
+      unquote? = node == :use or acc.in_quote?
 
       Macro.prewalk(ast, acc, fn
         {:@, m, [{attr, _, _} = var]} = ast, acc ->
           if attr in attrs do
             replacement =
-              if use?,
+              if unquote?,
                 do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]},
                 else: var
 
@@ -451,7 +453,7 @@ defmodule Quokka.Style.ModuleDirectives do
     acc =
       parent
       |> Zipper.children()
-      |> Enum.reduce(@acc, fn
+      |> Enum.reduce(%{@acc | in_quote?: in_quote?(parent)}, fn
         {:@, _, [{attr_directive, _, _}]} = ast, acc when attr_directive in @attr_directives ->
           # attr_directives might get hoisted above aliases, so need to dealias depending on the layout order
           if Enum.member?(before, attr_directive) do
@@ -517,6 +519,9 @@ defmodule Quokka.Style.ModuleDirectives do
         {:dealiases, d} ->
           {:dealiases, d}
 
+        {:in_quote?, in_quote?} ->
+          {:in_quote?, in_quote?}
+
         {k, v} ->
           {k, Enum.reverse(v)}
       end)
@@ -527,11 +532,15 @@ defmodule Quokka.Style.ModuleDirectives do
     {acc, parent} =
       if Enum.any?(acc.attr_lifts) do
         lifts = acc.attr_lifts
+        # the variable is assigned outside the quote, so references inside it must be unquoted
+        in_quote? = acc.in_quote?
 
         nondirectives =
           Enum.map(acc.nondirectives, fn
             {:@, m, [{attr, am, _}]} = ast ->
-              if attr in lifts, do: {:@, m, [{attr, am, [{attr, am, nil}]}]}, else: ast
+              var = {attr, am, nil}
+              value = if in_quote?, do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]}, else: var
+              if attr in lifts, do: {:@, m, [{attr, am, [value]}]}, else: ast
 
             ast ->
               ast
@@ -540,6 +549,8 @@ defmodule Quokka.Style.ModuleDirectives do
         assignments =
           Enum.flat_map(acc.nondirectives, fn
             {:@, m, [{attr, am, [val]}]} ->
+              # a value lifted out of a quote is evaluated directly, so it must not keep its `unquote`s
+              val = if in_quote?, do: Macro.prewalk(val, &unwrap_unquote/1), else: val
               if attr in lifts, do: [{:=, m, [{attr, am, nil}, val]}], else: []
 
             _ ->
@@ -578,6 +589,20 @@ defmodule Quokka.Style.ModuleDirectives do
       |> Zipper.down()
       |> Zipper.rightmost()
       |> Zipper.insert_siblings(nondirectives)
+    end
+  end
+
+  defp unwrap_unquote({:unquote, _, [inner]}), do: inner
+  defp unwrap_unquote(ast), do: ast
+
+  # `parent` is a `do` block; its ancestors are the `do:` keyword pair, the keyword list, then the call
+  defp in_quote?(parent) do
+    with {_, _} = pair <- Zipper.up(parent),
+         {_, _} = keywords <- Zipper.up(pair),
+         {{:quote, _, _}, _} <- Zipper.up(keywords) do
+      true
+    else
+      _ -> false
     end
   end
 

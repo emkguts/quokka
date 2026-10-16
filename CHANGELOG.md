@@ -15,6 +15,7 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ### Fixes
 
+- Module attribute lifting inside `quote` no longer produces code that doesn't compile. Every reference to the lifted variable inside the `quote` is now wrapped in `unquote`, including the reassigned attribute (`@foo unquote(foo)`) and other attributes like `@moduledoc`. Any `unquote` in the lifted value is removed, because the value now runs outside the `quote`.
 - Read Credo checks added via the `extra` section of `.credo.exs` when there's no `enabled` section. Fixes [#200](https://github.com/emkguts/quokka/issues/200).
 - Stop rewriting `with true <- x, do: body` to `if x, do: body`. That rewrite changed semantics: `with` returns the unmatched value (`false`, `:foo`, etc.) while `if` treats the head as truthy/falsey. Fixes [#187](https://github.com/emkguts/quokka/issues/187).
 

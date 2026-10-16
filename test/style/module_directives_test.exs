@@ -1176,10 +1176,64 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         library_options = [...]
 
         quote do
-          @moduledoc make_pretty_docs(library_options)
+          @moduledoc make_pretty_docs(unquote(library_options))
           use OptionsMagic, my_opts: unquote(library_options)
 
-          @library_options library_options
+          @library_options unquote(library_options)
+        end
+        """
+      )
+    end
+
+    test "unquotes the lifted variable when reassigning the attribute inside `quote`" do
+      assert_style(
+        """
+        defmacro __using__(_opts) do
+          quote do
+            @max_attempts 1
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+
+            def max_attempts(_job), do: @max_attempts
+          end
+        end
+        """,
+        """
+        defmacro __using__(_opts) do
+          max_attempts = 1
+
+          quote do
+            use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
+
+            @max_attempts unquote(max_attempts)
+
+            def max_attempts(_job), do: @max_attempts
+          end
+        end
+        """
+      )
+    end
+
+    test "removes `unquote` from a value lifted out of `quote`" do
+      assert_style(
+        """
+        defmacro __using__(opts) do
+          quote do
+            @max_attempts unquote(opts)[:max_attempts]
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+          end
+        end
+        """,
+        """
+        defmacro __using__(opts) do
+          max_attempts = opts[:max_attempts]
+
+          quote do
+            use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
+
+            @max_attempts unquote(max_attempts)
+          end
         end
         """
       )
