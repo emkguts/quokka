@@ -21,6 +21,7 @@ defmodule Quokka.Config.Credo do
   alias Credo.Check.Readability.SinglePipe
   alias Credo.Check.Readability.StrictModuleLayout
   alias Credo.Check.Refactor.CondStatements
+  alias Credo.Check.Refactor.FilterFilter
   alias Credo.Check.Refactor.NegatedConditionsWithElse
   alias Credo.Check.Refactor.PipeChainStart
   alias Credo.Check.Refactor.UtcNowTruncate
@@ -94,6 +95,10 @@ defmodule Quokka.Config.Credo do
 
   defp apply_check({CondStatements, false}, acc) do
     Map.put(acc, :cond_statements, false)
+  end
+
+  defp apply_check({FilterFilter, opts}, acc) when is_list(opts) do
+    Map.put(acc, :filter_filter, true)
   end
 
   defp apply_check({NegatedConditionsWithElse, false}, acc) do

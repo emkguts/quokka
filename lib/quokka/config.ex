@@ -85,7 +85,7 @@ defmodule Quokka.Config do
 
   @config_boolean_getters ~w(
     autosort_exclude_ecto block_pipe_flag cond_statements exclude_nums_with_underscores
-    inefficient_function_rewrites lift_alias negated_conditions_with_else one_pipe_per_line
+    filter_filter inefficient_function_rewrites lift_alias negated_conditions_with_else one_pipe_per_line
     pipe_into_case refactor_pipe_chain_starts rewrite_multi_alias single_pipe_flag utc_now_truncate
     zero_arity_parens
   )a
@@ -275,6 +275,7 @@ defmodule Quokka.Config do
       block_pipe_exclude: credo[:block_pipe_exclude] || [],
       block_pipe_flag: credo[:block_pipe_flag] || false,
       cond_statements: Map.get(credo, :cond_statements, true),
+      filter_filter: credo[:filter_filter] || false,
       large_numbers_gt: credo[:large_numbers_gt] || :infinity,
       line_length: min(credo[:line_length], formatter_opts[:line_length]) || 98,
       negated_conditions_with_else: Map.get(credo, :negated_conditions_with_else, true),

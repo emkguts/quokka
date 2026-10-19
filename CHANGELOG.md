@@ -12,6 +12,7 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 - Added rewrite for `Enum.reduce/3` when it can be replaced by a function from `Enum` module or `Map.new`
 - Support disabling Credo check via `:disabled` section of the configuration
 - Rewrite `Enum.map/2` or `Stream.map/2` followed by `Enum.sum/1` or `Enum.product/1` to `Enum.sum_by/2` or `Enum.product_by/2` on Elixir 1.18+; fuse a preceding `Map.values/1` into the aggregate function.
+- Add support for `Credo.Check.Refactor.FilterFilter`: consecutive `Enum.filter/2` (or `Stream.filter/2`) calls in a pipe are combined into a single filter. Two captures are joined with `&&` (e.g. `Enum.filter(&(&1.x > 0)) |> Enum.filter(&(&1.y < 0))` becomes `Enum.filter(&(&1.x > 0 && &1.y < 0))`); when an anonymous function is involved the predicates become an `if p1 do p2 else false end`. Enabled by adding the check to `.credo.exs`.
 
 ### Fixes
 
