@@ -433,6 +433,172 @@ defmodule Quokka.Style.SingleNodeTest do
     end
   end
 
+  describe "comparing counts against integer literals => Enum.count_until" do
+    test "length(enum) > n => Enum.count_until(enum, n + 1) > n" do
+      assert_style("length(foo) > 1", "Enum.count_until(foo, 2) > 1")
+      assert_style("1 < length(foo)", "1 < Enum.count_until(foo, 2)")
+      assert_style("if length(my_list) > 1, do: :ok", "if Enum.count_until(my_list, 2) > 1, do: :ok")
+    end
+
+    test "Enum.count(enum) > n => Enum.count_until(enum, n + 1) > n" do
+      assert_style("Enum.count(foo) > 1", "Enum.count_until(foo, 2) > 1")
+      assert_style("1 < Enum.count(foo)", "1 < Enum.count_until(foo, 2)")
+      assert_style("if Enum.count(my_enum) > 1, do: :ok", "if Enum.count_until(my_enum, 2) > 1, do: :ok")
+    end
+
+    test ">= n => Enum.count_until(enum, n) >= n" do
+      assert_style("length(foo) >= 3", "Enum.count_until(foo, 3) >= 3")
+      assert_style("3 <= length(foo)", "3 <= Enum.count_until(foo, 3)")
+      assert_style("Enum.count(foo) >= 3", "Enum.count_until(foo, 3) >= 3")
+      assert_style("3 <= Enum.count(foo)", "3 <= Enum.count_until(foo, 3)")
+    end
+
+    test "< n => Enum.count_until(enum, n) < n" do
+      assert_style("length(foo) < 3", "Enum.count_until(foo, 3) < 3")
+      assert_style("3 > length(foo)", "3 > Enum.count_until(foo, 3)")
+      assert_style("Enum.count(foo) < 3", "Enum.count_until(foo, 3) < 3")
+      assert_style("3 > Enum.count(foo)", "3 > Enum.count_until(foo, 3)")
+    end
+
+    test "<= n => Enum.count_until(enum, n + 1) <= n" do
+      assert_style("length(foo) <= 3", "Enum.count_until(foo, 4) <= 3")
+      assert_style("3 >= length(foo)", "3 >= Enum.count_until(foo, 4)")
+      assert_style("Enum.count(foo) <= 3", "Enum.count_until(foo, 4) <= 3")
+      assert_style("3 >= Enum.count(foo)", "3 >= Enum.count_until(foo, 4)")
+    end
+
+    test "Enum.count(enum, fun) => Enum.count_until(enum, fun, limit)" do
+      assert_style("Enum.count(foo, &my_fn/1) > 1", "Enum.count_until(foo, &my_fn/1, 2) > 1")
+      assert_style("2 <= Enum.count(foo, &my_fn/1)", "2 <= Enum.count_until(foo, &my_fn/1, 2)")
+
+      assert_style(
+        "Enum.count(foo, fn v -> length(v) > 1 end) < 5",
+        "Enum.count_until(foo, fn v -> Enum.count_until(v, 2) > 1 end, 5) < 5"
+      )
+    end
+
+    test "piped counts" do
+      assert_style("foo |> bar() |> length() > 1", "foo |> bar() |> Enum.count_until(2) > 1")
+      assert_style("1 < foo |> bar() |> length()", "1 < foo |> bar() |> Enum.count_until(2)")
+      assert_style("foo |> bar() |> Enum.count() >= 2", "foo |> bar() |> Enum.count_until(2) >= 2")
+      assert_style("foo |> bar() |> Enum.count(&my_fn/1) <= 2", "foo |> bar() |> Enum.count_until(&my_fn/1, 3) <= 2")
+    end
+
+    test "large limits get underscored like any other number" do
+      assert_style("length(foo) > 99_999", "Enum.count_until(foo, 100_000) > 99_999")
+    end
+
+    test "rewrites equality comparisons" do
+      assert_style("length(foo) == 2", "Enum.count_until(foo, 3) == 2")
+      assert_style("Enum.count(foo) != 2", "Enum.count_until(foo, 3) != 2")
+      assert_style("2 == length(foo)", "2 == Enum.count_until(foo, 3)")
+      assert_style("foo |> bar() |> length() != 2", "foo |> bar() |> Enum.count_until(3) != 2")
+    end
+
+    test "rewrites strict equality comparisons" do
+      assert_style("length(foo) === 2", "Enum.count_until(foo, 3) === 2")
+      assert_style("Enum.count(foo, &my_fn/1) !== 2", "Enum.count_until(foo, &my_fn/1, 3) !== 2")
+      assert_style("2 === Enum.count(foo)", "2 === Enum.count_until(foo, 3)")
+      assert_style("2 !== length(foo)", "2 !== Enum.count_until(foo, 3)")
+    end
+
+    test "leaves comparisons alone that can't be safely bounded" do
+      # Non-literal comparands might be nil or non-positive at runtime, which Enum.count_until/2 rejects.
+      # We only rewrite when the limit can be computed statically.
+      assert_style("length(foo) > n")
+      assert_style("n < length(foo)")
+      assert_style("length(foo) >= n")
+      assert_style("n >= Enum.count(foo)")
+      assert_style("foo |> bar() |> length() > n")
+      assert_style("Enum.count(foo, &my_fn/1) <= n")
+      assert_style("length(foo) > @max_items")
+      assert_style("length(foo) > opts[:max]")
+      assert_style("length(foo) > n + 1")
+      assert_style("length(foo) > nil")
+      assert_style("if length(my_list) > limit, do: :ok")
+      assert_style("Enum.count(foo) > bar()")
+      assert_style("length(foo) > length(bar)")
+      assert_style("length(foo) > -1")
+      assert_style("length(foo) > 1.5")
+
+      # Not Kernel.length/1 or Enum.count/1,2
+      assert_style("MyModule.length(foo) > 1")
+      assert_style("MyModule.Enum.count(foo) > 1")
+      assert_style("Enum.count_until(foo, 2) > 1")
+    end
+
+    test "leaves comparisons alone that will be rewritten by another rule" do
+      # Zero is the domain of the Enum.empty?/1 rewrites; count_until/2 requires a positive limit
+      assert_style("length(foo) >= 0")
+      assert_style("length(foo) <= 0")
+    end
+
+    test "does not rewrite inside guards" do
+      assert_style("""
+      def foo(list) when length(list) > 1 do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      defp foo(list) when is_list(list) and length(list) >= 2, do: :ok
+      """)
+
+      assert_style("""
+      defguard is_plural(list) when length(list) > 1
+      """)
+
+      assert_style("""
+      case list do
+        items when length(items) <= 5 -> :few
+        _ -> :many
+      end
+      """)
+
+      assert_style("""
+      with items when length(items) < 10 <- fetch() do
+        items
+      end
+      """)
+    end
+
+    test "rewrites function bodies under guards" do
+      assert_style(
+        """
+        def foo(list) when length(list) > 1 do
+          if length(list) > 2, do: :many, else: :two
+        end
+        """,
+        """
+        def foo(list) when length(list) > 1 do
+          if Enum.count_until(list, 3) > 2, do: :many, else: :two
+        end
+        """
+      )
+
+      assert_style(
+        """
+        case list do
+          items when length(items) > 1 -> length(items) >= 10
+          _ -> false
+        end
+        """,
+        """
+        case list do
+          items when length(items) > 1 -> Enum.count_until(items, 10) >= 10
+          _ -> false
+        end
+        """
+      )
+    end
+
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+      assert_style("length(foo) > 1")
+      assert_style("foo |> bar() |> Enum.count() >= 2")
+    end
+  end
+
   describe "Timex.now/0,1" do
     test "Timex.now/0 => DateTime.utc_now/0" do
       assert_style("Timex.now()", "DateTime.utc_now()")

@@ -214,6 +214,7 @@ Beyond Credo-inspired checks, Quokka provides additional style improvements:
 |---------|-------------|---------------|
 | Test Styling | Rewrites tests to be efficent and idiomatic | [Test Assertions](docs/tests.md) |
 | Unnecessary reduces | Rewrites eligible `Enum.reduce/3` calls to `Map.new/2` or appropriate function from `Enum` module. | [`Enum.reduce` rewrites](docs/styles.md#enumreduce-rewrites-to-purpose-built-functions) |
+| Bounded count checks | Rewrites `length(list) > 1` and similar to `Enum.count_until(list, 2) > 1` so only as many elements as needed are traversed. | [Bounded count checks](docs/styles.md#bounded-count-checks---enumcount_until) |
 
 ## Custom rewrites
 

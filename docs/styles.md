@@ -98,6 +98,38 @@ if foo |> MyModule.transform() |> Enum.count(enum) > 0, do: "not empty"
 if foo |> MyModule.transform() |> Enum.count(enum) > 0, do: "not empty"
 ```
 
+### Bounded count checks -> `Enum.count_until`
+
+Comparing `length/1` or `Enum.count/1,2` against an integer literal requires traversing the whole list, even though we only need to see enough elements to decide the comparison. Quokka rewrites these to use `Enum.count_until/{2,3}`, which stops counting once it hits the limit.
+
+```elixir
+# Given:
+if length(my_list) > 1, do: "plural"
+# Styled:
+if Enum.count_until(my_list, 2) > 1, do: "plural"
+
+# Given:
+if Enum.count(enum, &active?/1) >= 3, do: "enough"
+# Styled:
+if Enum.count_until(enum, &active?/1, 3) >= 3, do: "enough"
+
+# Given:
+if 10 > foo |> bar() |> length(), do: "few"
+# Styled:
+if 10 > foo |> bar() |> Enum.count_until(10), do: "few"
+
+# Given:
+if length(pair) == 2, do: "pair"
+# Styled:
+if Enum.count_until(pair, 3) == 2, do: "pair"
+```
+
+This applies to `>`, `>=`, `<`, `<=`, `==`, `!=`, `===`, and `!==` comparisons against positive integer literals, with the operands in either order. Comparisons against `0` are handled by the [empty enum checks](#empty-enum-checks) above. The rewrite only happens when the limit can be computed statically; comparisons against variables, module attributes, function calls, or other expressions (e.g., `length(list) > max`) are left alone, since `Enum.count_until` raises if its limit is `nil` or not a positive integer.
+
+Since `Enum.count_until` can't be used in guards, guard clauses (`when length(list) > 1`) are not rewritten.
+
+This can be disabled with `exclude: [:inefficient_functions]`.
+
 ### Or-chains of `String.starts_with?`/`String.ends_with?`/`String.contains?` -> list form
 
 `String.starts_with?/2`, `String.ends_with?/2`, and `String.contains?/2` all accept a list of
