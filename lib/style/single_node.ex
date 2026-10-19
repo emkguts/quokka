@@ -66,7 +66,7 @@ defmodule Quokka.Style.SingleNode do
   end
 
   # Skip expensive empty enum check rewrites when inside guard clauses
-  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :<, :==, :===, :!=] do
+  def run({node, meta} = zipper, ctx) when elem(node, 0) in [:>, :>=, :<, :<=, :==, :===, :!=] do
     if in_guard?(zipper) do
       {:cont, {style_guard(node), meta}, ctx}
     else
@@ -526,6 +526,37 @@ defmodule Quokka.Style.SingleNode do
       if Quokka.Config.inefficient_function_rewrites?(),
         do: {{:., m, [{:__aliases__, m, [:Enum]}, :any?]}, m, [enum, func]},
         else: node
+    end
+  end
+
+  # Comparing a full count against a positive integer literal only needs to count far enough to decide the comparison:
+  #
+  #   length(enum) > 1             => Enum.count_until(enum, 2) > 1
+  #   3 <= Enum.count(enum, fun)   => 3 <= Enum.count_until(enum, fun, 3)
+  #   enum |> length() < 3         => enum |> Enum.count_until(3) < 3
+  #   length(enum) == 2            => Enum.count_until(enum, 3) == 2
+  #
+  # Guards are excluded by `run/2`, since `Enum.count_until` isn't guard-safe.
+  defp style({op, m, [count, {:__block__, _, [n]} = literal]} = node)
+       when op in [:>, :>=, :<, :<=, :==, :!=, :===, :!==] and is_integer(n) and n > 0 do
+    with true <- Quokka.Config.inefficient_function_rewrites?(),
+         {:ok, count_until} <- count_until(count, count_until_limit(op, n)) do
+      {op, m, [count_until, literal]}
+    else
+      _ -> node
+    end
+  end
+
+  # `n < length(enum)` is `length(enum) > n`, so pick the limit as though the operands were swapped
+  defp style({op, m, [{:__block__, _, [n]} = literal, count]} = node)
+       when op in [:>, :>=, :<, :<=, :==, :!=, :===, :!==] and is_integer(n) and n > 0 do
+    swapped_op = %{>: :<, >=: :<=, <: :>, <=: :>=, ==: :==, !=: :!=, ===: :===, !==: :!==}[op]
+
+    with true <- Quokka.Config.inefficient_function_rewrites?(),
+         {:ok, count_until} <- count_until(count, count_until_limit(swapped_op, n)) do
+      {op, m, [literal, count_until]}
+    else
+      _ -> node
     end
   end
 
@@ -1004,6 +1035,28 @@ defmodule Quokka.Style.SingleNode do
   defp add_underscores([a, b, c, d | rest], acc), do: add_underscores([d | rest], [?_, c, b, a | acc])
 
   defp add_underscores(reversed_list, acc), do: reversed_list |> Enum.reverse(acc) |> to_string()
+
+  # The smallest limit for which `Enum.count_until(enum, limit) <op> n` agrees with `Enum.count(enum) <op> n`
+  defp count_until_limit(op, n) when op in [:>, :<=, :==, :!=, :===, :!==], do: n + 1
+  defp count_until_limit(op, n) when op in [:>=, :<], do: n
+
+  # `length(enum)` / `Enum.count(enum)` / `Enum.count(enum, fun)` => `Enum.count_until(..., limit)`, piped or not
+  defp count_until({:|>, pm, [lhs, {:length, m, []}]}, limit),
+    do: {:ok, {:|>, pm, [lhs, enum_count_until(m, [count_until_literal(limit, m)])]}}
+
+  defp count_until({:|>, pm, [lhs, {{:., _, [{:__aliases__, _, [:Enum]}, :count]}, m, args}]}, limit)
+       when length(args) <= 1, do: {:ok, {:|>, pm, [lhs, enum_count_until(m, args ++ [count_until_literal(limit, m)])]}}
+
+  defp count_until({:length, m, [enum]}, limit), do: {:ok, enum_count_until(m, [enum, count_until_literal(limit, m)])}
+
+  defp count_until({{:., _, [{:__aliases__, _, [:Enum]}, :count]}, m, args}, limit) when length(args) in [1, 2],
+    do: {:ok, enum_count_until(m, args ++ [count_until_literal(limit, m)])}
+
+  defp count_until(_, _), do: :error
+
+  defp enum_count_until(m, args), do: {{:., m, [{:__aliases__, m, [:Enum]}, :count_until]}, m, args}
+
+  defp count_until_literal(limit, m), do: {:__block__, [token: Integer.to_string(limit), line: m[:line]], [limit]}
 
   # Guard-specific rewrites for length/1 comparisons
   # length(enum) == 0 => enum == []
