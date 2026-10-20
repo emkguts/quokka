@@ -1145,13 +1145,13 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style(
         """
         defmodule MyGreatLibrary do
-          @library_options [...]
+          @library_options [name: "My Great Library"]
           @moduledoc make_pretty_docs(@library_options)
           use OptionsMagic, my_opts: @library_options
         end
         """,
         """
-        library_options = [...]
+        library_options = [name: "My Great Library"]
 
         defmodule MyGreatLibrary do
           @moduledoc make_pretty_docs(library_options)
@@ -1167,19 +1167,340 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style(
         """
         quote do
-          @library_options [...]
+          @library_options [name: "My Great Library"]
           @moduledoc make_pretty_docs(@library_options)
           use OptionsMagic, my_opts: @library_options
         end
         """,
         """
-        library_options = [...]
+        library_options = [name: "My Great Library"]
 
         quote do
-          @moduledoc make_pretty_docs(library_options)
+          @moduledoc make_pretty_docs(unquote(library_options))
           use OptionsMagic, my_opts: unquote(library_options)
 
-          @library_options library_options
+          @library_options unquote(library_options)
+        end
+        """
+      )
+    end
+
+    test "unquotes the lifted variable when reassigning the attribute inside `quote`" do
+      assert_style(
+        """
+        defmacro __using__(_opts) do
+          quote do
+            @max_attempts 1
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+
+            def max_attempts(_job), do: @max_attempts
+          end
+        end
+        """,
+        """
+        defmacro __using__(_opts) do
+          max_attempts = 1
+
+          quote do
+            use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
+
+            @max_attempts unquote(max_attempts)
+
+            def max_attempts(_job), do: @max_attempts
+          end
+        end
+        """
+      )
+    end
+
+    test "removes `unquote` from a value lifted out of `quote`" do
+      assert_style(
+        """
+        defmacro __using__(opts) do
+          quote do
+            @max_attempts unquote(opts)
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+          end
+        end
+        """,
+        """
+        defmacro __using__(opts) do
+          max_attempts = opts
+
+          quote do
+            use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
+
+            @max_attempts unquote(max_attempts)
+          end
+        end
+        """
+      )
+    end
+
+    test "doesn't lift code around an `unquote` out of `quote`" do
+      assert_style("""
+      defmacro __using__(opts) do
+        quote do
+          @max_attempts unquote(opts)[:max_attempts]
+
+          use Oban.Pro.Worker, max_attempts: @max_attempts
+        end
+      end
+      """)
+    end
+
+    test "doesn't lift out of `quote` when `unquote` is disabled" do
+      for opts <- ["bind_quoted: [opts: opts]", "unquote: false", "bind_quoted: [opts: opts], unquote: false", "opts"] do
+        assert_style("""
+        defmacro __using__(opts) do
+          quote #{opts} do
+            @max_attempts 1
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+          end
+        end
+        """)
+      end
+
+      assert_style("""
+      defmacro __using__(opts) do
+        quote bind_quoted: [opts: opts],
+              do:
+                (
+                  @max_attempts 1
+                  use Oban.Pro.Worker, max_attempts: @max_attempts
+                )
+      end
+      """)
+    end
+
+    test "lifts out of `quote` when `unquote` is explicitly enabled" do
+      assert_style(
+        """
+        defmacro __using__(opts) do
+          quote bind_quoted: [opts: opts], unquote: true do
+            @max_attempts 1
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+          end
+        end
+        """,
+        """
+        defmacro __using__(opts) do
+          max_attempts = 1
+
+          quote bind_quoted: [opts: opts], unquote: true do
+            use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
+
+            @max_attempts unquote(max_attempts)
+          end
+        end
+        """
+      )
+    end
+
+    test "doesn't lift a value with `unquote_splicing` out of `quote`" do
+      assert_style("""
+      defmacro __using__(opts) do
+        quote do
+          @queues [:default, unquote_splicing(opts)]
+
+          use Oban.Pro.Worker, queues: @queues
+        end
+      end
+      """)
+    end
+
+    test "doesn't lift into a variable that's already in use" do
+      assert_style("""
+      defmacro __using__(opts) do
+        quote do
+          @opts unquote(opts)
+
+          use Oban.Pro.Worker, opts: @opts
+
+          def all_opts(), do: unquote(opts)
+        end
+      end
+      """)
+
+      assert_style("""
+      defmacro __using__(_opts) do
+        max_attempts = 3
+
+        quote do
+          @max_attempts 1
+
+          use Oban.Pro.Worker, max_attempts: @max_attempts
+
+          def default_max_attempts(), do: unquote(max_attempts)
+        end
+      end
+      """)
+
+      assert_style("""
+      defmodule MyWorker do
+        max_attempts = 3
+        @max_attempts max_attempts
+
+        use Oban.Pro.Worker, max_attempts: @max_attempts
+      end
+      """)
+    end
+
+    test "doesn't lift a value that depends on where it's evaluated" do
+      for value <- [
+            "__MODULE__",
+            "__ENV__.file",
+            "Path.join(__DIR__, \"x\")",
+            "some_var",
+            "@other + 1",
+            "helper()",
+            "binding()",
+            "Application.compile_env(:app, :key)",
+            "%{a: 1}",
+            "{1, 2, 3}",
+            "~r/x/"
+          ] do
+        assert_style("""
+        defmacro __using__(_opts) do
+          quote do
+            @value #{value}
+
+            use Foo, value: @value
+          end
+        end
+        """)
+
+        assert_style("""
+        defmodule MyModule do
+          @value #{value}
+
+          use Foo, value: @value
+        end
+        """)
+      end
+    end
+
+    test "doesn't lift an attribute that's set more than once" do
+      assert_style("""
+      defmodule MyModule do
+        @value 1
+        use Foo, value: @value
+        @value 2
+        def value(), do: @value
+      end
+      """)
+
+      assert_style("""
+      defmodule MyModule do
+        @value 1
+        @value 2
+
+        use Foo, value: @value
+      end
+      """)
+    end
+
+    test "lifts an attribute that shares its name with a function" do
+      assert_style(
+        """
+        defmodule MyModule do
+          @value 1
+          use Foo, value: @value
+          def value, do: @value
+        end
+        """,
+        """
+        value = 1
+
+        defmodule MyModule do
+          use Foo, value: unquote(value)
+
+          @value value
+          def value(), do: @value
+        end
+        """
+      )
+    end
+
+    test "doesn't lift an attribute read by a directive other than `use` outside `quote`" do
+      assert_style("""
+      defmodule MyModule do
+        @only [foo: 1]
+        import Bar, only: @only
+      end
+      """)
+    end
+
+    test "doesn't lift an alias that resolves relative to the module" do
+      assert_style("""
+      defmodule A do
+        defmodule B do
+        end
+
+        @value B
+
+        use Foo, value: @value
+      end
+      """)
+
+      assert_style("""
+      defmodule MyModule do
+        alias __MODULE__.Child
+
+        @value Child
+
+        use Foo, value: @value
+      end
+      """)
+    end
+
+    test "resolves aliases in a lifted value" do
+      assert_style(
+        """
+        defmodule MyModule do
+          alias My.Repo
+          @repo Repo
+          use Foo, repo: @repo
+        end
+        """,
+        """
+        repo = My.Repo
+
+        defmodule MyModule do
+          use Foo, repo: unquote(repo)
+
+          alias My.Repo
+
+          @repo repo
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmacro __using__(_opts) do
+          quote do
+            alias My.Repo
+            @repo Repo
+            use Foo, repo: @repo
+          end
+        end
+        """,
+        """
+        defmacro __using__(_opts) do
+          repo = My.Repo
+
+          quote do
+            use Foo, repo: unquote(repo)
+
+            alias My.Repo
+
+            @repo unquote(repo)
+          end
         end
         """
       )
