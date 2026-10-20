@@ -222,16 +222,17 @@ defmodule Quokka.Style.ModuleDirectives do
     require: [],
     nondirectives: [],
     dealiases: %{},
-    attrs: MapSet.new(),
-    unliftable_attrs: MapSet.new(),
+    # attribute name => its value, with aliases resolved
+    attrs: %{},
     attr_lifts: [],
     in_quote?: false,
     lift_attrs?: true,
-    lift_blocked?: false
+    lift_blocked?: false,
+    parent: nil
   }
 
-  defp lift_module_attrs({node, _, _} = ast, %{attrs: attrs, unliftable_attrs: unliftable} = acc) do
-    if Enum.empty?(attrs) and Enum.empty?(unliftable) do
+  defp lift_module_attrs({node, _, _} = ast, %{attrs: attrs} = acc) do
+    if map_size(attrs) == 0 do
       {ast, acc}
     else
       # `use` receives its args as AST, and inside a quote nothing sees the lifted variable, so both need unquoting
@@ -239,16 +240,21 @@ defmodule Quokka.Style.ModuleDirectives do
 
       Macro.prewalk(ast, acc, fn
         {:@, m, [{attr, _, _} = var]} = ast, acc ->
-          if attr in attrs do
-            replacement =
-              if unquote?,
-                do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]},
-                else: var
+          cond do
+            not Map.has_key?(attrs, attr) ->
+              {ast, acc}
 
-            {replacement, %{acc | attr_lifts: [attr | acc.attr_lifts]}}
-          else
+            attr in acc.attr_lifts or liftable_attr?(attr, attrs[attr], acc) ->
+              replacement =
+                if unquote?,
+                  do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]},
+                  else: var
+
+              {replacement, %{acc | attr_lifts: [attr | acc.attr_lifts]}}
+
             # sorting would move the directive above the attribute it reads
-            {ast, %{acc | lift_blocked?: acc.lift_blocked? or attr in unliftable}}
+            true ->
+              {ast, %{acc | lift_blocked?: true}}
           end
 
         ast, acc ->
@@ -477,13 +483,19 @@ defmodule Quokka.Style.ModuleDirectives do
           %{acc | attr_directive => [ast | acc[attr_directive]]}
         end
 
-      {:@, _, [{attr, _, _}]} = ast, acc ->
-        acc =
-          if liftable_attr?(ast, acc),
-            do: %{acc | attrs: MapSet.put(acc.attrs, attr)},
-            else: %{acc | unliftable_attrs: MapSet.put(acc.unliftable_attrs, attr)}
+      {:@, _, [{attr, _, [value]}]} = ast, acc ->
+        # A lift can only carry one value, so an attribute that's set more than once stays put.
+        # The lifted assignment lands above any aliases, so it needs their full names.
+        value = if Map.has_key?(acc.attrs, attr), do: :redefined, else: AliasEnv.expand(acc.dealiases, value)
+        # a directive above already read the old value
+        lift_blocked? = acc.lift_blocked? or attr in acc.attr_lifts
 
-        %{acc | nondirectives: [ast | acc.nondirectives]}
+        %{
+          acc
+          | nondirectives: [ast | acc.nondirectives],
+            attrs: Map.put(acc.attrs, attr, value),
+            lift_blocked?: lift_blocked?
+        }
 
       {directive, _, _} = ast, acc when directive in @directives ->
         {ast, acc} = lift_module_attrs(ast, acc)
@@ -540,7 +552,7 @@ defmodule Quokka.Style.ModuleDirectives do
         {:dealiases, d} ->
           {:dealiases, d}
 
-        {key, value} when key in [:in_quote?, :lift_attrs?, :lift_blocked?, :unliftable_attrs] ->
+        {key, value} when key in [:attrs, :in_quote?, :lift_attrs?, :lift_blocked?, :parent] ->
           {key, value}
 
         {k, v} ->
@@ -553,6 +565,7 @@ defmodule Quokka.Style.ModuleDirectives do
     {acc, parent} =
       if Enum.any?(acc.attr_lifts) do
         lifts = acc.attr_lifts
+        attrs = acc.attrs
         # the variable is assigned outside the quote, so references inside it must be unquoted
         in_quote? = acc.in_quote?
 
@@ -573,10 +586,10 @@ defmodule Quokka.Style.ModuleDirectives do
 
         assignments =
           Enum.flat_map(acc.nondirectives, fn
-            {:@, m, [{attr, am, [val]}]} ->
+            {:@, m, [{attr, am, [_val]}]} ->
               if attr in lifts do
                 # a value lifted out of a quote is evaluated directly, so it must not keep its `unquote`s
-                val = if in_quote?, do: Macro.prewalk(val, &unwrap_unquote/1), else: val
+                val = if in_quote?, do: Macro.prewalk(attrs[attr], &unwrap_unquote/1), else: attrs[attr]
                 [{:=, m, [{attr, am, nil}, val]}]
               else
                 []
@@ -625,10 +638,12 @@ defmodule Quokka.Style.ModuleDirectives do
   defp unwrap_unquote(ast), do: ast
 
   defp init_acc(parent) do
+    acc = %{@acc | parent: parent}
+
     case quote_opts(parent) do
-      nil -> @acc
+      nil -> acc
       # lifting relies on `unquote` to get the variable back into the quote
-      opts -> if unquote_enabled?(opts), do: %{@acc | in_quote?: true}, else: %{@acc | lift_attrs?: false}
+      opts -> if unquote_enabled?(opts), do: %{acc | in_quote?: true}, else: %{acc | lift_attrs?: false}
     end
   end
 
@@ -661,11 +676,50 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  # `unquote_splicing` only works inside a quote, so its value can't be lifted out of one
-  defp liftable_attr?({:@, _, [{_, _, [val]}]}, %{in_quote?: true}),
-    do: not Enum.any?(Macro.prewalker(val), &match?({:unquote_splicing, _, _}, &1))
+  defp liftable_attr?(attr, value, acc) do
+    acc.lift_attrs? and value != :redefined and context_free?(value, acc.in_quote?) and
+      attr not in scope_vars(acc.parent)
+  end
 
-  defp liftable_attr?(_ast, acc), do: acc.lift_attrs?
+  # Whether `ast` means the same thing once it's moved out of the module or quote.
+  # Inside a quote, `unquote`d code already runs outside it.
+  defp context_free?({:unquote, _, [_]}, true), do: true
+  # `unquote_splicing` only works inside a quote
+  defp context_free?({:unquote_splicing, _, _}, _), do: false
+  # other attributes don't exist outside the module
+  defp context_free?({:@, _, _}, _), do: false
+  # variables are scoped to the module or quote, and `__MODULE__`, `__ENV__`, etc. are evaluated where they're written
+  defp context_free?({name, _, ctx}, _) when is_atom(name) and is_atom(ctx), do: false
+
+  defp context_free?({form, _, args}, in_quote?) do
+    context_free?(form, in_quote?) and (not is_list(args) or Enum.all?(args, &context_free?(&1, in_quote?)))
+  end
+
+  defp context_free?({left, right}, in_quote?), do: context_free?(left, in_quote?) and context_free?(right, in_quote?)
+  defp context_free?(list, in_quote?) when is_list(list), do: Enum.all?(list, &context_free?(&1, in_quote?))
+  defp context_free?(_literal, _), do: true
+
+  # Variable names a lifted assignment could clash with: everything in the enclosing function, or the whole file
+  defp scope_vars(parent) do
+    scope =
+      parent
+      |> Stream.unfold(&if(&1, do: {&1, Zipper.up(&1)}))
+      |> Enum.find_value(fn
+        {{def, _, _} = node, _} when def in [:def, :defp, :defmacro, :defmacrop] -> node
+        {node, nil} -> node
+        _ -> nil
+      end)
+
+    {_, vars} =
+      Macro.prewalk(scope, MapSet.new(), fn
+        # `@foo` isn't a variable named `foo`
+        {:@, _, _}, vars -> {nil, vars}
+        {name, _, ctx} = ast, vars when is_atom(name) and is_atom(ctx) -> {ast, MapSet.put(vars, name)}
+        ast, vars -> {ast, vars}
+      end)
+
+    vars
+  end
 
   defp lift_aliases(%{alias: aliases, nondirectives: nondirectives} = acc) do
     # we can't use the dealias map built into state as that's what things look like before sorting

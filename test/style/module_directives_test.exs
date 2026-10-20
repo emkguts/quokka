@@ -1289,6 +1289,133 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       end
       """)
     end
+
+    test "doesn't lift into a variable that's already in use" do
+      assert_style("""
+      defmacro __using__(opts) do
+        quote do
+          @opts unquote(opts)[:worker]
+
+          use Oban.Pro.Worker, opts: @opts
+
+          def all_opts(), do: unquote(opts)
+        end
+      end
+      """)
+
+      assert_style("""
+      defmacro __using__(_opts) do
+        max_attempts = 3
+
+        quote do
+          @max_attempts 1
+
+          use Oban.Pro.Worker, max_attempts: @max_attempts
+
+          def default_max_attempts(), do: unquote(max_attempts)
+        end
+      end
+      """)
+
+      assert_style("""
+      defmodule MyWorker do
+        max_attempts = 3
+        @max_attempts max_attempts
+
+        use Oban.Pro.Worker, max_attempts: @max_attempts
+      end
+      """)
+    end
+
+    test "doesn't lift a value that depends on where it's evaluated" do
+      for value <- ["__MODULE__", "__ENV__.file", "Path.join(__DIR__, \"x\")", "some_var", "@other + 1"] do
+        assert_style("""
+        defmacro __using__(_opts) do
+          quote do
+            @value #{value}
+
+            use Foo, value: @value
+          end
+        end
+        """)
+
+        assert_style("""
+        defmodule MyModule do
+          @value #{value}
+
+          use Foo, value: @value
+        end
+        """)
+      end
+    end
+
+    test "doesn't lift an attribute that's set more than once" do
+      assert_style("""
+      defmodule MyModule do
+        @value 1
+        use Foo, value: @value
+        @value 2
+        def value(), do: @value
+      end
+      """)
+
+      assert_style("""
+      defmodule MyModule do
+        @value 1
+        @value 2
+
+        use Foo, value: @value
+      end
+      """)
+    end
+
+    test "resolves aliases in a lifted value" do
+      assert_style(
+        """
+        defmodule MyModule do
+          alias My.Repo
+          @repo Repo
+          use Foo, repo: @repo
+        end
+        """,
+        """
+        repo = My.Repo
+
+        defmodule MyModule do
+          use Foo, repo: unquote(repo)
+
+          alias My.Repo
+
+          @repo repo
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmacro __using__(_opts) do
+          quote do
+            alias My.Repo
+            @repo Repo
+            use Foo, repo: @repo
+          end
+        end
+        """,
+        """
+        defmacro __using__(_opts) do
+          repo = My.Repo
+
+          quote do
+            use Foo, repo: unquote(repo)
+
+            alias My.Repo
+
+            @repo unquote(repo)
+          end
+        end
+        """
+      )
+    end
   end
 
   describe "Credo.Check.Readability.AliasOrder compatibility" do
