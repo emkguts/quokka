@@ -51,16 +51,6 @@ defmodule Quokka.Style.Configs do
   def run({{:config, cfm, [_, _ | _]} = config, zm}, %{mix_config?: true, comments: comments} = ctx) do
     # all of these list are reversed due to the reduce
     {configs, assignments, rest} = accumulate(zm.r, [], [])
-    # @TODO
-    # okay so comments between nodes that we moved.......
-    # lets just push them out of the way (???). so
-    # 1. figure out first/last possible lines we're talking about here
-    # 2. only pass comments in that range off
-    # 3. split those comments into "moved, didn't move"
-    # 4. for any "didn't move" comments... move them to the top?
-    #
-    # also, should i just do a scan of the configs ++ assignments, and see if any of them have lines out of order,
-    # and decide from there whether or not i want to do set_lines
 
     configs =
       [config | configs]
@@ -81,16 +71,29 @@ defmodule Quokka.Style.Configs do
       |> Style.reset_newlines()
       |> Enum.concat(configs)
 
+    block = [config | Enum.take(zm.r, length(zm.r) - length(rest))]
+
     {nodes, comments} =
-      if changed?(nodes) do
-        # after running, this block should take up the same # of lines that it did before
-        # the first node of `rest` is greater than the highest line in configs, assignments
-        # config line is the first line to be used as part of this block
-        {node_comments, _} = Style.comments_for_node(config, comments)
-        first_line = min(List.last(node_comments)[:line] || cfm[:line], cfm[:line])
-        Style.order_line_meta_and_comments(nodes, comments, first_line)
-      else
-        {nodes, comments}
+      cond do
+        not changed?(nodes) ->
+          {nodes, comments}
+
+        # Regions are split by line, which can't tell apart statements sharing a line (`config :b, 1; config :a, 1`)
+        shares_lines?(block) ->
+          {node_comments, _} = Style.comments_for_node(config, comments)
+          first_line = min(List.last(node_comments)[:line] || cfm[:line], cfm[:line])
+          Style.order_line_meta_and_comments(nodes, comments, first_line)
+
+        true ->
+          prev_last_line =
+            case zm.l do
+              [prev | _] -> last_line(prev)
+              [] -> 0
+            end
+
+          {regions, comments} = comment_regions(block, comments, prev_last_line)
+          {first_line, _, _} = regions[key(config)]
+          place_nodes_and_comments(nodes, regions, comments, first_line)
       end
 
     [config | left_siblings] = Enum.reverse(nodes, zm.l)
@@ -116,6 +119,86 @@ defmodule Quokka.Style.Configs do
   end
 
   defp changed?(_), do: false
+
+  # Splits the block's lines into one region per statement, so the statement's comments can move with it.
+  # A region runs from the comment lines directly above its statement (no blank line between them) up to
+  # the next statement's region. That covers comments within the statement, like those in a multi-line
+  # keyword list, and any standalone comment block between it and the next statement.
+  #
+  # Uses line boundaries between statements rather than `Style.comments_for_lines/3`, which can claim
+  # comments belonging to a neighbor. Comments outside the block (above its first statement's region,
+  # or after its last statement) aren't owned and keep their lines.
+  #
+  # Returns a map of statement key => `{first_line, line_count, comments}`, plus the unowned comments.
+  defp comment_regions(block, comments, prev_last_line) do
+    {regions, comments, last_line} =
+      Enum.reduce(block, {[], comments, prev_last_line}, fn node, {regions, comments, prev_last_line} ->
+        line = Style.meta(node)[:line]
+        last_line = last_line(node)
+        {before, comments} = Enum.split_with(comments, &(&1.line > prev_last_line and &1.line < line))
+        {inner, comments} = Enum.split_with(comments, &(&1.line >= line and &1.line <= last_line))
+        {floating, leading} = split_leading_comments(before, line)
+
+        {regions, comments} =
+          case regions do
+            [{key, first_line, owned} | regions] -> {[{key, first_line, owned ++ floating} | regions], comments}
+            [] -> {regions, floating ++ comments}
+          end
+
+        first_line =
+          case leading do
+            [] -> line
+            [%{line: first_line} | _] -> first_line
+          end
+
+        {[{key(node), first_line, leading ++ inner} | regions], comments, last_line}
+      end)
+
+    {regions, _} =
+      Enum.reduce(regions, {%{}, last_line + 1}, fn {key, first_line, owned}, {regions, next_line} ->
+        {Map.put(regions, key, {first_line, next_line - first_line, owned}), first_line}
+      end)
+
+    {regions, comments}
+  end
+
+  # `comments` are sorted by line; the leading comments are the run of consecutive lines ending just above `line`
+  defp split_leading_comments(comments, line) do
+    {leading, _} =
+      comments
+      |> Enum.reverse()
+      |> Enum.reduce_while({[], line - 1}, fn
+        %{line: expected} = comment, {leading, expected} -> {:cont, {[comment | leading], expected - 1}}
+        _comment, leading_and_expected -> {:halt, leading_and_expected}
+      end)
+
+    {Enum.drop(comments, -length(leading)), leading}
+  end
+
+  # Lays out the sorted nodes' regions back to back from `start_line`. Shifting each region as a whole keeps
+  # the line gaps the formatter uses to place blank lines around comments, and since the regions tile the
+  # original block, the block still takes up the same lines.
+  defp place_nodes_and_comments(nodes, regions, comments, start_line) do
+    {nodes, {comments, _}} =
+      Enum.map_reduce(nodes, {comments, start_line}, fn node, {comments, line} ->
+        {first_line, line_count, owned} = regions[key(node)]
+        delta = line - first_line
+        owned = Enum.map(owned, &%{&1 | line: &1.line + delta})
+        {Style.shift_line(node, delta), {owned ++ comments, line + line_count}}
+      end)
+
+    {nodes, Enum.sort_by(comments, & &1.line)}
+  end
+
+  defp shares_lines?(block) do
+    block
+    |> Enum.chunk_every(2, 1, :discard)
+    |> Enum.any?(fn [a, b] -> Style.meta(b)[:line] <= last_line(a) end)
+  end
+
+  defp key(node), do: Style.meta(node)[:line]
+
+  defp last_line(node), do: Style.meta(node)[:end_of_expression][:line] || Style.max_line(node)
 
   defp accumulate([{:config, _, [_, _ | _]} = c | siblings], cs, as), do: accumulate(siblings, [c | cs], as)
 
