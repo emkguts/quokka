@@ -36,9 +36,32 @@ defmodule Quokka.Style.SingleNode do
 
   # Kernel infix/unary operators, mirroring `Quokka.Style.Pipes`. `!` and `not` are unary-only;
   # everything else is a binary operator, with `-` and `+` doubling as unary operators.
-  @kernel_ops ~w(++ -- && || in - * + / > < <= >= == and or != !== === <> ! not)a
-  @kernel_unary_ops ~w(- + ! not)a
-  @kernel_binary_ops @kernel_ops -- ~w(! not)a
+  @kernel_ops [
+    :++,
+    :--,
+    :&&,
+    :||,
+    :in,
+    :-,
+    :*,
+    :+,
+    :/,
+    :>,
+    :<,
+    :<=,
+    :>=,
+    :==,
+    :and,
+    :or,
+    :!=,
+    :!==,
+    :===,
+    :<>,
+    :!,
+    :not
+  ]
+  @kernel_unary_ops [:-, :+, :!, :not]
+  @kernel_binary_ops @kernel_ops -- [:!, :not]
 
   # Special forms (`<<>>`, `{}`, `%{}`, `^`, `for`, `with`, etc.) can't be captured by name,
   # so `&<<&1>>` must not become `&<<>>/1`.
@@ -142,6 +165,53 @@ defmodule Quokka.Style.SingleNode do
       {:sigil_s, [{:delimiter, delimiter} | meta], [{:<<>>, [line: meta[:line]], [string]}, []]}
     else
       node
+    end
+  end
+
+  # `~w(foo bar)a` => `[:foo, :bar]`, `~w(foo bar)` => `["foo", "bar"]`
+  #
+  # Leaves alone sigils with interpolation or escape sequences (`~w(foo\sbar)` is two words), and `c` modifiers.
+  # (The parser has already unescaped escaped delimiters like `~w(foo\)bar)`, so those are fine.)
+  # A sorted multi-line sigil (`# quokka:sort`) has several binary parts, hence joining them.
+  defp style({:sigil_w, meta, [{:<<>>, _, parts}, modifiers]} = node) do
+    with true <- Quokka.Config.sigils?(),
+         true <- modifiers in [[], ~c"s", ~c"a"],
+         true <- Enum.all?(parts, &is_binary/1),
+         string = Enum.join(parts),
+         false <- String.contains?(string, "\\") do
+      heredoc? = meta[:delimiter] in [~s|"""|, ~s|'''|]
+
+      first_line =
+        if heredoc? do
+          meta[:line] + 1
+        else
+          meta[:line]
+        end
+
+      [first_text | rest] = lines = String.split(string, "\n")
+
+      words =
+        for {text, line} <- Enum.with_index(lines, first_line),
+            word <- String.split(text) do
+          case modifiers do
+            ~c"a" -> {:__block__, [line: line], [String.to_atom(word)]}
+            _string_modifiers -> {:__block__, [delimiter: ~s|"|, line: line], [word]}
+          end
+        end
+
+      base_list_meta = [closing: [line: first_line + length(lines) - 1], line: meta[:line]]
+      opens_with_newline? = heredoc? or (rest != [] and String.trim(first_text) == "")
+
+      list_meta =
+        if opens_with_newline? do
+          [{:newlines, 1} | base_list_meta]
+        else
+          base_list_meta
+        end
+
+      {:__block__, list_meta, [words]}
+    else
+      _ -> node
     end
   end
 
@@ -281,7 +351,7 @@ defmodule Quokka.Style.SingleNode do
   defp style(
          {:==, _, [{{:., dm, [{:__aliases__, am, [mod]}, :compare]}, funm, args}, {:__block__, _, [result]}]} = node
        )
-       when mod in ~w[DateTime NaiveDateTime Time Date]a and result in [:lt, :gt] do
+       when mod in [:DateTime, :NaiveDateTime, :Time, :Date] and result in [:lt, :gt] do
     if Quokka.Config.inefficient_function_rewrites?() do
       fun = if result == :lt, do: :before?, else: :after?
       {{:., dm, [{:__aliases__, am, [mod]}, fun]}, funm, args}
@@ -336,24 +406,24 @@ defmodule Quokka.Style.SingleNode do
   end
 
   # `Credo.Check.Readability.PreferImplicitTry`
-  defp style({def, dm, [head, [{_, {:try, _, [try_children]}}]]}) when def in ~w(def defp)a,
+  defp style({def, dm, [head, [{_, {:try, _, [try_children]}}]]}) when def in [:def, :defp],
     do: style({def, dm, [head, try_children]})
 
   # Remove parens from 0 arity funs (Credo.Check.Readability.ParenthesesOnZeroArityDefs)
-  defp style({def, dm, [{fun, funm, []} | rest]} = node) when def in ~w(def defp)a and is_atom(fun) do
+  defp style({def, dm, [{fun, funm, []} | rest]} = node) when def in [:def, :defp] and is_atom(fun) do
     if Quokka.Config.zero_arity_parens?() == false,
       do: style({def, dm, [{fun, Keyword.delete(funm, :closing), nil} | rest]}),
       else: node
   end
 
   # Add parens to 0 arity funs (Credo.Check.Readability.ParenthesesOnZeroArityDefs)
-  defp style({def, dm, [{fun, funm, nil} | rest]} = node) when def in ~w(def defp)a and is_atom(fun) do
+  defp style({def, dm, [{fun, funm, nil} | rest]} = node) when def in [:def, :defp] and is_atom(fun) do
     if Quokka.Config.zero_arity_parens?() == true,
       do: {def, dm, [{fun, Keyword.put(funm, :closing, line: funm[:line]), []} | rest]},
       else: node
   end
 
-  defp style({def, dm, [{fun, funm, params} | rest]}) when def in ~w(def defp)a,
+  defp style({def, dm, [{fun, funm, params} | rest]}) when def in [:def, :defp],
     do: {def, dm, [{fun, funm, put_matches_on_right(params)} | rest]}
 
   # `Enum.reverse(foo) ++ bar` => `Enum.reverse(foo, bar)`
@@ -547,7 +617,7 @@ defmodule Quokka.Style.SingleNode do
   defp style({:fn, m, arrows}), do: {:fn, m, rewrite_arrows(arrows)}
 
   defp style({:to_timeout, meta, [[{{:__block__, um, [unit]}, {:*, _, [left, right]}}]]} = node)
-       when unit in ~w(day hour minute second millisecond)a do
+       when unit in [:day, :hour, :minute, :second, :millisecond] do
     [l, r] =
       Enum.map([left, right], fn
         {_, _, [x]} -> x
@@ -749,7 +819,18 @@ defmodule Quokka.Style.SingleNode do
   defp repo_one_to_exists(node), do: node
 
   # Ecto.Query macros that don't change what a query selects
-  @select_preserving_query_macros ~w(where or_where join order_by limit offset preload distinct first last)a
+  @select_preserving_query_macros [
+    :where,
+    :or_where,
+    :join,
+    :order_by,
+    :limit,
+    :offset,
+    :preload,
+    :distinct,
+    :first,
+    :last
+  ]
 
   # True when the query is a schema module (`User`), or is built from one with `from` and the macros above,
   # with no `select` or `select_merge`. Variables and other function calls may hide a `select`, so we can't
@@ -962,7 +1043,7 @@ defmodule Quokka.Style.SingleNode do
 
   defp replace_into({:., dm, [{_, am, _} = enum, _]}, collectable, rest) do
     case Quokka.Config.inefficient_function_rewrites?() and collectable do
-      {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in ~w(Map Keyword MapSet)a ->
+      {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in [:Map, :Keyword, :MapSet] ->
         {:., dm, [{:__aliases__, am, [mod]}, :new]}
 
       {:%{}, _, []} ->

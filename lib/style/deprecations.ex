@@ -24,7 +24,7 @@ defmodule Quokka.Style.Deprecations do
   defp style({:->, m, [[{:.., _, [_first, _last]} = range], rhs]}), do: {:->, m, [[rewrite_range_match(range)], rhs]}
   defp style({:<-, m, [{:.., _, [_first, _last]} = range, rhs]}), do: {:<-, m, [rewrite_range_match(range), rhs]}
 
-  defp style({def, dm, [{x, xm, params} | rest]}) when def in ~w(def defp)a and is_list(params),
+  defp style({def, dm, [{x, xm, params} | rest]}) when def in [:def, :defp] and is_list(params),
     do: {def, dm, [{x, xm, Enum.map(params, &rewrite_range_match/1)} | rest]}
 
   # Deprecated in 1.18

@@ -36,7 +36,7 @@ defmodule Quokka.Style.ConfigsTest do
     {ast, _} = Quokka.string_to_ast("import Config\n\nconfig :bar, boop: :baz")
     zipper = Quokka.Zipper.zip(ast)
 
-    for file <- ~w(dev.exs my_app.exs config.exs) do
+    for file <- ["dev.exs", "my_app.exs", "config.exs"] do
       # :config? is private api, so don't be surprised if this has to change at some point
       assert {:cont, _, %{config?: true}} =
                Configs.run(zipper, %{file: "apps/foo/config/#{file}"})

@@ -56,12 +56,61 @@ defmodule Quokka.Config do
     Tests
   ]
 
-  @stdlib ~w(
-    Access Agent Application Atom Base Behaviour Bitwise Code Date DateTime Dict Ecto Enum Exception
-    File Float GenEvent GenServer HashDict HashSet Integer IO Kernel Keyword List
-    Macro Map MapSet Mix Module NaiveDateTime Node Oban OptionParser Path Port Process Protocol
-    Range Record Regex Registry Set Stream String StringIO Supervisor System Task Time Tuple URI Version
-  )a
+  @stdlib [
+    :Access,
+    :Agent,
+    :Application,
+    :Atom,
+    :Base,
+    :Behaviour,
+    :Bitwise,
+    :Code,
+    :Date,
+    :DateTime,
+    :Dict,
+    :Ecto,
+    :Enum,
+    :Exception,
+    :File,
+    :Float,
+    :GenEvent,
+    :GenServer,
+    :HashDict,
+    :HashSet,
+    :Integer,
+    :IO,
+    :Kernel,
+    :Keyword,
+    :List,
+    :Macro,
+    :Map,
+    :MapSet,
+    :Mix,
+    :Module,
+    :NaiveDateTime,
+    :Node,
+    :Oban,
+    :OptionParser,
+    :Path,
+    :Port,
+    :Process,
+    :Protocol,
+    :Range,
+    :Record,
+    :Regex,
+    :Registry,
+    :Set,
+    :Stream,
+    :String,
+    :StringIO,
+    :Supervisor,
+    :System,
+    :Task,
+    :Time,
+    :Tuple,
+    :URI,
+    :Version
+  ]
 
   @default_schema_order [
     :field,
@@ -75,20 +124,47 @@ defmodule Quokka.Config do
 
   @default_strict_module_layout_order [:shortdoc, :moduledoc, :behaviour, :use, :import, :alias, :require]
 
-  @config_getters ~w(
-    autosort autosort_schema_order block_pipe_exclude elixir_version exclude_styles
-    large_numbers_gt lift_alias_depth lift_alias_excluded_lastnames lift_alias_excluded_namespaces
-    lift_alias_frequency lift_alias_only line_length only_styles piped_function_exclusions
-    pipe_chain_start_excluded_argument_types plugins plugin_opts sort_order
-    strict_module_layout_ignore strict_module_layout_ignored_module_attributes strict_module_layout_order
-  )a
+  @config_getters [
+    :autosort,
+    :autosort_schema_order,
+    :block_pipe_exclude,
+    :elixir_version,
+    :exclude_styles,
+    :large_numbers_gt,
+    :lift_alias_depth,
+    :lift_alias_excluded_lastnames,
+    :lift_alias_excluded_namespaces,
+    :lift_alias_frequency,
+    :lift_alias_only,
+    :line_length,
+    :only_styles,
+    :piped_function_exclusions,
+    :pipe_chain_start_excluded_argument_types,
+    :plugins,
+    :plugin_opts,
+    :sort_order,
+    :strict_module_layout_ignore,
+    :strict_module_layout_ignored_module_attributes,
+    :strict_module_layout_order
+  ]
 
-  @config_boolean_getters ~w(
-    autosort_exclude_ecto block_pipe_flag cond_statements exclude_nums_with_underscores
-    inefficient_function_rewrites lift_alias negated_conditions_with_else one_pipe_per_line
-    pipe_into_case refactor_pipe_chain_starts rewrite_multi_alias single_pipe_flag utc_now_truncate
-    zero_arity_parens
-  )a
+  @config_boolean_getters [
+    :autosort_exclude_ecto,
+    :block_pipe_flag,
+    :cond_statements,
+    :exclude_nums_with_underscores,
+    :inefficient_function_rewrites,
+    :lift_alias,
+    :negated_conditions_with_else,
+    :one_pipe_per_line,
+    :pipe_into_case,
+    :refactor_pipe_chain_starts,
+    :rewrite_multi_alias,
+    :sigils,
+    :single_pipe_flag,
+    :utc_now_truncate,
+    :zero_arity_parens
+  ]
 
   for key <- @config_getters do
     def unquote(key)(), do: get(unquote(key))
@@ -122,39 +198,28 @@ defmodule Quokka.Config do
   end
 
   def get_styles() do
-    enabled_styles =
-      cond do
-        :line_length in only_styles() ->
-          MapSet.new()
+    only = only_styles()
+    exclude = exclude_styles()
 
-        only_styles() == [] ->
-          MapSet.new(Map.values(@styles_by_atom))
-
-        true ->
-          only_styles()
-          |> Enum.map(&@styles_by_atom[&1])
-          |> Enum.reject(&is_nil/1)
-          |> MapSet.new()
+    enabled_modules =
+      for {style, module} <- @styles_by_atom,
+          style_enabled?(style, only, exclude),
+          into: MapSet.new() do
+        module
       end
 
-    excluded_styles =
-      exclude_styles()
-      |> Enum.reject(&(&1 == :comment_directives))
-      |> Enum.map(&@styles_by_atom[&1])
-      |> Enum.reject(&is_nil/1)
-      |> MapSet.new()
-
-    builtin_styles =
-      Enum.filter(@style_pipeline, fn
-        CommentDirectives ->
-          true
-
-        style ->
-          MapSet.member?(enabled_styles, style) and not MapSet.member?(excluded_styles, style)
-      end)
+    builtin_styles = Enum.filter(@style_pipeline, &(&1 == CommentDirectives or MapSet.member?(enabled_modules, &1)))
 
     # Plugins run after built-in styles, in declaration order
     builtin_styles ++ (plugins() || [])
+  end
+
+  defp style_enabled?(style, only, exclude) do
+    cond do
+      :line_length in only -> false
+      only != [] and style not in only -> false
+      true -> style not in exclude
+    end
   end
 
   def pipe_chain_start_excluded_functions() do
@@ -206,7 +271,8 @@ defmodule Quokka.Config do
       pipe_into_case: :pipe_into_case not in exclude,
       piped_function_exclusions: piped_function_exclusions,
       plugin_opts: plugin_opts,
-      plugins: plugins
+      plugins: plugins,
+      sigils: :sigils not in exclude
     }
     |> Map.merge(credo_settings(credo, formatter_opts))
   end
