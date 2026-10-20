@@ -31,14 +31,37 @@ defmodule Quokka.Style.Pipes do
   alias Quokka.Style
   alias Quokka.Zipper
 
-  @collectable ~w(Map Keyword MapSet)a
-  @enum ~w(Enum Stream)a
+  @collectable [:Map, :Keyword, :MapSet]
+  @enum [:Enum, :Stream]
 
   # most of these values were lifted directly from credo's pipe_chain_start.ex
-  @literal ~w(__block__ __aliases__ unquote)a
-  @value_constructors ~w(% %{} .. ..// <<>> @ {} ^ & fn from)a
-  @kernel_ops ~w(++ -- && || in - * + / > < <= >= == and or != !== === <> ! not)a
-  @special_ops ~w(||| &&& <<< >>> <<~ ~>> <~ ~> <~>)a
+  @literal [:__block__, :__aliases__, :unquote]
+  @value_constructors [:%, :%{}, :.., :..//, :<<>>, :@, :{}, :^, :&, :fn, :from]
+  @kernel_ops [
+    :++,
+    :--,
+    :&&,
+    :||,
+    :in,
+    :-,
+    :*,
+    :+,
+    :/,
+    :>,
+    :<,
+    :<=,
+    :>=,
+    :==,
+    :and,
+    :or,
+    :!=,
+    :!==,
+    :===,
+    :<>,
+    :!,
+    :not
+  ]
+  @special_ops [:|||, :&&&, :<<<, :>>>, :<<~, :~>>, :<~, :~>, :<~>]
   @special_ops @literal ++ @value_constructors ++ @kernel_ops ++ @special_ops
 
   def run({{:|>, _, _}, _} = zipper, ctx) do

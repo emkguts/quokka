@@ -524,7 +524,7 @@ defmodule Quokka.Style.BlocksTest do
   end
 
   test "Credo.Check.Refactor.CondStatements" do
-    for truthy <- ~w(true :atom :else) do
+    for truthy <- ["true", ":atom", ":else"] do
       assert_style(
         """
         cond do
@@ -542,7 +542,7 @@ defmodule Quokka.Style.BlocksTest do
       )
     end
 
-    for falsey <- ~w(false nil) do
+    for falsey <- ["false", "nil"] do
       assert_style("""
       cond do
         a -> b
@@ -904,7 +904,7 @@ defmodule Quokka.Style.BlocksTest do
     end
 
     test "double negator rewrites" do
-      for a <- ~w(not !), block <- ["do: z", "do: z, else: zz"] do
+      for a <- ["not", "!"], block <- ["do: z", "do: z, else: zz"] do
         assert_style "if #{a} (x != y), #{block}", "if x == y, #{block}"
         assert_style "if #{a} (x !== y), #{block}", "if x === y, #{block}"
         assert_style "if #{a} ! x, #{block}", "if x, #{block}"

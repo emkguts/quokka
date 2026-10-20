@@ -46,7 +46,28 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "every binary Kernel operator" do
-      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+      for op <- [
+            "++",
+            "--",
+            "&&",
+            "||",
+            "in",
+            "-",
+            "*",
+            "+",
+            "/",
+            ">",
+            "<",
+            "<=",
+            ">=",
+            "==",
+            "and",
+            "or",
+            "!=",
+            "!==",
+            "===",
+            "<>"
+          ] do
         assert_style "Kernel.#{op}(a, b)", "a #{op} b"
       end
     end
@@ -78,7 +99,7 @@ defmodule Quokka.Style.SingleNodeTest do
 
   describe "{Keyword/Map}.merge/2 of a single key => *.put/3" do
     test "in a pipe" do
-      for module <- ~w(Map Keyword) do
+      for module <- ["Map", "Keyword"] do
         assert_style(
           "foo |> #{module}.merge(%{one_key: :bar}) |> bop()",
           "foo |> #{module}.put(:one_key, :bar) |> bop()"
@@ -87,7 +108,7 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "normal call" do
-      for module <- ~w(Map Keyword) do
+      for module <- ["Map", "Keyword"] do
         assert_style(
           "#{module}.merge(foo, %{one_key: :bar})",
           "#{module}.put(foo, :one_key, :bar)"
@@ -103,8 +124,8 @@ defmodule Quokka.Style.SingleNodeTest do
   end
 
   test "{Map/Keyword}.drop with a single key" do
-    for module <- ~w(Map Keyword) do
-      for singular <- ~w(:key key %{} [] 1 "key") do
+    for module <- ["Map", "Keyword"] do
+      for singular <- [":key", "key", "%{}", "[]", "1", "\"key\""] do
         assert_style("#{module}.drop(foo, [#{singular}])", "#{module}.delete(foo, #{singular})")
 
         assert_style(
@@ -567,7 +588,7 @@ defmodule Quokka.Style.SingleNodeTest do
     end
 
     test "prefers implicit try" do
-      for def_style <- ~w(def defp) do
+      for def_style <- ["def", "defp"] do
         assert_style(
           """
           #{def_style} foo() do
@@ -831,24 +852,44 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("assert %{id: ^my_id} = Repo.one(query)")
       assert_style("assert Repo.one(query) |> Map.get(:my_key)")
 
-      assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
-      assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
-
       assert_style(
         "assert DB.Repo.one(from(u in User, where: u.active))",
         "assert DB.Repo.exists?(from(u in User, where: u.active))"
       )
+
+      assert_style("assert Repo.one(User)", "assert Repo.exists?(User)")
+      assert_style("assert Repo.one(from(User))", "assert Repo.exists?(from(User))")
+      assert_style("assert Repo.one(where(User, id: ^id))", "assert Repo.exists?(where(User, id: ^id))")
+    end
+
+    # For a query like from(u in User, where: u.id == ^id, select: u.is_admin),
+    # Repo.one/1 can return false or nil, while Repo.exists?/1 would return true
+    # because the row exists
+    test "doesn't rewrite when the query might select a falsey value" do
+      assert_style("assert Repo.one(query)")
+      assert_style("assert MyApp.Repo.one(query)")
+      assert_style("assert MyApp.Repo.one(query, timeout: 5000)")
+      assert_style("assert Repo.one(build_query())")
+      assert_style("assert Repo.one(from(u in query, where: u.active))")
+      assert_style("assert Repo.one(where(query, id: ^id))")
+      assert_style("assert Repo.one(from(u in User, where: u.id == ^id, select: u.is_admin))")
+      assert_style("assert Repo.one(from(u in User, where: u.id == ^id, select: u))")
+      assert_style("assert Repo.one(from(u in User, where: u.id == ^id, select_merge: %{admin: u.is_admin}))")
+      assert_style("assert Repo.one(select(User, [u], u.is_admin))")
+      assert_style("assert Repo.one(Ecto.Query.select(User, [u], u.is_admin))")
+      assert_style("assert Repo.one(query) == false")
+      assert_style("assert Repo.one(query) == nil")
     end
 
     test "preserves arguments and complex queries" do
       assert_style(
-        "assert Repo.one(from(u in User, where: u.id == ^id, select: u.id))",
-        "assert Repo.exists?(from(u in User, where: u.id == ^id, select: u.id))"
+        "assert Repo.one(from(u in User, join: p in assoc(u, :posts), where: u.id == ^id, preload: [posts: p]))",
+        "assert Repo.exists?(from(u in User, join: p in assoc(u, :posts), where: u.id == ^id, preload: [posts: p]))"
       )
 
       assert_style(
-        "assert MyApp.Repo.one(query, timeout: 5000)",
-        "assert MyApp.Repo.exists?(query, timeout: 5000)"
+        "assert MyApp.Repo.one(User, timeout: 5000)",
+        "assert MyApp.Repo.exists?(User, timeout: 5000)"
       )
     end
 
@@ -868,33 +909,35 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "handles piped Repo.one calls in assertions" do
       assert_style(
-        "assert from(stuff) |> Repo.one()",
-        "assert from(stuff) |> Repo.exists?()"
-      )
-
-      assert_style(
-        "assert query |> MyApp.Repo.one()",
-        "assert query |> MyApp.Repo.exists?()"
-      )
-
-      assert_style(
         "assert from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000)",
         "assert from(u in User, where: u.active) |> DB.Repo.exists?(timeout: 5000)"
       )
 
       # Complex piped expressions
       assert_style(
-        "assert query |> transform() |> Repo.one()",
-        "assert query |> transform() |> Repo.exists?()"
+        "assert User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.one()",
+        "assert User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.exists?()"
       )
+
+      assert_style(
+        "assert User |> Ecto.Query.where(id: ^id) |> MyApp.Repo.one()",
+        "assert User |> Ecto.Query.where(id: ^id) |> MyApp.Repo.exists?()"
+      )
+    end
+
+    test "doesn't rewrite piped Repo.one calls when the query might select a falsey value" do
+      assert_style("assert query |> MyApp.Repo.one()")
+      assert_style("assert from(stuff) |> Repo.one()")
+      assert_style("assert query |> transform() |> Repo.one()")
+      assert_style("assert User |> transform() |> Repo.one()")
+      assert_style("assert from(u in User, where: u.id == ^id, select: u.is_admin) |> Repo.one()")
+      assert_style("assert User |> where(id: ^id) |> select(:is_admin) |> Repo.one()")
+      assert_style("assert User |> where(id: ^id) |> Ecto.Query.select([u], u.is_admin) |> Repo.one()")
     end
 
     test "rewrites Repo.one in refute statements to Repo.exists?" do
       # Make sure legitimate comparisons are not rewritten
       assert_style("refute Repo.one(query) |> Map.get(:my_key)")
-
-      assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
-      assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
 
       assert_style(
         "refute DB.Repo.one(from(u in User, where: u.active))",
@@ -903,25 +946,29 @@ defmodule Quokka.Style.SingleNodeTest do
 
       # Preserves arguments and complex queries
       assert_style(
-        "refute Repo.one(from(u in User, where: u.id == ^id, select: u.id))",
-        "refute Repo.exists?(from(u in User, where: u.id == ^id, select: u.id))"
+        "refute Repo.one(from(u in User, where: u.id == ^id, preload: :posts))",
+        "refute Repo.exists?(from(u in User, where: u.id == ^id, preload: :posts))"
       )
 
       assert_style(
-        "refute MyApp.Repo.one(query, timeout: 5000)",
-        "refute MyApp.Repo.exists?(query, timeout: 5000)"
+        "refute MyApp.Repo.one(User, timeout: 5000)",
+        "refute MyApp.Repo.exists?(User, timeout: 5000)"
       )
+    end
+
+    test "doesn't rewrite refutes when the query might select a falsey value" do
+      assert_style("refute Repo.one(query)")
+      assert_style("refute MyApp.Repo.one(query)")
+      assert_style("refute MyApp.Repo.one(query, timeout: 5000)")
+      assert_style("refute Repo.one(from(u in User, where: u.id == ^id, select: u.is_admin))")
+      assert_style("refute Repo.one(query) == false")
+      assert_style("refute Repo.one(query) == nil")
     end
 
     test "handles piped Repo.one calls in refute statements" do
       assert_style(
-        "refute from(stuff) |> Repo.one()",
-        "refute from(stuff) |> Repo.exists?()"
-      )
-
-      assert_style(
-        "refute query |> MyApp.Repo.one()",
-        "refute query |> MyApp.Repo.exists?()"
+        "refute from(User) |> Repo.one()",
+        "refute from(User) |> Repo.exists?()"
       )
 
       assert_style(
@@ -931,9 +978,14 @@ defmodule Quokka.Style.SingleNodeTest do
 
       # Complex piped expressions
       assert_style(
-        "refute query |> transform() |> Repo.one()",
-        "refute query |> transform() |> Repo.exists?()"
+        "refute User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.one()",
+        "refute User |> where(id: ^id) |> order_by(:inserted_at) |> Repo.exists?()"
       )
+
+      assert_style("refute query |> MyApp.Repo.one()")
+      assert_style("refute from(stuff) |> Repo.one()")
+      assert_style("refute query |> transform() |> Repo.one()")
+      assert_style("refute User |> where(id: ^id) |> select(:is_admin) |> Repo.one()")
     end
 
     test "does not rewrite non-Repo modules in refute statements" do
@@ -944,16 +996,32 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "respects inefficient_functions config" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
-      assert_style("assert Repo.one(query)")
-      assert_style("assert MyApp.Repo.one(query)")
-      assert_style("refute Repo.one(query)")
-      assert_style("refute MyApp.Repo.one(query)")
+      assert_style("assert Repo.one(from(u in User, where: u.active))")
+      assert_style("assert MyApp.Repo.one(from(u in User, where: u.active))")
+      assert_style("refute Repo.one(from(u in User, where: u.active))")
+      assert_style("refute MyApp.Repo.one(from(u in User, where: u.active))")
 
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
-      assert_style("assert Repo.one(query)", "assert Repo.exists?(query)")
-      assert_style("assert MyApp.Repo.one(query)", "assert MyApp.Repo.exists?(query)")
-      assert_style("refute Repo.one(query)", "refute Repo.exists?(query)")
-      assert_style("refute MyApp.Repo.one(query)", "refute MyApp.Repo.exists?(query)")
+
+      assert_style(
+        "assert Repo.one(from(u in User, where: u.active))",
+        "assert Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      assert_style(
+        "assert MyApp.Repo.one(from(u in User, where: u.active))",
+        "assert MyApp.Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      assert_style(
+        "refute Repo.one(from(u in User, where: u.active))",
+        "refute Repo.exists?(from(u in User, where: u.active))"
+      )
+
+      assert_style(
+        "refute MyApp.Repo.one(from(u in User, where: u.active))",
+        "refute MyApp.Repo.exists?(from(u in User, where: u.active))"
+      )
     end
   end
 
@@ -961,12 +1029,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in if statements" do
       assert_style(
         """
-        if Repo.one(query) do
+        if Repo.one(User) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) do
+        if Repo.exists?(User) do
           :ok
         end
         """
@@ -974,12 +1042,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if MyApp.Repo.one(query) do
+        if MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if MyApp.Repo.exists?(query) do
+        if MyApp.Repo.exists?(User) do
           :ok
         end
         """
@@ -1002,12 +1070,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in unless statements" do
       assert_style(
         """
-        unless Repo.one(query) do
+        unless Repo.one(User) do
           :ok
         end
         """,
         """
-        if !Repo.exists?(query) do
+        if !Repo.exists?(User) do
           :ok
         end
         """
@@ -1015,12 +1083,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless MyApp.Repo.one(query) do
+        unless MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.exists?(query) do
+        if !MyApp.Repo.exists?(User) do
           :ok
         end
         """
@@ -1043,12 +1111,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "rewrites Repo.one in complex conditional expressions" do
       assert_style(
         """
-        if Repo.one(query) && other_condition do
+        if Repo.one(User) && other_condition do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) && other_condition do
+        if Repo.exists?(User) && other_condition do
           :ok
         end
         """
@@ -1056,12 +1124,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if other_condition || Repo.one(query) do
+        if other_condition || Repo.one(User) do
           :ok
         end
         """,
         """
-        if other_condition || Repo.exists?(query) do
+        if other_condition || Repo.exists?(User) do
           :ok
         end
         """
@@ -1069,12 +1137,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless !Repo.one(query) do
+        unless !Repo.one(User) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) do
+        if Repo.exists?(User) do
           :ok
         end
         """
@@ -1084,12 +1152,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "preserves arguments and complex queries in conditionals" do
       assert_style(
         """
-        if Repo.one(from(u in User, where: u.id == ^id, select: u.id)) do
+        if Repo.one(from(u in User, where: u.id == ^id, preload: :posts)) do
           :ok
         end
         """,
         """
-        if Repo.exists?(from(u in User, where: u.id == ^id, select: u.id)) do
+        if Repo.exists?(from(u in User, where: u.id == ^id, preload: :posts)) do
           :ok
         end
         """
@@ -1097,12 +1165,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless MyApp.Repo.one(query, timeout: 5000) do
+        unless MyApp.Repo.one(User, timeout: 5000) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.exists?(query, timeout: 5000) do
+        if !MyApp.Repo.exists?(User, timeout: 5000) do
           :ok
         end
         """
@@ -1127,19 +1195,19 @@ defmodule Quokka.Style.SingleNodeTest do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
 
       assert_style("""
-      if Repo.one(query) do
+      if Repo.one(User) do
         :ok
       end
       """)
 
       assert_style(
         """
-        unless MyApp.Repo.one(query) do
+        unless MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.one(query) do
+        if !MyApp.Repo.one(User) do
           :ok
         end
         """
@@ -1149,12 +1217,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if Repo.one(query) do
+        if Repo.one(User) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query) do
+        if Repo.exists?(User) do
           :ok
         end
         """
@@ -1162,12 +1230,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless MyApp.Repo.one(query) do
+        unless MyApp.Repo.one(User) do
           :ok
         end
         """,
         """
-        if !MyApp.Repo.exists?(query) do
+        if !MyApp.Repo.exists?(User) do
           :ok
         end
         """
@@ -1177,12 +1245,12 @@ defmodule Quokka.Style.SingleNodeTest do
     test "handles multiple Repo.one calls in conditionals" do
       assert_style(
         """
-        if Repo.one(query1) && Repo.one(query2) do
+        if Repo.one(User) && Repo.one(Post) do
           :ok
         end
         """,
         """
-        if Repo.exists?(query1) && Repo.exists?(query2) do
+        if Repo.exists?(User) && Repo.exists?(Post) do
           :ok
         end
         """
@@ -1190,12 +1258,12 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        unless Repo.one(query1) || MyApp.Repo.one(query2) do
+        unless Repo.one(User) || MyApp.Repo.one(Post) do
           :ok
         end
         """,
         """
-        if !(Repo.exists?(query1) || MyApp.Repo.exists?(query2)) do
+        if !(Repo.exists?(User) || MyApp.Repo.exists?(Post)) do
           :ok
         end
         """
@@ -1245,32 +1313,6 @@ defmodule Quokka.Style.SingleNodeTest do
     test "handles piped Repo.one calls in conditionals" do
       assert_style(
         """
-        if from(stuff) |> Repo.one() do
-          :ok
-        end
-        """,
-        """
-        if from(stuff) |> Repo.exists?() do
-          :ok
-        end
-        """
-      )
-
-      assert_style(
-        """
-        if query |> MyApp.Repo.one() do
-          :ok
-        end
-        """,
-        """
-        if query |> MyApp.Repo.exists?() do
-          :ok
-        end
-        """
-      )
-
-      assert_style(
-        """
         if from(u in User, where: u.active) |> DB.Repo.one(timeout: 5000) do
           :ok
         end
@@ -1284,16 +1326,54 @@ defmodule Quokka.Style.SingleNodeTest do
 
       assert_style(
         """
-        if query |> transform() |> Repo.one() && other_condition do
+        if User |> where(active: true) |> order_by(:inserted_at) |> Repo.one() && other_condition do
           :ok
         end
         """,
         """
-        if query |> transform() |> Repo.exists?() && other_condition do
+        if User |> where(active: true) |> order_by(:inserted_at) |> Repo.exists?() && other_condition do
           :ok
         end
         """
       )
+    end
+
+    test "does not rewrite Repo.one in conditionals when the query might select a falsey value" do
+      assert_style("""
+      if Repo.one(query) do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if Repo.one(from(u in User, where: u.id == ^id, select: u.is_admin)) && other_condition do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if from(stuff) |> Repo.one() do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if query |> MyApp.Repo.one() do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if query |> transform() |> Repo.one() && other_condition do
+        :ok
+      end
+      """)
+
+      assert_style("""
+      if User |> where(id: ^id) |> select(:is_admin) |> Repo.one() do
+        :ok
+      end
+      """)
     end
   end
 
@@ -1392,6 +1472,20 @@ defmodule Quokka.Style.SingleNodeTest do
       assert_style("Enum.reduce(actions, 0, & &1.run/2)")
       assert_style("Enum.reduce(actions, state, & &1.run(&2))")
       assert_style("Enum.reduce(actions, state, & &1.run(&1, &2))")
+    end
+
+    test "does not rewrite captures of special forms" do
+      assert_style("Enum.map(xs, &<<&1>>)")
+      assert_style("Enum.map(xs, &{&1})")
+      assert_style("Enum.map(xs, &<<&1::utf8>>)")
+      assert_style("Enum.map(xs, &{&1, &2})")
+      assert_style("Enum.map(xs, &[&1])")
+      assert_style("Enum.map(xs, &%{a: &1})")
+    end
+
+    test "still rewrites captures of Kernel macros and operators" do
+      assert_style("Enum.map(xs, &to_string(&1))", "Enum.map(xs, &to_string/1)")
+      assert_style("Enum.map(xs, &is_nil(&1))", "Enum.map(xs, &is_nil/1)")
     end
   end
 
@@ -1545,7 +1639,7 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "rewrites nested map and aggregate calls" do
       for {aggregate, aggregate_by} <- [sum: :sum_by, product: :product_by],
-          mapper_module <- ~w(Enum Stream) do
+          mapper_module <- ["Enum", "Stream"] do
         assert_style(
           "Enum.#{aggregate}(#{mapper_module}.map(groups, fn g -> length(g.rows) end))",
           "Enum.#{aggregate_by}(groups, fn g -> length(g.rows) end)"
@@ -1911,6 +2005,156 @@ defmodule Quokka.Style.SingleNodeTest do
         ~s|String.starts_with?(foo, "bar") or String.starts_with?(foo, "baz")|,
         ~s|String.starts_with?(foo, ["bar", "baz"])|
       )
+    end
+  end
+
+  describe "~w sigils => literal lists" do
+    test "rewrites words to strings" do
+      assert_style("@person_keys ~w(name github slack_id)", ~s|@person_keys ["name", "github", "slack_id"]|)
+      assert_style("~w(name github slack_id)s", ~s|["name", "github", "slack_id"]|)
+    end
+
+    test "rewrites words to atoms" do
+      assert_style(
+        "@roles ~w(developer qa_engineer pm em designer)a",
+        "@roles [:developer, :qa_engineer, :pm, :em, :designer]"
+      )
+    end
+
+    test "quotes atoms that need it" do
+      assert_style("~w(foo-bar Foo.Bar && <<~ nil)a", ~s|[:"foo-bar", :"Foo.Bar", :&&, :<<~, nil]|)
+    end
+
+    test "escapes double quotes" do
+      assert_style(~S|~w(say"hi")|, ~S|["say\"hi\""]|)
+      assert_style(~S|~w(say"hi")a|, ~S|[:"say\"hi\""]|)
+      assert_style(~S|~w"say\"hi\""|, ~S|["say\"hi\""]|)
+    end
+
+    test "unescapes escaped delimiters" do
+      assert_style(~S|~w(foo\)bar)|, ~S|["foo)bar"]|)
+      assert_style(~S/~w|foo\|bar|a/, ~S/[:"foo|bar"]/)
+    end
+
+    test "handles every delimiter" do
+      for {open, close} <- [
+            {"(", ")"},
+            {"[", "]"},
+            {"{", "}"},
+            {"<", ">"},
+            {"|", "|"},
+            {"/", "/"},
+            {~s|"|, ~s|"|},
+            {"'", "'"}
+          ] do
+        assert_style("~w#{open}foo bar#{close}a", "[:foo, :bar]")
+      end
+    end
+
+    test "empty sigils" do
+      assert_style("~w()", "[]")
+      assert_style("~w()a", "[]")
+    end
+
+    test "keeps a sigil that opens with a newline multi-line" do
+      assert_style(
+        """
+        @keys ~w(
+          foo
+          bar baz
+        )a
+        """,
+        """
+        @keys [
+          :foo,
+          :bar,
+          :baz
+        ]
+        """
+      )
+
+      assert_style(
+        ~s'''
+        @keys ~w"""
+        foo
+        bar
+        """
+        ''',
+        """
+        @keys [
+          "foo",
+          "bar"
+        ]
+        """
+      )
+    end
+
+    test "joins words that were only wrapped for length" do
+      assert_style(
+        """
+        ~w(foo bar
+           baz)a
+        """,
+        "[:foo, :bar, :baz]"
+      )
+    end
+
+    test "rewrites sigils in guards" do
+      assert_style("def foo(x) when x in ~w(a b)a, do: x", "def foo(x) when x in [:a, :b], do: x")
+    end
+
+    test "works with # quokka:sort" do
+      assert_style(
+        """
+        # quokka:sort
+        @roles ~w(pm developer designer)a
+        """,
+        """
+        # quokka:sort
+        @roles [:designer, :developer, :pm]
+        """
+      )
+
+      assert_style(
+        """
+        # quokka:sort
+        @roles ~w(
+          pm
+          developer
+          designer
+        )a
+        """,
+        """
+        # quokka:sort
+        @roles [
+          :designer,
+          :developer,
+          :pm
+        ]
+        """
+      )
+    end
+
+    test "leaves interpolated sigils alone" do
+      assert_style(~S|~w(foo #{bar} baz)|)
+      assert_style(~S|~w(foo #{bar} baz)a|)
+    end
+
+    test "leaves sigils with escape sequences alone" do
+      # `\s` is whitespace once unescaped, so these aren't the words they look like
+      assert_style(~S|~w(foo\sbar)|)
+      assert_style(~S|~w(foo\tbar)a|)
+      assert_style(~S|~w(foo\\bar)|)
+    end
+
+    test "leaves charlist sigils and ~W alone" do
+      assert_style("~w(foo bar)c")
+      assert_style("~W(foo bar)")
+    end
+
+    test "respects the :sigils config" do
+      stub(Quokka.Config, :sigils?, fn -> false end)
+      assert_style("~w(foo bar)a")
     end
   end
 end

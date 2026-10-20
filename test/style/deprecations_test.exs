@@ -101,7 +101,7 @@ defmodule Quokka.Style.DeprecationsTest do
   end
 
   test "negative steps with [Enum|String].slice/2" do
-    for mod <- ~w(Enum String) do
+    for mod <- ["Enum", "String"] do
       assert_style("#{mod}.slice(x, 1..-2)", "#{mod}.slice(x, 1..-2//1)")
       assert_style("#{mod}.slice(x, -1..-2)", "#{mod}.slice(x, -1..-2//1)")
       assert_style("#{mod}.slice(x, 2..1)", "#{mod}.slice(x, 2..1//1)")

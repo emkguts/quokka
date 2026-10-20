@@ -11,6 +11,7 @@
 defmodule Quokka.Style.CommentDirectivesTest do
   @moduledoc false
   use Quokka.StyleCase, async: true
+  use Mimic
 
   describe "sort" do
     test "we dont just sort by accident" do
@@ -191,6 +192,9 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "sorts sigils" do
+      # Otherwise the `~w` sigils get rewritten to lists
+      stub(Quokka.Config, :sigils?, fn -> false end)
+
       assert_style("# quokka:sort\n~w|c a b|", "# quokka:sort\n~w|a b c|")
 
       assert_style(
@@ -220,6 +224,9 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "assignments" do
+      # Otherwise the `~w` sigils get rewritten to lists
+      stub(Quokka.Config, :sigils?, fn -> false end)
+
       assert_style(
         """
         # quokka:sort
@@ -280,6 +287,9 @@ defmodule Quokka.Style.CommentDirectivesTest do
     end
 
     test "doesnt affect downstream nodes" do
+      # Otherwise the `~w` sigils get rewritten to lists
+      stub(Quokka.Config, :sigils?, fn -> false end)
+
       assert_style(
         """
         # quokka:sort
