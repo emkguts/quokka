@@ -1238,6 +1238,57 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """
       )
     end
+
+    test "doesn't lift out of `quote` when `unquote` is disabled" do
+      for opts <- ["bind_quoted: [opts: opts]", "unquote: false", "bind_quoted: [opts: opts], unquote: false", "opts"] do
+        assert_style("""
+        defmacro __using__(opts) do
+          quote #{opts} do
+            @max_attempts 1
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+          end
+        end
+        """)
+      end
+    end
+
+    test "lifts out of `quote` when `unquote` is explicitly enabled" do
+      assert_style(
+        """
+        defmacro __using__(opts) do
+          quote bind_quoted: [opts: opts], unquote: true do
+            @max_attempts 1
+
+            use Oban.Pro.Worker, max_attempts: @max_attempts
+          end
+        end
+        """,
+        """
+        defmacro __using__(opts) do
+          max_attempts = 1
+
+          quote bind_quoted: [opts: opts], unquote: true do
+            use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
+
+            @max_attempts unquote(max_attempts)
+          end
+        end
+        """
+      )
+    end
+
+    test "doesn't lift a value with `unquote_splicing` out of `quote`" do
+      assert_style("""
+      defmacro __using__(opts) do
+        quote do
+          @queues [:default, unquote_splicing(opts)]
+
+          use Oban.Pro.Worker, queues: @queues
+        end
+      end
+      """)
+    end
   end
 
   describe "Credo.Check.Readability.AliasOrder compatibility" do

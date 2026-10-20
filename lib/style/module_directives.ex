@@ -223,12 +223,15 @@ defmodule Quokka.Style.ModuleDirectives do
     nondirectives: [],
     dealiases: %{},
     attrs: MapSet.new(),
+    unliftable_attrs: MapSet.new(),
     attr_lifts: [],
-    in_quote?: false
+    in_quote?: false,
+    lift_attrs?: true,
+    lift_blocked?: false
   }
 
-  defp lift_module_attrs({node, _, _} = ast, %{attrs: attrs} = acc) do
-    if Enum.empty?(attrs) do
+  defp lift_module_attrs({node, _, _} = ast, %{attrs: attrs, unliftable_attrs: unliftable} = acc) do
+    if Enum.empty?(attrs) and Enum.empty?(unliftable) do
       {ast, acc}
     else
       # `use` receives its args as AST, and inside a quote nothing sees the lifted variable, so both need unquoting
@@ -244,7 +247,8 @@ defmodule Quokka.Style.ModuleDirectives do
 
             {replacement, %{acc | attr_lifts: [attr | acc.attr_lifts]}}
           else
-            {ast, acc}
+            # sorting would move the directive above the attribute it reads
+            {ast, %{acc | lift_blocked?: acc.lift_blocked? or attr in unliftable}}
           end
 
         ast, acc ->
@@ -450,56 +454,73 @@ defmodule Quokka.Style.ModuleDirectives do
   defp organize_directives_with_sorting(parent, moduledoc) do
     {before, _after} = Enum.split_while(Quokka.Config.strict_module_layout_order(), &(&1 != :alias))
 
-    acc =
-      parent
-      |> Zipper.children()
-      |> Enum.reduce(%{@acc | in_quote?: in_quote?(parent)}, fn
-        {:@, _, [{attr_directive, _, _}]} = ast, acc when attr_directive in @attr_directives ->
-          # attr_directives might get hoisted above aliases, so need to dealias depending on the layout order
-          if Enum.member?(before, attr_directive) do
-            {ast, acc} = acc.dealiases |> AliasEnv.expand(ast) |> lift_module_attrs(acc)
-            %{acc | attr_directive => [ast | acc[attr_directive]]}
+    acc = collect_directives(parent, before)
+
+    # a directive reads an attribute that can't be lifted, so sorting would break it
+    if acc.lift_blocked? do
+      organize_directives_preserve_order(parent, moduledoc)
+    else
+      organize_collected_directives(parent, moduledoc, acc)
+    end
+  end
+
+  defp collect_directives(parent, before) do
+    parent
+    |> Zipper.children()
+    |> Enum.reduce(init_acc(parent), fn
+      {:@, _, [{attr_directive, _, _}]} = ast, acc when attr_directive in @attr_directives ->
+        # attr_directives might get hoisted above aliases, so need to dealias depending on the layout order
+        if Enum.member?(before, attr_directive) do
+          {ast, acc} = acc.dealiases |> AliasEnv.expand(ast) |> lift_module_attrs(acc)
+          %{acc | attr_directive => [ast | acc[attr_directive]]}
+        else
+          %{acc | attr_directive => [ast | acc[attr_directive]]}
+        end
+
+      {:@, _, [{attr, _, _}]} = ast, acc ->
+        acc =
+          if liftable_attr?(ast, acc),
+            do: %{acc | attrs: MapSet.put(acc.attrs, attr)},
+            else: %{acc | unliftable_attrs: MapSet.put(acc.unliftable_attrs, attr)}
+
+        %{acc | nondirectives: [ast | acc.nondirectives]}
+
+      {directive, _, _} = ast, acc when directive in @directives ->
+        {ast, acc} = lift_module_attrs(ast, acc)
+
+        ast =
+          if Quokka.Config.rewrite_multi_alias?() do
+            expand(ast, acc.dealiases)
           else
-            %{acc | attr_directive => [ast | acc[attr_directive]]}
+            [sort_multi_children(ast)]
           end
 
-        {:@, _, [{attr, _, _}]} = ast, acc ->
-          %{acc | nondirectives: [ast | acc.nondirectives], attrs: MapSet.put(acc.attrs, attr)}
+        # import and use might get hoisted above aliases, so need to dealias depending on the layout order
+        needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
 
-        {directive, _, _} = ast, acc when directive in @directives ->
-          {ast, acc} = lift_module_attrs(ast, acc)
+        ast =
+          cond do
+            needs_dealiasing -> AliasEnv.expand(acc.dealiases, ast)
+            # A later alias can reference an earlier one (`alias Foo.Bar` then `alias Bar.Baz`
+            # means `alias Foo.Bar.Baz`). Sorting reorders aliases, which would move the referenced
+            # alias after the line that uses it and silently change the meaning of every dependent alias,
+            # so we need to resolve each alias to its full path first and let it sort by that. (#179)
+            directive == :alias -> Enum.map(ast, &AliasEnv.dealias_directive(acc.dealiases, &1))
+            true -> ast
+          end
 
-          ast =
-            if Quokka.Config.rewrite_multi_alias?() do
-              expand(ast, acc.dealiases)
-            else
-              [sort_multi_children(ast)]
-            end
+        dealiases =
+          if directive == :alias, do: AliasEnv.define(acc.dealiases, ast), else: acc.dealiases
 
-          # import and use might get hoisted above aliases, so need to dealias depending on the layout order
-          needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
+        # the reverse accounts for `expand` putting things in reading order, whereas we're accumulating in reverse
+        %{acc | directive => Enum.reverse(ast, acc[directive]), dealiases: dealiases}
 
-          ast =
-            cond do
-              needs_dealiasing -> AliasEnv.expand(acc.dealiases, ast)
-              # A later alias can reference an earlier one (`alias Foo.Bar` then `alias Bar.Baz`
-              # means `alias Foo.Bar.Baz`). Sorting reorders aliases, which would move the referenced
-              # alias after the line that uses it and silently change the meaning of every dependent alias,
-              # so we need to resolve each alias to its full path first and let it sort by that. (#179)
-              directive == :alias -> Enum.map(ast, &AliasEnv.dealias_directive(acc.dealiases, &1))
-              true -> ast
-            end
+      ast, acc ->
+        %{acc | nondirectives: [ast | acc.nondirectives]}
+    end)
+  end
 
-          dealiases =
-            if directive == :alias, do: AliasEnv.define(acc.dealiases, ast), else: acc.dealiases
-
-          # the reverse accounts for `expand` putting things in reading order, whereas we're accumulating in reverse
-          %{acc | directive => Enum.reverse(ast, acc[directive]), dealiases: dealiases}
-
-        ast, acc ->
-          %{acc | nondirectives: [ast | acc.nondirectives]}
-      end)
-
+  defp organize_collected_directives(parent, moduledoc, acc) do
     # Reversing once we're done accumulating since `reduce`ing into list accs means you're reversed!
     acc =
       acc
@@ -519,8 +540,8 @@ defmodule Quokka.Style.ModuleDirectives do
         {:dealiases, d} ->
           {:dealiases, d}
 
-        {:in_quote?, in_quote?} ->
-          {:in_quote?, in_quote?}
+        {key, value} when key in [:in_quote?, :lift_attrs?, :lift_blocked?, :unliftable_attrs] ->
+          {key, value}
 
         {k, v} ->
           {k, Enum.reverse(v)}
@@ -538,9 +559,13 @@ defmodule Quokka.Style.ModuleDirectives do
         nondirectives =
           Enum.map(acc.nondirectives, fn
             {:@, m, [{attr, am, _}]} = ast ->
-              var = {attr, am, nil}
-              value = if in_quote?, do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]}, else: var
-              if attr in lifts, do: {:@, m, [{attr, am, [value]}]}, else: ast
+              if attr in lifts do
+                var = {attr, am, nil}
+                value = if in_quote?, do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]}, else: var
+                {:@, m, [{attr, am, [value]}]}
+              else
+                ast
+              end
 
             ast ->
               ast
@@ -549,9 +574,13 @@ defmodule Quokka.Style.ModuleDirectives do
         assignments =
           Enum.flat_map(acc.nondirectives, fn
             {:@, m, [{attr, am, [val]}]} ->
-              # a value lifted out of a quote is evaluated directly, so it must not keep its `unquote`s
-              val = if in_quote?, do: Macro.prewalk(val, &unwrap_unquote/1), else: val
-              if attr in lifts, do: [{:=, m, [{attr, am, nil}, val]}], else: []
+              if attr in lifts do
+                # a value lifted out of a quote is evaluated directly, so it must not keep its `unquote`s
+                val = if in_quote?, do: Macro.prewalk(val, &unwrap_unquote/1), else: val
+                [{:=, m, [{attr, am, nil}, val]}]
+              else
+                []
+              end
 
             _ ->
               []
@@ -595,16 +624,48 @@ defmodule Quokka.Style.ModuleDirectives do
   defp unwrap_unquote({:unquote, _, [inner]}), do: inner
   defp unwrap_unquote(ast), do: ast
 
-  # `parent` is a `do` block; its ancestors are the `do:` keyword pair, the keyword list, then the call
-  defp in_quote?(parent) do
-    with {_, _} = pair <- Zipper.up(parent),
-         {_, _} = keywords <- Zipper.up(pair),
-         {{:quote, _, _}, _} <- Zipper.up(keywords) do
-      true
-    else
-      _ -> false
+  defp init_acc(parent) do
+    case quote_opts(parent) do
+      nil -> @acc
+      # lifting relies on `unquote` to get the variable back into the quote
+      opts -> if unquote_enabled?(opts), do: %{@acc | in_quote?: true}, else: %{@acc | lift_attrs?: false}
     end
   end
+
+  # `parent` is a `do` block; its ancestors are the `do:` keyword pair, the keyword list, then the call
+  defp quote_opts(parent) do
+    with {_, _} = pair <- Zipper.up(parent),
+         {_, _} = keywords <- Zipper.up(pair),
+         {{:quote, _, args}, _} <- Zipper.up(keywords) do
+      case args do
+        [_do_block] -> []
+        [opts, _do_block] when is_list(opts) -> opts
+        # options we can't read, like `quote opts do`
+        _ -> :unknown
+      end
+    else
+      _ -> nil
+    end
+  end
+
+  # `bind_quoted` disables `unquote` unless `unquote: true` is given. Options we can't read are treated as disabled.
+  defp unquote_enabled?(:unknown), do: false
+
+  defp unquote_enabled?(opts) do
+    opts = Enum.map(opts, fn {{:__block__, _, [key]}, value} -> {key, value} end)
+
+    case Keyword.fetch(opts, :unquote) do
+      {:ok, {:__block__, _, [true]}} -> true
+      {:ok, _} -> false
+      :error -> not Keyword.has_key?(opts, :bind_quoted)
+    end
+  end
+
+  # `unquote_splicing` only works inside a quote, so its value can't be lifted out of one
+  defp liftable_attr?({:@, _, [{_, _, [val]}]}, %{in_quote?: true}),
+    do: not Enum.any?(Macro.prewalker(val), &match?({:unquote_splicing, _, _}, &1))
+
+  defp liftable_attr?(_ast, acc), do: acc.lift_attrs?
 
   defp lift_aliases(%{alias: aliases, nondirectives: nondirectives} = acc) do
     # we can't use the dealias map built into state as that's what things look like before sorting
