@@ -14,6 +14,7 @@ defmodule Quokka.ConfigTest do
   alias Quokka.Style.Configs
   alias Quokka.Style.Deprecations
   alias Quokka.Style.Pipes
+  alias Quokka.Style.SingleNode
 
   test "no config is good times" do
     assert :ok = set!([])
@@ -78,6 +79,48 @@ defmodule Quokka.ConfigTest do
   test "only applies line-length changes if :line_length is present in the `:only` configuration" do
     assert :ok = set!(quokka: [only: [:line_length]])
     assert [CommentDirectives] == Quokka.Config.get_styles()
+
+    {_, styled, _} = style("~w(a b)a")
+    assert styled == "~w(a b)a"
+  end
+
+  describe ":sigils" do
+    test "boolean accessor reflects whether sigils are excluded" do
+      assert :ok = set!([])
+      assert Quokka.Config.sigils?()
+
+      assert :ok = set!(quokka: [exclude: [:sigils]])
+      refute Quokka.Config.sigils?()
+    end
+
+    test "only: [:single_node] rewrites sigils along with the other single-node rewrites" do
+      assert :ok = set!(quokka: [only: [:single_node]])
+      assert [CommentDirectives, SingleNode] == Quokka.Config.get_styles()
+
+      {_, styled, _} = style("x = ~w(a b)a\nEnum.reverse(foo) ++ bar")
+      assert styled == "x = [:a, :b]\nEnum.reverse(foo, bar)"
+    end
+
+    test "exclude: [:single_node] leaves sigils alone" do
+      assert :ok = set!(quokka: [exclude: [:single_node]])
+      refute SingleNode in Quokka.Config.get_styles()
+
+      {_, styled, _} = style("x = ~w(a b)a\nEnum.reverse(foo) ++ bar")
+      assert styled == "x = ~w(a b)a\nEnum.reverse(foo) ++ bar"
+    end
+
+    test "exclude: [:sigils] leaves sigils alone but runs the other single-node rewrites" do
+      assert :ok = set!(quokka: [exclude: [:sigils]])
+      assert SingleNode in Quokka.Config.get_styles()
+
+      {_, styled, _} = style("x = ~w(a b)a\nEnum.reverse(foo) ++ bar")
+      assert styled == "x = ~w(a b)a\nEnum.reverse(foo, bar)"
+    end
+
+    test "is not a style module of its own" do
+      assert :ok = set!(quokka: [only: [:sigils]])
+      assert [CommentDirectives] == Quokka.Config.get_styles()
+    end
   end
 
   test "respects the formatter_opts line_length configuration" do

@@ -12,12 +12,14 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 - Added rewrite for `Enum.reduce/3` when it can be replaced by a function from `Enum` module or `Map.new`
 - Support disabling Credo check via `:disabled` section of the configuration
 - Rewrite `Enum.map/2` or `Stream.map/2` followed by `Enum.sum/1` or `Enum.product/1` to `Enum.sum_by/2` or `Enum.product_by/2` on Elixir 1.18+; fuse a preceding `Map.values/1` into the aggregate function.
+- Rewrite `~w` sigils to literal lists (e.g. `~w(foo bar)a` becomes `[:foo, :bar]`). Sigils with interpolation or escape sequences are left alone. Disable it with `exclude: [:sigils]`.
 
 ### Fixes
 
 - Module attribute lifting inside `quote` no longer produces code that doesn't compile. Every reference to the lifted variable inside the `quote` is now wrapped in `unquote`, including the reassigned attribute (`@foo unquote(foo)`) and other attributes like `@moduledoc`. Any `unquote` in the lifted value is removed, because the value now runs outside the `quote`.
 - Read Credo checks added via the `extra` section of `.credo.exs` when there's no `enabled` section. Fixes [#200](https://github.com/emkguts/quokka/issues/200).
 - Stop rewriting `with true <- x, do: body` to `if x, do: body`. That rewrite changed semantics: `with` returns the unmatched value (`false`, `:foo`, etc.) while `if` treats the head as truthy/falsey. Fixes [#187](https://github.com/emkguts/quokka/issues/187).
+- Fix captures of special forms being rewritten to invalid name + arity captures. (`&<<&1>>` and `&{&1}` were styled as `&<<>>/1` and `&{}/1`, which are both invalid.)
 
 ### Fixes
 

@@ -872,7 +872,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "ecto funtimes" do
-      for from <- ~w(from Query.from Ecto.Query.from) do
+      for from <- ["from", "Query.from", "Ecto.Query.from"] do
         assert_style("""
         #{from}(foo in Bar, where: foo.bool)
         |> some_query_helper()
@@ -962,13 +962,34 @@ defmodule Quokka.Style.PipesTest do
       assert_style "a |> foo() |> then(&(-&1)) |> c", "a |> foo() |> Kernel.-() |> c()"
       assert_style "a |> foo() |> then(&(+&1)) |> c", "a |> foo() |> Kernel.+() |> c()"
 
-      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+      for op <- [
+            "++",
+            "--",
+            "&&",
+            "||",
+            "in",
+            "-",
+            "*",
+            "+",
+            "/",
+            ">",
+            "<",
+            "<=",
+            ">=",
+            "==",
+            "and",
+            "or",
+            "!=",
+            "!==",
+            "===",
+            "<>"
+          ] do
         assert_style "a |> then(&(&1 #{op} x)) |> c", "c(a #{op} x)"
         assert_style "a |> foo() |> then(&(&1 #{op} x)) |> c", "a |> foo() |> Kernel.#{op}(x) |> c()"
       end
 
       # Doesn't rewrite non-kernel operators
-      for op <- ~w(||| &&& <<< >>> <<~ ~>> <~ ~> <~>) do
+      for op <- ["|||", "&&&", "<<<", ">>>", "<<~", "~>>", "<~", "~>", "<~>"] do
         assert_style "a |> then(&(&1 #{op} x)) |> c()"
       end
     end
@@ -1118,7 +1139,28 @@ defmodule Quokka.Style.PipesTest do
     test "folds every Kernel binary/unary operator that starts a pipe" do
       stub(Quokka.Config, :single_pipe_flag?, fn -> false end)
 
-      for op <- ~w(++ -- && || in - * + / > < <= >= == and or != !== === <>) do
+      for op <- [
+            "++",
+            "--",
+            "&&",
+            "||",
+            "in",
+            "-",
+            "*",
+            "+",
+            "/",
+            ">",
+            "<",
+            "<=",
+            ">=",
+            "==",
+            "and",
+            "or",
+            "!=",
+            "!==",
+            "===",
+            "<>"
+          ] do
         assert_style("a |> Kernel.#{op}(x) |> c()", "(a #{op} x) |> c()")
       end
 
@@ -1140,7 +1182,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "filter/count" do
-      for enum <- ~w(Enum Stream) do
+      for enum <- ["Enum", "Stream"] do
         assert_style(
           """
           a
@@ -1292,7 +1334,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "map/join" do
-      for enum <- ~w(Enum Stream) do
+      for enum <- ["Enum", "Stream"] do
         assert_style("a |> #{enum}.map(mapper) |> Enum.join()", "Enum.map_join(a, mapper)")
 
         assert_style(
@@ -1319,7 +1361,7 @@ defmodule Quokka.Style.PipesTest do
     test "map/sum rewrites Enum.map and Stream.map followed by Enum.sum" do
       enable_sum_by_rewrite()
 
-      for enum <- ~w(Enum Stream) do
+      for enum <- ["Enum", "Stream"] do
         assert_style("a |> #{enum}.map(mapper) |> Enum.sum()", "Enum.sum_by(a, mapper)")
       end
     end
@@ -1553,7 +1595,7 @@ defmodule Quokka.Style.PipesTest do
     test "map/product rewrites Enum.map and Stream.map followed by Enum.product" do
       enable_product_by_rewrite()
 
-      for enum <- ~w(Enum Stream) do
+      for enum <- ["Enum", "Stream"] do
         assert_style(
           "a |> #{enum}.map(mapper) |> Enum.product()",
           "Enum.product_by(a, mapper)"
@@ -1668,7 +1710,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "map/into" do
-      for enum <- ~w(Enum Stream) do
+      for enum <- ["Enum", "Stream"] do
         assert_style("a|> #{enum}.map(b)|> Enum.into(%{})", "Map.new(a, b)")
         assert_style("a |> #{enum}.map(b) |> Enum.into(unk)", "Enum.into(a, unk, b)")
 

@@ -473,7 +473,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     end
 
     test "doesn't add moduledoc to modules of specific names" do
-      for verboten <- ~w(Test Mixfile Controller Endpoint Repo Router Socket View HTML JSON) do
+      for verboten <- ["Test", "Mixfile", "Controller", "Endpoint", "Repo", "Router", "Socket", "View", "HTML", "JSON"] do
         assert_style("""
         defmodule A.B.C#{verboten} do
           @shortdoc "Don't change me!"
@@ -778,7 +778,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     end
 
     test "sorts, dedupes & expands require/import while respecting groups" do
-      for d <- ~w(require import) do
+      for d <- ["require", "import"] do
         assert_style(
           """
           #{d} D.D

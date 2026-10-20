@@ -48,9 +48,9 @@ defmodule Quokka.Style.ModuleDirectives do
 
   require Logger
 
-  @directives ~w(alias import require use)a
-  @attr_directives ~w(moduledoc shortdoc behaviour)a
-  @defstruct ~w(schema embedded_schema defstruct)a
+  @directives [:alias, :import, :require, :use]
+  @attr_directives [:moduledoc, :shortdoc, :behaviour]
+  @defstruct [:schema, :embedded_schema, :defstruct]
 
   @module_placeholder "Xk9pLm3Qw7_RAND_PLACEHOLDER"
   @moduledoc_false {:@, [line: nil],
@@ -203,7 +203,7 @@ defmodule Quokka.Style.ModuleDirectives do
     # module names ending with these suffixes will not have a default moduledoc appended
     if !String.ends_with?(
          name,
-         ~w(Test Mixfile MixProject Controller Endpoint Repo Router Socket View HTML JSON)
+         ["Test", "Mixfile", "MixProject", "Controller", "Endpoint", "Repo", "Router", "Socket", "View", "HTML", "JSON"]
        ) do
       Style.set_line(@moduledoc_false, m[:line] + 1)
     end
@@ -496,7 +496,7 @@ defmodule Quokka.Style.ModuleDirectives do
           end
 
         # import and use might get hoisted above aliases, so need to dealias depending on the layout order
-        needs_dealiasing = directive in ~w(import use)a and Enum.member?(before, directive)
+        needs_dealiasing = directive in [:import, :use] and Enum.member?(before, directive)
 
         ast =
           cond do
@@ -534,7 +534,7 @@ defmodule Quokka.Style.ModuleDirectives do
         {:alias, to_sort} ->
           {:alias, to_sort |> disambiguate_aliases() |> Style.reset_newlines()}
 
-        {directive, to_sort} when directive in ~w(behaviour import require)a ->
+        {directive, to_sort} when directive in [:behaviour, :import, :require] ->
           {directive, sort(to_sort, false)}
 
         {:dealiases, d} ->
@@ -727,7 +727,7 @@ defmodule Quokka.Style.ModuleDirectives do
     # %{last => {aliases, seen_before?} | :some_collision_probelm}
     |> Zipper.reduce_while(%{}, fn
       # we don't want to rewrite alias name `defx Aliases ... do` of these three keywords
-      {{defx, _, args}, _} = zipper, lifts when defx in ~w(defmodule defimpl defprotocol)a ->
+      {{defx, _, args}, _} = zipper, lifts when defx in [:defmodule, :defimpl, :defprotocol] ->
         # don't conflict with submodules, which elixir automatically aliases
         # we could've done this earlier when building excludes from aliases, but this gets it done without two traversals.
         lifts =
@@ -825,7 +825,7 @@ defmodule Quokka.Style.ModuleDirectives do
     |> Zipper.zip()
     |> Zipper.traverse_while(fn
       {{defx, _, [{:__aliases__, _, _} | _]}, _} = zipper
-      when defx in ~w(defmodule defimpl defprotocol)a ->
+      when defx in [:defmodule, :defimpl, :defprotocol] ->
         # move the focus to the body block, zkipping over the alias (and the `for` keyword for `defimpl`)
         {:cont,
          zipper
