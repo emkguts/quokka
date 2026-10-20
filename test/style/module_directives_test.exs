@@ -1145,13 +1145,13 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style(
         """
         defmodule MyGreatLibrary do
-          @library_options [...]
+          @library_options [name: "My Great Library"]
           @moduledoc make_pretty_docs(@library_options)
           use OptionsMagic, my_opts: @library_options
         end
         """,
         """
-        library_options = [...]
+        library_options = [name: "My Great Library"]
 
         defmodule MyGreatLibrary do
           @moduledoc make_pretty_docs(library_options)
@@ -1167,13 +1167,13 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style(
         """
         quote do
-          @library_options [...]
+          @library_options [name: "My Great Library"]
           @moduledoc make_pretty_docs(@library_options)
           use OptionsMagic, my_opts: @library_options
         end
         """,
         """
-        library_options = [...]
+        library_options = [name: "My Great Library"]
 
         quote do
           @moduledoc make_pretty_docs(unquote(library_options))
@@ -1219,7 +1219,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """
         defmacro __using__(opts) do
           quote do
-            @max_attempts unquote(opts)[:max_attempts]
+            @max_attempts unquote(opts)
 
             use Oban.Pro.Worker, max_attempts: @max_attempts
           end
@@ -1227,7 +1227,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """,
         """
         defmacro __using__(opts) do
-          max_attempts = opts[:max_attempts]
+          max_attempts = opts
 
           quote do
             use Oban.Pro.Worker, max_attempts: unquote(max_attempts)
@@ -1237,6 +1237,18 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         end
         """
       )
+    end
+
+    test "doesn't lift code around an `unquote` out of `quote`" do
+      assert_style("""
+      defmacro __using__(opts) do
+        quote do
+          @max_attempts unquote(opts)[:max_attempts]
+
+          use Oban.Pro.Worker, max_attempts: @max_attempts
+        end
+      end
+      """)
     end
 
     test "doesn't lift out of `quote` when `unquote` is disabled" do
@@ -1251,6 +1263,17 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         end
         """)
       end
+
+      assert_style("""
+      defmacro __using__(opts) do
+        quote bind_quoted: [opts: opts],
+              do:
+                (
+                  @max_attempts 1
+                  use Oban.Pro.Worker, max_attempts: @max_attempts
+                )
+      end
+      """)
     end
 
     test "lifts out of `quote` when `unquote` is explicitly enabled" do
@@ -1294,7 +1317,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style("""
       defmacro __using__(opts) do
         quote do
-          @opts unquote(opts)[:worker]
+          @opts unquote(opts)
 
           use Oban.Pro.Worker, opts: @opts
 
@@ -1328,7 +1351,19 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     end
 
     test "doesn't lift a value that depends on where it's evaluated" do
-      for value <- ["__MODULE__", "__ENV__.file", "Path.join(__DIR__, \"x\")", "some_var", "@other + 1"] do
+      for value <- [
+            "__MODULE__",
+            "__ENV__.file",
+            "Path.join(__DIR__, \"x\")",
+            "some_var",
+            "@other + 1",
+            "helper()",
+            "binding()",
+            "Application.compile_env(:app, :key)",
+            "%{a: 1}",
+            "{1, 2, 3}",
+            "~r/x/"
+          ] do
         assert_style("""
         defmacro __using__(_opts) do
           quote do
@@ -1363,6 +1398,60 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       defmodule MyModule do
         @value 1
         @value 2
+
+        use Foo, value: @value
+      end
+      """)
+    end
+
+    test "lifts an attribute that shares its name with a function" do
+      assert_style(
+        """
+        defmodule MyModule do
+          @value 1
+          use Foo, value: @value
+          def value, do: @value
+        end
+        """,
+        """
+        value = 1
+
+        defmodule MyModule do
+          use Foo, value: unquote(value)
+
+          @value value
+          def value(), do: @value
+        end
+        """
+      )
+    end
+
+    test "doesn't lift an attribute read by a directive other than `use` outside `quote`" do
+      assert_style("""
+      defmodule MyModule do
+        @only [foo: 1]
+        import Bar, only: @only
+      end
+      """)
+    end
+
+    test "doesn't lift an alias that resolves relative to the module" do
+      assert_style("""
+      defmodule A do
+        defmodule B do
+        end
+
+        @value B
+
+        use Foo, value: @value
+      end
+      """)
+
+      assert_style("""
+      defmodule MyModule do
+        alias __MODULE__.Child
+
+        @value Child
 
         use Foo, value: @value
       end

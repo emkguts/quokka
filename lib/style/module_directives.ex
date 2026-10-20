@@ -225,26 +225,28 @@ defmodule Quokka.Style.ModuleDirectives do
     # attribute name => its value, with aliases resolved
     attrs: %{},
     attr_lifts: [],
-    in_quote?: false,
-    lift_attrs?: true,
-    lift_blocked?: false,
-    parent: nil
+    # where the directives live, rather than what's in them; see `init_ctx/1`
+    ctx: nil
   }
 
   defp lift_module_attrs({node, _, _} = ast, %{attrs: attrs} = acc) do
     if map_size(attrs) == 0 do
       {ast, acc}
     else
-      # `use` receives its args as AST, and inside a quote nothing sees the lifted variable, so both need unquoting
-      unquote? = node == :use or acc.in_quote?
+      # `use` receives its args as AST, and the variable is assigned outside any quote, so both need unquoting
+      unquote? = node == :use or acc.ctx.in_quote?
+      # `import`, `alias` and `require` options must be literals, so a variable doesn't compile there
+      lift? = unquote? or node == :@
 
       Macro.prewalk(ast, acc, fn
         {:@, m, [{attr, _, _} = var]} = ast, acc ->
+          acc = if Map.has_key?(attrs, attr), do: put_scope(acc), else: acc
+
           cond do
             not Map.has_key?(attrs, attr) ->
               {ast, acc}
 
-            attr in acc.attr_lifts or liftable_attr?(attr, attrs[attr], acc) ->
+            lift? and (attr in acc.attr_lifts or liftable_attr?(attr, attrs[attr], acc.ctx)) ->
               replacement =
                 if unquote?,
                   do: {:unquote, [closing: [line: m[:line]], line: m[:line]], [var]},
@@ -254,7 +256,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
             # sorting would move the directive above the attribute it reads
             true ->
-              {ast, %{acc | lift_blocked?: true}}
+              {ast, block_lift(acc)}
           end
 
         ast, acc ->
@@ -262,6 +264,8 @@ defmodule Quokka.Style.ModuleDirectives do
       end)
     end
   end
+
+  defp block_lift(acc), do: put_in(acc.ctx.lift_blocked?, true)
 
   defp organize_directives(parent, moduledoc, ctx) do
     skip_sorting? =
@@ -463,7 +467,7 @@ defmodule Quokka.Style.ModuleDirectives do
     acc = collect_directives(parent, before)
 
     # a directive reads an attribute that can't be lifted, so sorting would break it
-    if acc.lift_blocked? do
+    if acc.ctx.lift_blocked? do
       organize_directives_preserve_order(parent, moduledoc)
     else
       organize_collected_directives(parent, moduledoc, acc)
@@ -473,7 +477,7 @@ defmodule Quokka.Style.ModuleDirectives do
   defp collect_directives(parent, before) do
     parent
     |> Zipper.children()
-    |> Enum.reduce(init_acc(parent), fn
+    |> Enum.reduce(%{@acc | ctx: init_ctx(parent)}, fn
       {:@, _, [{attr_directive, _, _}]} = ast, acc when attr_directive in @attr_directives ->
         # attr_directives might get hoisted above aliases, so need to dealias depending on the layout order
         if Enum.member?(before, attr_directive) do
@@ -486,16 +490,17 @@ defmodule Quokka.Style.ModuleDirectives do
       {:@, _, [{attr, _, [value]}]} = ast, acc ->
         # A lift can only carry one value, so an attribute that's set more than once stays put.
         # The lifted assignment lands above any aliases, so it needs their full names.
-        value = if Map.has_key?(acc.attrs, attr), do: :redefined, else: AliasEnv.expand(acc.dealiases, value)
-        # a directive above already read the old value
-        lift_blocked? = acc.lift_blocked? or attr in acc.attr_lifts
+        value =
+          cond do
+            Map.has_key?(acc.attrs, attr) -> :redefined
+            relative_alias?(value, acc.dealiases) -> :relative_alias
+            true -> AliasEnv.expand(acc.dealiases, value)
+          end
 
-        %{
-          acc
-          | nondirectives: [ast | acc.nondirectives],
-            attrs: Map.put(acc.attrs, attr, value),
-            lift_blocked?: lift_blocked?
-        }
+        # a directive above already read the old value
+        acc = if attr in acc.attr_lifts, do: block_lift(acc), else: acc
+
+        %{acc | nondirectives: [ast | acc.nondirectives], attrs: Map.put(acc.attrs, attr, value)}
 
       {directive, _, _} = ast, acc when directive in @directives ->
         {ast, acc} = lift_module_attrs(ast, acc)
@@ -552,7 +557,7 @@ defmodule Quokka.Style.ModuleDirectives do
         {:dealiases, d} ->
           {:dealiases, d}
 
-        {key, value} when key in [:attrs, :in_quote?, :lift_attrs?, :lift_blocked?, :parent] ->
+        {key, value} when key in [:attrs, :ctx] ->
           {key, value}
 
         {k, v} ->
@@ -567,7 +572,7 @@ defmodule Quokka.Style.ModuleDirectives do
         lifts = acc.attr_lifts
         attrs = acc.attrs
         # the variable is assigned outside the quote, so references inside it must be unquoted
-        in_quote? = acc.in_quote?
+        in_quote? = acc.ctx.in_quote?
 
         nondirectives =
           Enum.map(acc.nondirectives, fn
@@ -588,8 +593,8 @@ defmodule Quokka.Style.ModuleDirectives do
           Enum.flat_map(acc.nondirectives, fn
             {:@, m, [{attr, am, [_val]}]} ->
               if attr in lifts do
-                # a value lifted out of a quote is evaluated directly, so it must not keep its `unquote`s
-                val = if in_quote?, do: Macro.prewalk(attrs[attr], &unwrap_unquote/1), else: attrs[attr]
+                # `unquote(expr)` is the only quoted value that's liftable, and outside the quote it's just `expr`
+                val = with {:unquote, _, [inner]} <- attrs[attr], do: inner
                 [{:=, m, [{attr, am, nil}, val]}]
               else
                 []
@@ -634,16 +639,14 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp unwrap_unquote({:unquote, _, [inner]}), do: inner
-  defp unwrap_unquote(ast), do: ast
-
-  defp init_acc(parent) do
-    acc = %{@acc | parent: parent}
+  # `scope` is filled in by `put_scope/1` the first time an attribute lift is considered
+  defp init_ctx(parent) do
+    ctx = %{in_quote?: false, lift_attrs?: true, lift_blocked?: false, parent: parent, scope: nil}
 
     case quote_opts(parent) do
-      nil -> acc
+      nil -> ctx
       # lifting relies on `unquote` to get the variable back into the quote
-      opts -> if unquote_enabled?(opts), do: %{acc | in_quote?: true}, else: %{acc | lift_attrs?: false}
+      opts -> if unquote_enabled?(opts), do: %{ctx | in_quote?: true}, else: %{ctx | lift_attrs?: false}
     end
   end
 
@@ -653,7 +656,8 @@ defmodule Quokka.Style.ModuleDirectives do
          {_, _} = keywords <- Zipper.up(pair),
          {{:quote, _, args}, _} <- Zipper.up(keywords) do
       case args do
-        [_do_block] -> []
+        # `quote do ... end`, or `quote opts, do: ...` where the options share the keyword list with `do:`
+        [keywords] -> Enum.reject(keywords, &match?({{:__block__, _, [:do]}, _}, &1))
         [opts, _do_block] when is_list(opts) -> opts
         # options we can't read, like `quote opts do`
         _ -> :unknown
@@ -676,50 +680,79 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp liftable_attr?(attr, value, acc) do
-    acc.lift_attrs? and value != :redefined and context_free?(value, acc.in_quote?) and
-      attr not in scope_vars(acc.parent)
+  # an attribute named `_foo` would become a variable that's read despite its underscore
+  defp liftable_attr?(attr, value, ctx) do
+    ctx.lift_attrs? and value not in [:redefined, :relative_alias] and not String.starts_with?(to_string(attr), "_") and
+      attr not in ctx.scope.vars and liftable_value?(value, ctx)
   end
 
-  # Whether `ast` means the same thing once it's moved out of the module or quote.
-  # Inside a quote, `unquote`d code already runs outside it.
-  defp context_free?({:unquote, _, [_]}, true), do: true
-  # `unquote_splicing` only works inside a quote
-  defp context_free?({:unquote_splicing, _, _}, _), do: false
-  # other attributes don't exist outside the module
-  defp context_free?({:@, _, _}, _), do: false
-  # variables are scoped to the module or quote, and `__MODULE__`, `__ENV__`, etc. are evaluated where they're written
-  defp context_free?({name, _, ctx}, _) when is_atom(name) and is_atom(ctx), do: false
+  # Inside a quote, `unquote(expr)` runs in the macro, which is exactly where the lifted assignment goes.
+  # Anything around an `unquote` would move from the caller into the macro.
+  defp liftable_value?({:unquote, _, [_]}, %{in_quote?: true}), do: true
+  defp liftable_value?(value, ctx), do: literal?(value, ctx.scope.modules)
 
-  defp context_free?({form, _, args}, in_quote?) do
-    context_free?(form, in_quote?) and (not is_list(args) or Enum.all?(args, &context_free?(&1, in_quote?)))
+  # Values that mean the same thing anywhere, and can be `unquote`d into a `use`.
+  # Calls, variables, attributes, maps, sigils and `__MODULE__` all depend on where they're evaluated or can't be unquoted.
+  defp literal?({:__block__, _, [value]}, modules), do: literal?(value, modules)
+  # an alias for a module defined in this file, or under `__MODULE__`, resolves relative to that module
+  defp literal?({:__aliases__, _, [first | _]}, modules), do: is_atom(first) and first not in modules
+  defp literal?({left, right}, modules), do: literal?(left, modules) and literal?(right, modules)
+  defp literal?(list, modules) when is_list(list), do: Enum.all?(list, &literal?(&1, modules))
+  defp literal?(value, _), do: is_atom(value) or is_number(value) or is_binary(value)
+
+  # `alias __MODULE__.Child` can't be expanded to a full name, so `Child` only means something inside the module
+  defp relative_alias?(value, dealiases) do
+    value
+    |> Macro.prewalker()
+    |> Enum.any?(fn
+      {:__aliases__, _, [first | _]} -> not Enum.all?(Map.get(dealiases, first, []), &is_atom/1)
+      _ -> false
+    end)
   end
 
-  defp context_free?({left, right}, in_quote?), do: context_free?(left, in_quote?) and context_free?(right, in_quote?)
-  defp context_free?(list, in_quote?) when is_list(list), do: Enum.all?(list, &context_free?(&1, in_quote?))
-  defp context_free?(_literal, _), do: true
+  @defs [:def, :defp, :defmacro, :defmacrop]
 
-  # Variable names a lifted assignment could clash with: everything in the enclosing function, or the whole file
-  defp scope_vars(parent) do
+  defp put_scope(%{ctx: %{scope: nil} = ctx} = acc), do: %{acc | ctx: %{ctx | scope: scope(ctx.parent)}}
+  defp put_scope(acc), do: acc
+
+  # Within the enclosing function (or the whole file at the top level), the variable names a lifted assignment
+  # could clash with and the modules an alias might resolve relative to
+  defp scope(parent) do
     scope =
       parent
       |> Stream.unfold(&if(&1, do: {&1, Zipper.up(&1)}))
       |> Enum.find_value(fn
-        {{def, _, _} = node, _} when def in [:def, :defp, :defmacro, :defmacrop] -> node
+        {{def, _, _} = node, _} when def in @defs -> node
         {node, nil} -> node
         _ -> nil
       end)
 
-    {_, vars} =
-      Macro.prewalk(scope, MapSet.new(), fn
+    {_, scope} =
+      Macro.prewalk(scope, %{vars: MapSet.new(), modules: MapSet.new()}, fn
         # `@foo` isn't a variable named `foo`
-        {:@, _, _}, vars -> {nil, vars}
-        {name, _, ctx} = ast, vars when is_atom(name) and is_atom(ctx) -> {ast, MapSet.put(vars, name)}
-        ast, vars -> {ast, vars}
+        {:@, _, _}, scope ->
+          {nil, scope}
+
+        # nor is `def foo, do: ...`, though its params are
+        {def, m, [head | rest]}, scope when def in @defs ->
+          {{def, m, [def_params(head) | rest]}, scope}
+
+        {:defmodule, _, [{:__aliases__, _, [first | _]} | _]} = ast, scope ->
+          {ast, %{scope | modules: MapSet.put(scope.modules, first)}}
+
+        {name, _, ctx} = ast, scope when is_atom(name) and is_atom(ctx) ->
+          {ast, %{scope | vars: MapSet.put(scope.vars, name)}}
+
+        ast, scope ->
+          {ast, scope}
       end)
 
-    vars
+    scope
   end
+
+  defp def_params({:when, _, [head | guards]}), do: [def_params(head) | guards]
+  defp def_params({_name, _, params}) when is_list(params), do: params
+  defp def_params(_head), do: []
 
   defp lift_aliases(%{alias: aliases, nondirectives: nondirectives} = acc) do
     # we can't use the dealias map built into state as that's what things look like before sorting
