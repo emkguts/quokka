@@ -354,9 +354,9 @@ defmodule Quokka.Style.ConfigsTest do
           c: :d,
           e: :f
 
-        config :c,
-          # some junk after b, idk
+        # some junk after b, idk
 
+        config :c,
           # ca
           ca: :ca,
           # cb 1
@@ -367,6 +367,137 @@ defmodule Quokka.Style.ConfigsTest do
           cd: :cd
 
         # end of config
+        """
+      )
+    end
+
+    test "comments stay with their statements when multi-line configs are reordered" do
+      assert_style(
+        """
+        import Config
+
+        # Configure your database
+        config :my_app, MyApp.Repo,
+          username: "postgres",
+          database: "my_app_dev"
+
+        # ## SSL Support
+        #
+        # A standalone note that belongs to no statement.
+
+        # Watch static and templates for browser reloading.
+        config :my_app, MyAppWeb.Endpoint,
+          live_reload: [patterns: [~r"lib/.*ex$"]]
+
+        config :my_app, MyApp.Mailer, adapter: Swoosh.Local
+
+        # Do not include metadata nor timestamps in development logs
+        config :logger, :console, format: "[$level] $message\\n"
+        """,
+        """
+        import Config
+
+        # Do not include metadata nor timestamps in development logs
+        config :logger, :console, format: "[$level] $message\\n"
+
+        config :my_app, MyApp.Mailer, adapter: Swoosh.Local
+
+        # Configure your database
+        config :my_app, MyApp.Repo,
+          username: "postgres",
+          database: "my_app_dev"
+
+        # ## SSL Support
+        #
+        # A standalone note that belongs to no statement.
+
+        # Watch static and templates for browser reloading.
+        config :my_app, MyAppWeb.Endpoint, live_reload: [patterns: [~r"lib/.*ex$"]]
+        """
+      )
+    end
+
+    test "trailing and inline comments move with their statements" do
+      assert_style(
+        """
+        import Config
+
+        config :c, :x, 1 # c inline
+        config :b,
+          # b inner
+          x: 1
+        # about b, directly below it
+
+        # a leading
+        config :a, :x, 1
+        """,
+        """
+        import Config
+
+        # a leading
+        config :a, :x, 1
+
+        config :b,
+          # b inner
+          x: 1
+
+        # about b, directly below it
+
+        # c inline
+        config :c, :x, 1
+        """
+      )
+    end
+
+    # Statements sharing a line can't be given separate regions of lines, so this falls back to the old,
+    # less precise comment handling (note `# b and a` ends up on `:a` only)
+    test "sorts statements sharing a line" do
+      assert_style(
+        """
+        import Config
+
+        # zz
+        config :z, 1
+        # b and a
+        config :b, 1; config :a, 1 # inline
+        """,
+        """
+        import Config
+
+        # b and a
+        # inline
+        config :a, 1
+
+        config :b, 1
+
+        # zz
+        config :z, 1
+        """
+      )
+    end
+
+    test "comments after the sorted block stay after it" do
+      assert_style(
+        """
+        import Config
+
+        config :b, :x, 1
+        config :a, :x, 1
+        # about import_config
+        import_config "dev.exs"
+
+        # end of file
+        """,
+        """
+        import Config
+
+        config :a, :x, 1
+
+        config :b, :x, 1
+        # about import_config
+        import_config "dev.exs"
+
+        # end of file
         """
       )
     end
