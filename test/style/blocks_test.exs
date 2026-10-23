@@ -1031,5 +1031,63 @@ defmodule Quokka.Style.BlocksTest do
         """
       )
     end
+
+    test "comments trailing a branch stay in that branch when flipped" do
+      assert_style(
+        """
+        if !foo do
+          # about a1
+          a1()
+          # about a2
+          a2()
+          # trailing a
+        else
+          # about b
+          b()
+          # trailing b
+        end
+        """,
+        """
+        if foo do
+          # about b
+          b()
+          # trailing b
+        else
+          # about a1
+          a1()
+          # about a2
+          a2()
+          # trailing a
+        end
+        """
+      )
+
+      assert_style(
+        """
+        unless foo do
+          # about a
+          a()
+        else
+          # about b1
+          b1()
+          # about b2
+          b2()
+          # trailing b
+        end
+        """,
+        """
+        if foo do
+          # about b1
+          b1()
+          # about b2
+          b2()
+          # trailing b
+        else
+          # about a
+          a()
+        end
+        """
+      )
+    end
   end
 end

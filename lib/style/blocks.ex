@@ -147,7 +147,7 @@ defmodule Quokka.Style.Blocks do
         if Style.max_line(do_) > Style.max_line(else_) do
           # we inverted the if/else blocks of this `if` statement in a previous pass (due to negators or unless)
           # shift comments etc to make it happy now
-          if_ast(zipper, head, do_, else_, ctx)
+          if_ast(zipper, head, do_, else_, ctx, m[:end][:line])
         else
           {:cont, zipper, ctx}
         end
@@ -311,13 +311,47 @@ defmodule Quokka.Style.Blocks do
 
   defp nodes_equivalent?(a, b), do: Style.without_meta(a) == Style.without_meta(b)
 
-  defp if_ast(zipper, head, {_, _, _} = do_body, {_, _, _} = else_body, ctx) do
+  defp if_ast(zipper, head, do_body, else_body, ctx, end_line \\ nil)
+
+  defp if_ast(zipper, head, {_, _, _} = do_body, {_, _, _} = else_body, ctx, end_line) do
     do_ = {{:__block__, [line: nil], [:do]}, do_body}
     else_ = {{:__block__, [line: nil], [:else]}, else_body}
-    if_ast(zipper, head, do_, else_, ctx)
+    if_ast(zipper, head, do_, else_, ctx, end_line)
   end
 
-  defp if_ast(zipper, {_, meta, _} = head, {do_kw, do_body}, {else_kw, else_body}, ctx) do
+  # Swapping the bodies of a `do ... else ... end` block. Each body's region of lines runs from its `do`/`else` to the
+  # next keyword, so that comments after the last line of code in a body stay with it.
+  defp if_ast(zipper, {_, meta, _} = head, {do_kw, do_body}, {else_kw, else_body}, ctx, end_line)
+       when is_integer(end_line) do
+    do_line = Style.meta(do_kw)[:line]
+    else_line = Style.meta(else_kw)[:line]
+
+    if is_integer(do_line) and is_integer(else_line) and Style.max_line(do_body) > else_line do
+      # `do_body` is the old else body (between `else` and `end`), and `else_body` the old do body (between `do` and `else`)
+      do_size = end_line - else_line - 1
+      new_else_line = do_line + do_size + 1
+
+      shifts = [
+        {(else_line + 1)..(end_line - 1)//1, do_line - else_line},
+        {(do_line + 1)..(else_line - 1)//1, new_else_line - do_line},
+        {else_line..else_line, new_else_line - else_line}
+      ]
+
+      do_body = Macro.update_meta(do_body, &Keyword.delete(&1, :end_of_expression))
+      else_body = Macro.update_meta(else_body, &Keyword.delete(&1, :end_of_expression))
+      do_ = {do_kw, Style.shift_line(do_body, do_line - else_line)}
+      else_ = {Style.set_line(else_kw, new_else_line), Style.shift_line(else_body, new_else_line - do_line)}
+      if_meta = [do: [line: do_line], end: [line: end_line], line: meta[:line]]
+
+      zipper
+      |> Zipper.replace({:if, if_meta, [head, [do_, else_]]})
+      |> run(%{ctx | comments: Style.shift_comments(ctx.comments, shifts)})
+    else
+      if_ast(zipper, head, {do_kw, do_body}, {else_kw, else_body}, ctx, nil)
+    end
+  end
+
+  defp if_ast(zipper, {_, meta, _} = head, {do_kw, do_body}, {else_kw, else_body}, ctx, _end_line) do
     line = meta[:line]
     # ... why am i doing this again? hmm.
     do_body = Macro.update_meta(do_body, &Keyword.delete(&1, :end_of_expression))

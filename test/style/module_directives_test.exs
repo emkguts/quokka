@@ -989,7 +989,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
   end
 
   describe "with comments..." do
-    test "moving aliases up through non-directives doesn't move comments up" do
+    test "moving aliases up brings comments with them" do
       assert_style(
         """
         defmodule Foo do
@@ -1013,9 +1013,11 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         defmodule Foo do
           # mdf
           @moduledoc false
+          # A
           alias A.A
           # B
           alias B.B
+          # C
           alias C.C
 
           # foo
@@ -1023,9 +1025,180 @@ defmodule Quokka.Style.ModuleDirectivesTest do
             # ok
             :ok
           end
+        end
+        """
+      )
+    end
 
-          # C
-          # A
+    test "comments move with the directives they describe when sorted" do
+      assert_style(
+        """
+        defmodule Foo do
+          # about B
+          alias My.B
+          # about A
+          alias My.A
+
+          def foo, do: :ok
+        end
+        """,
+        """
+        defmodule Foo do
+          # about A
+          alias My.A
+          # about B
+          alias My.B
+
+          def foo(), do: :ok
+        end
+        """
+      )
+    end
+
+    test "comments move with directives reordered across groups" do
+      assert_style(
+        """
+        defmodule Foo do
+          # about Z
+          import Z
+          # about A
+          alias My.A
+          # about U, line 1
+          # about U, line 2
+          use U
+          # about Y
+          import Y
+
+          def foo, do: :ok
+        end
+        """,
+        """
+        defmodule Foo do
+          # about U, line 1
+          # about U, line 2
+          use U
+
+          # about Y
+          import Y
+          # about Z
+          import Z
+
+          # about A
+          alias My.A
+
+          def foo(), do: :ok
+        end
+        """
+      )
+    end
+
+    test "a multi-alias's comment moves with its expansion" do
+      assert_style(
+        """
+        defmodule Foo do
+          # about Z
+          alias My.Z
+          # about the multi-alias
+          alias Foo.{C, B}
+
+          def foo, do: :ok
+        end
+        """,
+        """
+        defmodule Foo do
+          # about the multi-alias
+          alias Foo.B
+          alias Foo.C
+          # about Z
+          alias My.Z
+
+          def foo(), do: :ok
+        end
+        """
+      )
+    end
+
+    test "a standalone comment moves with the directive above it" do
+      assert_style(
+        """
+        defmodule Foo do
+          alias My.C
+
+          # standalone note
+
+          alias My.B
+          alias My.A
+
+          def foo, do: :ok
+        end
+        """,
+        """
+        defmodule Foo do
+          alias My.A
+          alias My.B
+          alias My.C
+
+          # standalone note
+
+          def foo(), do: :ok
+        end
+        """
+      )
+    end
+
+    test "a multi-line directive moved up from below other code doesn't take other directives' comments" do
+      assert_style(
+        """
+        defmodule Foo do
+          @moduledoc "hi"
+          # about bar
+          alias My.Bar
+
+          def foo, do: :ok
+
+          # about use
+          use Some.Thing,
+            opt: 1,
+            other: 2
+        end
+        """,
+        """
+        defmodule Foo do
+          @moduledoc "hi"
+
+          # about use
+          use Some.Thing,
+            opt: 1,
+            other: 2
+
+          # about bar
+          alias My.Bar
+
+          def foo(), do: :ok
+        end
+        """
+      )
+    end
+
+    test "comments move with directives sorted in a function body" do
+      assert_style(
+        """
+        def foo do
+          # about B
+          import B
+          # about A
+          import A
+          :ok
+        end
+        """,
+        """
+        def foo() do
+          # about A
+          import A
+          # about B
+          import B
+
+          :ok
         end
         """
       )
