@@ -1958,8 +1958,9 @@ defmodule Quokka.Style.SingleNodeTest do
 
       a_through_d =
         combiners
-        |> Enum.zip(["a", "b", ["c"], "d"])
-        |> Enum.map(fn {combiner, arg} -> ~s'String.starts_with?(foo, #{inspect(arg)}) #{combiner} ' end)
+        |> Enum.zip_with(["a", "b", ["c"], "d"], fn combiner, arg ->
+          ~s'String.starts_with?(foo, #{inspect(arg)}) #{combiner} '
+        end)
 
       assert_style(
         ~s'#{a_through_d} String.starts_with?(foo, "e") ',
