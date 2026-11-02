@@ -1623,6 +1623,145 @@ defmodule Quokka.Style.PipesTest do
       assert_style("mapping |> Map.values() |> Enum.sum_by(mapper)")
     end
 
+    test "zip/map rewrites to zip_with with a capture when the body just calls a function" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        results
+        |> Enum.zip(refs)
+        |> Enum.map(fn {result, ref} -> email_result(result, ref) end)
+        """,
+        "Enum.zip_with(results, refs, &email_result/2)"
+      )
+
+      assert_style(
+        "a |> Enum.zip(b) |> Enum.map(fn {x, y} -> Mod.fun(x, y) end)",
+        "Enum.zip_with(a, b, &Mod.fun/2)"
+      )
+    end
+
+    test "zip/map rewrites to zip_with with a two-arity fn otherwise" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        "a |> Enum.zip(b) |> Enum.map(fn {x, y} -> x + y end)",
+        "Enum.zip_with(a, b, fn x, y -> x + y end)"
+      )
+
+      assert_style(
+        "a |> Enum.zip(b) |> Enum.map(fn {x, y} -> match?(x, y) end)",
+        "Enum.zip_with(a, b, fn x, y -> match?(x, y) end)"
+      )
+
+      assert_style(
+        "a |> Enum.zip(b) |> Enum.map(fn {x, y} -> f(y, x) end)",
+        "Enum.zip_with(a, b, fn x, y -> f(y, x) end)"
+      )
+
+      assert_style(
+        "a |> Enum.zip(b) |> Enum.map(fn {x, y} -> f(x, y, 1) end)",
+        "Enum.zip_with(a, b, fn x, y -> f(x, y, 1) end)"
+      )
+
+      assert_style(
+        "a |> Enum.zip(b) |> Enum.map(fn {x, x} -> f(x, x) end)",
+        "Enum.zip_with(a, b, fn x, x -> f(x, x) end)"
+      )
+
+      assert_style(
+        """
+        a
+        |> Enum.zip(b)
+        |> Enum.map(fn
+          {x, nil} when is_integer(x) -> x
+          {_, y} -> y
+        end)
+        """,
+        """
+        Enum.zip_with(a, b, fn
+          x, nil when is_integer(x) -> x
+          _, y -> y
+        end)
+        """
+      )
+    end
+
+    test "zip/map rewrites within a longer pipe chain" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        a
+        |> foo()
+        |> Enum.zip(b)
+        |> Enum.map(fn {x, y} -> f(x, y) end)
+        |> bar()
+        """,
+        """
+        a
+        |> foo()
+        |> Enum.zip_with(b, &f/2)
+        |> bar()
+        """
+      )
+    end
+
+    test "zip/map preserves a multiline mapper and its comments" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        results
+        |> foo()
+        |> Enum.zip(refs)
+        |> Enum.map(fn {result, ref} ->
+          # build the result
+          x = email_result(result, ref)
+          y(x)
+        end)
+        |> bar()
+        """,
+        """
+        results
+        |> foo()
+        |> Enum.zip_with(refs, fn result, ref ->
+          # build the result
+          x = email_result(result, ref)
+          y(x)
+        end)
+        |> bar()
+        """
+      )
+    end
+
+    test "zip/map leaves mappers it can't safely rewrite alone" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style("a |> Enum.zip(b) |> Enum.map(&f/1)")
+      assert_style("a |> Enum.zip(b) |> Enum.map(fn pair -> f(pair) end)")
+      assert_style("a |> Enum.zip(b) |> Enum.map(fn {x, y, z} -> f(x, y, z) end)")
+      assert_style("a |> Enum.zip(b) |> Enum.map(mapper)")
+      assert_style("a |> Stream.zip(b) |> Enum.map(fn {x, y} -> f(x, y) end)")
+      assert_style("a |> Enum.zip(b) |> Stream.map(fn {x, y} -> f(x, y) end)")
+      assert_style("a |> Enum.zip() |> Enum.map(fn {x, y} -> f(x, y) end)")
+
+      assert_style("""
+      a
+      |> Enum.zip(b)
+      |> Enum.map(fn
+        {x, y} -> f(x, y)
+        pair -> pair
+      end)
+      """)
+    end
+
+    test "zip/map respects the inefficient_functions exclusion" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      assert_style("a |> Enum.zip(b) |> Enum.map(fn {x, y} -> f(x, y) end)")
+    end
+
     test "map/sum preserves results for numeric mapper outputs" do
       if Version.match?(System.version(), ">= 1.18.0-dev") do
         enable_sum_by_rewrite()
