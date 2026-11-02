@@ -1292,6 +1292,49 @@ defmodule Quokka.Style.PipesTest do
       end
     end
 
+    test "filter/length" do
+      for counter <- ["length()", "Kernel.length()"] do
+        assert_style(
+          "a |> Enum.filter(fun) |> #{counter}",
+          "Enum.count(a, fun)"
+        )
+
+        assert_style(
+          "a |> Enum.filter(fun) |> #{counter} |> IO.puts()",
+          "a |> Enum.count(fun) |> IO.puts()"
+        )
+
+        assert_style(
+          "a |> b() |> Enum.filter(fun) |> #{counter}",
+          "a |> b() |> Enum.count(fun)"
+        )
+
+        # Stream.filter returns a stream, which length/1 cannot count.
+        assert_style("a |> Stream.filter(fun) |> #{counter}")
+      end
+
+      assert_style("a |> Enum.filter(fun) |> MyModule.length()")
+      assert_style("a |> Enum.filter(fun) |> length(arg)")
+    end
+
+    test "filter/length followed by a comparison" do
+      assert_style(
+        """
+        defp has_multiple_transcript_fields?(fields) do
+          fields
+          |> Enum.filter(fn field -> field.source == :variable and field.variable == "transcript" end)
+          |> length()
+          |> Kernel.>(1)
+        end
+        """,
+        """
+        defp has_multiple_transcript_fields?(fields) do
+          Enum.count(fields, fn field -> field.source == :variable and field.variable == "transcript" end) > 1
+        end
+        """
+      )
+    end
+
     test "drop/take => slice" do
       # single pipes collapse to a function call
       assert_style(

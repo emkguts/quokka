@@ -7,6 +7,7 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ### Improvements
 
+- Rewrite `Enum.filter/2` piped into `length/1` or `Kernel.length/1` to `Enum.count/2`.
 - Fold a `Kernel` operator that starts a pipe back into an inline expression (e.g. `foo |> Kernel.||(bar) |> Enum.map(...)` becomes `(foo || bar) |> Enum.map(...)`). This applies to all `Kernel` infix/unary operators (`++`, `||`, `<>`, `/`, `-`, etc.), but only when the operator is the very first function in the pipe.
 - Fold a non-piped `Kernel` operator call back into an inline expression (e.g. `Kernel./(total, size)` becomes `total / size`, `Kernel.-(x)` becomes `-x`). This applies to all `Kernel` infix/unary operators, while operators in pipe position are left to the pipe-folding rewrite above.
 - Added rewrite for `Enum.reduce/3` when it can be replaced by a function from `Enum` module or `Map.new`

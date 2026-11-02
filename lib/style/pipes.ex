@@ -468,7 +468,24 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, {reverse, [line: meta[:line]], [enum]}]}
   end
 
-  # `lhs |> Enum.filter(filterer) |> Enum.count()` => `lhs |> Enum.count(count)`
+  # `lhs |> Enum.filter(filterer) |> Kernel.length()` => `lhs |> Enum.count(filterer)`
+  defp fix_pipe(
+         pipe_chain(
+           pm,
+           lhs,
+           {{:., _, [{_, _, [:Enum]} = enum, :filter]}, meta, [filterer]},
+           {{:., _, [{_, _, [:Kernel]}, :length]}, _, []}
+         )
+       ) do
+    {:|>, pm, [lhs, {{:., meta, [enum, :count]}, [line: meta[:line]], [filterer]}]}
+  end
+
+  # `lhs |> Enum.filter(filterer) |> length()` => `lhs |> Enum.count(filterer)`
+  defp fix_pipe(pipe_chain(pm, lhs, {{:., _, [{_, _, [:Enum]} = enum, :filter]}, meta, [filterer]}, {:length, _, []})) do
+    {:|>, pm, [lhs, {{:., meta, [enum, :count]}, [line: meta[:line]], [filterer]}]}
+  end
+
+  # `lhs |> Enum.filter(filterer) |> Enum.count()` => `lhs |> Enum.count(filterer)`
   defp fix_pipe(
          pipe_chain(
            pm,
