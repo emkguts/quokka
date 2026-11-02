@@ -1745,6 +1745,7 @@ defmodule Quokka.Style.PipesTest do
       assert_style("a |> Stream.zip(b) |> Enum.map(fn {x, y} -> f(x, y) end)")
       assert_style("a |> Enum.zip(b) |> Stream.map(fn {x, y} -> f(x, y) end)")
       assert_style("a |> Enum.zip() |> Enum.map(fn {x, y} -> f(x, y) end)")
+      assert_style("[[1, 2], [3, 4], [5, 6]] |> Enum.zip() |> Enum.map(fn {x, y, z} -> f(x, y) end)")
 
       assert_style("""
       a
