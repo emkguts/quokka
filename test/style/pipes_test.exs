@@ -1293,7 +1293,7 @@ defmodule Quokka.Style.PipesTest do
     end
 
     test "filter/length" do
-      for counter <- ["length()", "Kernel.length()"] do
+      for counter <- ["length()", "Kernel.length()", "length", "Kernel.length"] do
         assert_style(
           "a |> Enum.filter(fun) |> #{counter}",
           "Enum.count(a, fun)"
@@ -1310,10 +1310,14 @@ defmodule Quokka.Style.PipesTest do
         )
 
         # Stream.filter returns a stream, which length/1 cannot count.
-        assert_style("a |> Stream.filter(fun) |> #{counter}")
+        assert_style(
+          "a |> Stream.filter(fun) |> #{counter}",
+          "a |> Stream.filter(fun) |> #{String.trim_trailing(counter, "()")}()"
+        )
       end
 
       assert_style("a |> Enum.filter(fun) |> MyModule.length()")
+      assert_style("a |> Enum.filter(fun) |> MyModule.length", "a |> Enum.filter(fun) |> MyModule.length()")
       assert_style("a |> Enum.filter(fun) |> length(arg)")
     end
 

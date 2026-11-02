@@ -371,6 +371,10 @@ defmodule Quokka.Style.Pipes do
     end
   end
 
+  defguardp is_length(fun)
+            when fun == :length or
+                   (elem(fun, 0) == :. and elem(hd(elem(fun, 2)), 2) == [:Kernel] and tl(elem(fun, 2)) == [:length])
+
   # `pipe_chain(a, b, c)` generates the ast for `a |> b |> c`
   # the intention is to make it a little easier to see what the fix_pipe functions are matching on =)
   defmacrop pipe_chain(pm, a, b, c) do
@@ -378,7 +382,8 @@ defmodule Quokka.Style.Pipes do
   end
 
   # a |> fun => a |> fun()
-  defp fix_pipe({:|>, m, [lhs, {fun, m2, nil}]}), do: {:|>, m, [lhs, {fun, m2, []}]}
+  # recurses so that other rewrites see the parenthesized call in a single pass
+  defp fix_pipe({:|>, m, [lhs, {fun, m2, nil}]}), do: fix_pipe({:|>, m, [lhs, {fun, m2, []}]})
 
   # a |> then(&fun(&1, d)) |> c => a |> fun(d) |> c()
   defp fix_pipe({:|>, m, [lhs, {:then, _, [{:&, _, [{fun, m2, [{:&, _, _} | args]}]}]}]} = pipe) do
@@ -468,21 +473,11 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, {reverse, [line: meta[:line]], [enum]}]}
   end
 
-  # `lhs |> Enum.filter(filterer) |> Kernel.length()` => `lhs |> Enum.count(filterer)`
-  defp fix_pipe(
-         pipe_chain(
-           pm,
-           lhs,
-           {{:., _, [{_, _, [:Enum]} = enum, :filter]}, meta, [filterer]},
-           {{:., _, [{_, _, [:Kernel]}, :length]}, _, []}
-         )
-       ) do
-    {:|>, pm, [lhs, {{:., meta, [enum, :count]}, [line: meta[:line]], [filterer]}]}
-  end
-
   # `lhs |> Enum.filter(filterer) |> length()` => `lhs |> Enum.count(filterer)`
-  defp fix_pipe(pipe_chain(pm, lhs, {{:., _, [{_, _, [:Enum]} = enum, :filter]}, meta, [filterer]}, {:length, _, []})) do
-    {:|>, pm, [lhs, {{:., meta, [enum, :count]}, [line: meta[:line]], [filterer]}]}
+  # `lhs |> Enum.filter(filterer) |> Kernel.length()` => `lhs |> Enum.count(filterer)`
+  defp fix_pipe(pipe_chain(pm, lhs, {{:., dm, [{_, _, [:Enum]} = enum, :filter]}, meta, [filterer]}, {length, _, []}))
+       when is_length(length) do
+    {:|>, pm, [lhs, {{:., dm, [enum, :count]}, [line: meta[:line]], [filterer]}]}
   end
 
   # `lhs |> Enum.filter(filterer) |> Enum.count()` => `lhs |> Enum.count(filterer)`
