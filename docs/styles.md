@@ -365,6 +365,8 @@ list |> Enum.map(&String.upcase/1)
 
 This addresses [`Credo.Check.Refactor.FilterCount`](https://hexdocs.pm/credo/Credo.Check.Refactor.FilterCount.html). This is not configurable.
 
+`Enum.filter/2` followed by `length/1` or `Kernel.length/1` is also rewritten to `Enum.count/2`.
+
 ```elixir
 [1, 2, 3, 4, 5]
 |> Enum.filter(fn x -> rem(x, 3) == 0 end)
