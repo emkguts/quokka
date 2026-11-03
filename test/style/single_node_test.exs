@@ -1633,6 +1633,38 @@ defmodule Quokka.Style.SingleNodeTest do
     end
   end
 
+  describe "Map.new(Enum.group_by(...), counter) => Enum.frequencies_by" do
+    setup do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+      :ok
+    end
+
+    test "rewrites nested group_by and Map.new calls" do
+      assert_style(
+        "Map.new(Enum.group_by(seats, & &1.product_id), fn {product_id, seats} -> {product_id, length(seats)} end)",
+        "Enum.frequencies_by(seats, & &1.product_id)"
+      )
+
+      assert_style(
+        "Map.new(Enum.group_by(seats, &key/1), fn {k, v} -> {k, Enum.count(v)} end)",
+        "Enum.frequencies_by(seats, &key/1)"
+      )
+    end
+
+    test "leaves collectors that do more than count alone" do
+      assert_style("Map.new(Enum.group_by(seats, & &1.id), fn {k, v} -> {k, length(v) * 2} end)")
+      assert_style("Map.new(Enum.group_by(seats, & &1.id), fn {k, v} -> {k, Enum.count(v, & &1.active)} end)")
+      assert_style("Map.new(Enum.group_by(seats, & &1.id), fn {k, v} -> {to_string(k), length(v)} end)")
+      assert_style("Map.new(Enum.group_by(seats, & &1.id, & &1.name), fn {k, v} -> {k, length(v)} end)")
+    end
+
+    test "respects the inefficient_functions exclusion" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      assert_style("Map.new(Enum.group_by(seats, & &1.id), fn {k, v} -> {k, length(v)} end)")
+    end
+  end
+
   describe "Enum.sum/product(Enum.map/Stream.map) => Enum.sum_by/product_by" do
     setup do
       stub(Quokka.Config, :elixir_version, fn -> "1.18.0" end)

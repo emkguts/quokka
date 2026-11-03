@@ -297,4 +297,25 @@ defmodule Quokka.Style do
       true -> {match, Enum.reverse(rev_comments, [comment | acc])}
     end
   end
+
+  def group_counting_mapper?(
+        {:fn, _,
+         [
+           {:->, _,
+            [
+              [{:__block__, _, [{{key, _, key_ctx}, {group, _, group_ctx}}]}],
+              {:__block__, _, [{{key, _, key_ctx2}, counter}]}
+            ]}
+         ]}
+      )
+      when is_atom(key) and is_atom(group) and key != group and is_atom(key_ctx) and is_atom(group_ctx) and
+             is_atom(key_ctx2) do
+    case counter do
+      {:length, _, [{^group, _, ctx}]} when is_atom(ctx) -> true
+      {{:., _, [{:__aliases__, _, [:Enum]}, :count]}, _, [{^group, _, ctx}]} when is_atom(ctx) -> true
+      _ -> false
+    end
+  end
+
+  def group_counting_mapper?(_), do: false
 end

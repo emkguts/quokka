@@ -709,6 +709,20 @@ defmodule Quokka.Style.Pipes do
     {:|>, pm, [lhs, rhs]}
   end
 
+  # `lhs |> Enum.group_by(key_fun) |> Map.new(fn {k, v} -> {k, length(v)} end)` => `lhs |> Enum.frequencies_by(key_fun)`
+  defp fix_pipe(
+         pipe_chain(
+           pm,
+           lhs,
+           {{:., dm, [{_, _, [:Enum]} = enum, :group_by]}, gm, [key_fun]},
+           {{:., _, [{_, _, [:Map]}, :new]}, _, [mapper]}
+         ) = node
+       ) do
+    if Quokka.Config.inefficient_function_rewrites?() and Style.group_counting_mapper?(mapper),
+      do: {:|>, pm, [lhs, {{:., dm, [enum, :frequencies_by]}, gm, [key_fun]}]},
+      else: node
+  end
+
   # `lhs |> Enum.map(mapper) |> Map.new()` => `lhs |> Map.new(mapper)`
   defp fix_pipe(
          pipe_chain(

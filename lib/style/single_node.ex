@@ -430,6 +430,16 @@ defmodule Quokka.Style.SingleNode do
   defp style({:++, _, [{{:., _, [{_, _, [:Enum]}, :reverse]} = reverse, r_meta, [lhs]}, rhs]}),
     do: {reverse, r_meta, [lhs, rhs]}
 
+  # `Map.new(Enum.group_by(enum, key_fun), fn {k, v} -> {k, length(v)} end)` => `Enum.frequencies_by(enum, key_fun)`
+  defp style(
+         {{:., _, [{:__aliases__, _, [:Map]}, :new]}, _,
+          [{{:., dm, [{:__aliases__, _, [:Enum]} = enum, :group_by]}, gm, [_, _] = args}, mapper]} = node
+       ) do
+    if Quokka.Config.inefficient_function_rewrites?() and Style.group_counting_mapper?(mapper),
+      do: {{:., dm, [enum, :frequencies_by]}, gm, args},
+      else: node
+  end
+
   # `Enum.sum(Enum.map(enum, mapper))` => `Enum.sum_by(enum, mapper)`
   # `Enum.product(Enum.map(enum, mapper))` => `Enum.product_by(enum, mapper)`
   # The same rewrite applies to a lazy Stream.map/2 input.

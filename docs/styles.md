@@ -281,6 +281,27 @@ Enum.product(Enum.map(groups, fn group -> length(group.rows) end))
 Enum.product_by(groups, fn group -> length(group.rows) end)
 ```
 
+### `Enum.group_by/2` and counting groups -> `Enum.frequencies_by/2`
+
+When `Map.new/2` only replaces each group from `Enum.group_by/2` with its size, Quokka rewrites
+the pair to `Enum.frequencies_by/2`, which counts without building the intermediate lists.
+The collector must keep the key unchanged and pair it with `length(group)` or `Enum.count(group)`.
+Collectors that inspect or transform the group, and `Enum.group_by/3`, are left alone.
+
+```elixir
+# Before
+seats
+|> Enum.group_by(& &1.product_id)
+|> Map.new(fn {product_id, seats} -> {product_id, length(seats)} end)
+# Styled
+Enum.frequencies_by(seats, & &1.product_id)
+
+# Before
+Map.new(Enum.group_by(seats, & &1.product_id), fn {id, group} -> {id, Enum.count(group)} end)
+# Styled
+Enum.frequencies_by(seats, & &1.product_id)
+```
+
 ### `Enum.reduce` rewrites to purpose-built functions
 
 Quokka rewrites `Enum.reduce/2,3` calls whose reducer simply adds the two arguments to `Enum.sum/1`. This covers anonymous functions (with operands in either order), `&(&1 + &2)` captures, and `&+/2` / `&Kernel.+/2` captures. For `Enum.reduce/3`, the accumulator must be the literal integer `0` (so `0.0` is left alone to preserve float typing on empty enums). This holds in pipe position too: `enum |> Enum.reduce(acc, &+/2)` with a non-zero accumulator is left unchanged.
