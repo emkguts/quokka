@@ -288,6 +288,10 @@ the pair to `Enum.frequencies_by/2`, which counts without building the intermedi
 The collector must keep the key unchanged and pair it with `length(group)` or `Enum.count(group)`.
 Collectors that inspect or transform the group, and `Enum.group_by/3`, are left alone.
 
+This rewrite assumes the key function is pure and does not depend on invocation order.
+`Enum.group_by/2` invokes it in reverse input order, while `Enum.frequencies_by/2` invokes it
+in forward input order.
+
 ```elixir
 # Before
 seats
