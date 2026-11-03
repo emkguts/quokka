@@ -189,6 +189,16 @@ Note that all of the examples below also apply to pipes (`enum |> Enum.into(...)
 | `Enum.into(enum, [])`                      | `Enum.to_list(enum)`                |
 | `Enum.into(enum, [], mapper)`              | `Enum.map(enum, mapper)`            |
 
+### `X.new(Enum.map(enum, mapper))` -> `X.new(enum, mapper)`
+
+`Map.new/2`, `Keyword.new/2` and `MapSet.new/2` take a mapper, so there's no need to build an intermediate list with `Enum.map/2` (or `Stream.map/2`) first. The piped form (`enum |> Enum.map(mapper) |> Map.new()`) is covered in [Pipe Chains](pipes.md#piped-function-optimizations).
+
+| Before                                     | After                         |
+| ------------------------------------------ | ----------------------------- |
+| `Map.new(Enum.map(enum, mapper))`          | `Map.new(enum, mapper)`       |
+| `Keyword.new(Enum.map(enum, mapper))`      | `Keyword.new(enum, mapper)`   |
+| `MapSet.new(Stream.map(enum, mapper))`     | `MapSet.new(enum, mapper)`    |
+
 ### Map/Keyword.merge w/ single key literal -> X.put
 
 `Keyword.merge` and `Map.merge` called with a literal map or keyword argument with a single key are rewritten to the equivalent `put`, a cognitively simpler function.

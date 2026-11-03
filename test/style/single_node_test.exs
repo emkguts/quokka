@@ -790,6 +790,39 @@ defmodule Quokka.Style.SingleNodeTest do
     end
   end
 
+  describe "nested Enum.map in $collectable.new" do
+    test "folds the mapper into the collectable constructor" do
+      for collectable <- ["Map", "Keyword", "MapSet"], enum <- ["Enum", "Stream"] do
+        assert_style("#{collectable}.new(#{enum}.map(items, mapper))", "#{collectable}.new(items, mapper)")
+      end
+    end
+
+    test "multiline anonymous mapper" do
+      assert_style(
+        """
+        Map.new(
+          Enum.map(owner_emails, fn job ->
+            email = decode_email(job)
+            {List.first(email.to), email}
+          end)
+        )
+        """,
+        """
+        Map.new(owner_emails, fn job ->
+          email = decode_email(job)
+          {List.first(email.to), email}
+        end)
+        """
+      )
+    end
+
+    test "leaves other shapes alone" do
+      assert_style("Map.new(Enum.map(items, mapper), other)")
+      assert_style("Map.new(Enum.filter(items, filterer))")
+      assert_style("Map.new(Foo.map(items, mapper))")
+    end
+  end
+
   describe "Enum.into and $collectable.new" do
     test "into an empty map" do
       assert_style("Enum.into(a, %{})", "Map.new(a)")

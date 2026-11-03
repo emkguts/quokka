@@ -277,6 +277,13 @@ defmodule Quokka.Style.SingleNode do
       else: node
   end
 
+  # Map.new(Enum.map(enum, mapper)) => Map.new(enum, mapper)
+  defp style(
+         {{:., _, [{_, _, [collectable]}, :new]} = new, m, [{{:., _, [{_, _, [enum]}, :map]}, mm, [items, mapper]}]}
+       )
+       when collectable in [:Map, :Keyword, :MapSet] and enum in [:Enum, :Stream],
+       do: {new, Keyword.put(mm, :line, m[:line]), [items, mapper]}
+
   # lhs |> Enum.into(%{}, ...) => lhs |> Map.new(...)
   defp style({:|>, meta, [lhs, {{:., _, [{_, _, [:Enum]}, :into]} = into, m, [collectable | rest]}]} = node) do
     if replacement = replace_into(into, collectable, rest),
