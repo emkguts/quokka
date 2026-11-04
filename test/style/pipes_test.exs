@@ -1838,6 +1838,68 @@ defmodule Quokka.Style.PipesTest do
       )
     end
 
+    test "group_by/Map.new recognizes Kernel.length" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        "seats |> Enum.group_by(& &1.product_id) |> Map.new(fn {k, v} -> {k, Kernel.length(v)} end)",
+        "Enum.frequencies_by(seats, & &1.product_id)"
+      )
+    end
+
+    test "group_by/Map.new preserves comments in a multiline mapper" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        seats
+        |> Enum.group_by(& &1.product_id)
+        |> Map.new(fn {k, v} ->
+          # note
+          {k, length(v)}
+        end)
+        """,
+        """
+        # note
+        Enum.frequencies_by(seats, & &1.product_id)
+        """
+      )
+    end
+
+    test "group_by/Map.new moves mapper comments above an assigned pipeline" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        before_call()
+
+        counts =
+          seats
+          |> Enum.group_by(& &1.product_id)
+          |> Map.new(fn {k, v} ->
+            # first note
+            # second note
+            {k, length(v)}
+          end)
+          |> finish()
+
+        after_call()
+        """,
+        """
+        before_call()
+
+        # first note
+        # second note
+        counts =
+          seats
+          |> Enum.frequencies_by(& &1.product_id)
+          |> finish()
+
+        after_call()
+        """
+      )
+    end
+
     test "group_by/Map.new leaves collectors that do more than count alone" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
 

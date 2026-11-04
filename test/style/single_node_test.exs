@@ -1651,6 +1651,45 @@ defmodule Quokka.Style.SingleNodeTest do
       )
     end
 
+    test "recognizes Kernel.length" do
+      assert_style(
+        "Map.new(Enum.group_by(seats, & &1.product_id), fn {k, v} -> {k, Kernel.length(v)} end)",
+        "Enum.frequencies_by(seats, & &1.product_id)"
+      )
+    end
+
+    test "preserves comments in a multiline mapper" do
+      assert_style(
+        """
+        Map.new(Enum.group_by(seats, & &1.product_id), fn {k, v} ->
+          # note
+          {k, length(v)}
+        end)
+        """,
+        """
+        # note
+        Enum.frequencies_by(seats, & &1.product_id)
+        """
+      )
+    end
+
+    test "moves mapper comments above an assignment" do
+      assert_style(
+        """
+        counts =
+          Map.new(Enum.group_by(seats, & &1.product_id), fn {k, v} ->
+            # note
+            {k, length(v)}
+          end)
+        """,
+        """
+        # note
+        counts =
+          Enum.frequencies_by(seats, & &1.product_id)
+        """
+      )
+    end
+
     test "leaves collectors that do more than count alone" do
       assert_style("Map.new(Enum.group_by(seats, & &1.id), fn {k, v} -> {k, length(v) * 2} end)")
       assert_style("Map.new(Enum.group_by(seats, & &1.id), fn {k, v} -> {k, Enum.count(v, & &1.active)} end)")
