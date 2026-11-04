@@ -217,6 +217,7 @@ Beyond Credo-inspired checks, Quokka provides additional style improvements:
 |---------|-------------|---------------|
 | Test Styling | Rewrites tests to be efficent and idiomatic | [Test Assertions](docs/tests.md) |
 | Unnecessary reduces | Rewrites eligible `Enum.reduce/3` calls to `Map.new/2` or appropriate function from `Enum` module. | [`Enum.reduce` rewrites](docs/styles.md#enumreduce-rewrites-to-purpose-built-functions) |
+| Reusing matched terms | Rewrites clauses like `{:ok, val} -> {:ok, val}` to `{:ok, _val} = result -> result`, avoiding a needless allocation. | [Reusing Matched Terms](docs/control_flow_macros.md#reusing-matched-terms) |
 | Word sigils to lists | Rewrites `~w` sigils to literal lists of strings or atoms. Disable with `exclude: [:sigils]`. | [Word Sigils to Lists](docs/styles.md#word-sigils-to-lists) |
 
 ## Custom rewrites

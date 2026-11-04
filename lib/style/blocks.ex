@@ -32,6 +32,21 @@ defmodule Quokka.Style.Blocks do
   defguardp is_negator(n) when elem(n, 0) in [:!, :not, :!=, :!==]
   defguardp is_empty_body(n) when elem(n, 0) == :__block__ and elem(n, 2) in [[nil], []]
 
+  # `{form, keyword}` pairs whose `->` clauses have patterns for heads (`def`/`defp` being implicit `try`s)
+  # These are candidates for rewrite by `reuse_matched_term/4`
+  @pattern_clause_forms [
+    case: :do,
+    receive: :do,
+    for: :do,
+    with: :else,
+    try: :else,
+    try: :catch,
+    def: :else,
+    def: :catch,
+    defp: :else,
+    defp: :catch
+  ]
+
   # Pipe into case: case foo |> bar() do ... end => foo |> bar() |> case do ... end
   def run({{:case, case_meta, [{:|>, _, _} = pipe_chain, clauses]}, _} = zipper, ctx) do
     if Quokka.Config.pipe_into_case?() do
@@ -157,7 +172,406 @@ defmodule Quokka.Style.Blocks do
     end
   end
 
+  # Reuse matched terms rather than rebuilding them:
+  # `{:ok, val} -> {:ok, val}` => `{:ok, _val} = result -> result`
+  def run({{:fn, m, clauses}, _} = zipper, ctx) when is_list(clauses) do
+    case reuse_matched_terms(clauses, ctx.comments) do
+      {:ok, clauses} -> {:cont, Zipper.replace(zipper, {:fn, m, clauses}), ctx}
+      :error -> {:cont, zipper, ctx}
+    end
+  end
+
+  def run({{{:__block__, _, [kw]} = kw_node, [{:->, _, _} | _] = clauses}, _} = zipper, ctx)
+      when kw in [:do, :else, :catch] do
+    # only rewrite clauses whose heads we know to be patterns (so not `cond`, typespecs, or arbitrary macros)
+    with {[_ | _], _} = keyword_list <- Zipper.up(zipper),
+         {{form, _, _}, _} when {form, kw} in @pattern_clause_forms <- Zipper.up(keyword_list),
+         {:ok, clauses} <- reuse_matched_terms(clauses, ctx.comments) do
+      {:cont, Zipper.replace(zipper, {kw_node, clauses}), ctx}
+    else
+      _ -> {:cont, zipper, ctx}
+    end
+  end
+
+  def run({{def, dm, [head, [{{:__block__, _, [:do]} = do_kw, body}]]}, _} = zipper, ctx) when def in [:def, :defp] do
+    {{name, cm, args}, guards, rewrap} =
+      case head do
+        {:when, wm, [call | guards]} -> {call, guards, &{:when, wm, [&1 | guards]}}
+        call -> {call, [], & &1}
+      end
+
+    with true <- is_list(args),
+         {:ok, args, body} <- reuse_matched_term(args, guards, body, ctx.comments) do
+      head = rewrap.({name, cm, args})
+      {:cont, Zipper.replace(zipper, {def, dm, [head, [{do_kw, body}]]}), ctx}
+    else
+      _ -> {:cont, zipper, ctx}
+    end
+  end
+
   def run(zipper, ctx), do: {:cont, zipper, ctx}
+
+  # `{:ok, clauses}` if any clause was rewritten, so untouched nodes needn't be replaced
+  defp reuse_matched_terms(clauses, comments) do
+    {clauses, changed?} =
+      Enum.map_reduce(clauses, false, fn clause, changed? ->
+        case reuse_matched_term_in_clause(clause, comments) do
+          {:ok, clause} -> {clause, true}
+          :error -> {clause, changed?}
+        end
+      end)
+
+    if changed? do
+      {:ok, clauses}
+    else
+      :error
+    end
+  end
+
+  defp reuse_matched_term_in_clause({:->, m, [[{:when, wm, args_and_guard}], body]}, comments) do
+    {args, guards} = Enum.split(args_and_guard, -1)
+
+    with {:ok, args, body} <- reuse_matched_term(args, guards, body, comments) do
+      {:ok, {:->, m, [[{:when, wm, args ++ guards}], body]}}
+    end
+  end
+
+  defp reuse_matched_term_in_clause({:->, m, [args, body]}, comments) when is_list(args) do
+    with {:ok, args, body} <- reuse_matched_term(args, [], body, comments) do
+      {:ok, {:->, m, [args, body]}}
+    end
+  end
+
+  defp reuse_matched_term_in_clause(_clause, _comments), do: :error
+
+  # If the clause's return value rebuilds one of its argument patterns, bind that argument to a variable and return it.
+  defp reuse_matched_term(args, guards, body, comments) do
+    {preceding, returned} = split_return_value(body)
+
+    with {index, pattern, existing_name, shape} <- find_matching_arg(args, returned),
+         [_ | _] = returned_vars <- shape_vars(shape),
+         name = existing_name || new_binding_name(shape),
+         # the returned variables (and our binding) must still hold what the pattern matched,
+         # and we need to know whether the body references the `_val` we'd rename an unused `val` to
+         underscored_names = Enum.map(returned_vars, &:"_#{&1}"),
+         {referenced, false} <- scope_usage(preceding, [name | returned_vars] ++ underscored_names),
+         head_counts = var_counts(args ++ guards),
+         taken? = &(Map.has_key?(head_counts, &1) or &1 in referenced),
+         # a name we make up mustn't collide with a variable the clause already uses
+         true <- existing_name != nil or not taken?.(name),
+         # Replacing the returned term would strand any comments *inside* it (like a comment on one component
+         # of a tuple, where the tuple is stretched across multiple lines). This should be very rare.
+         false <- has_inner_comments?(returned, comments) do
+      unused = unused_vars(returned_vars, pattern, head_counts, referenced)
+      underscored = underscore_vars(pattern, unused, taken?)
+
+      arg =
+        case Enum.at(args, index) do
+          {:=, m, [^pattern, other]} -> {:=, m, [underscored, other]}
+          {:=, m, [other, ^pattern]} -> {:=, m, [other, underscored]}
+          _ -> {:=, [line: Style.meta(pattern)[:line]], [underscored, {name, [line: Style.meta(pattern)[:line]], nil}]}
+        end
+
+      var = {name, [line: Style.meta(returned)[:line]], nil}
+
+      body =
+        if preceding == [] do
+          var
+        else
+          {:__block__, elem(body, 1), preceding ++ [var]}
+        end
+
+      {:ok, List.replace_at(args, index, arg), body}
+    else
+      _ -> :error
+    end
+  end
+
+  # `{preceding_expressions, last_expression}`
+  defp split_return_value({:__block__, _, [_, _ | _] = expressions}) do
+    {preceding, [last]} = Enum.split(expressions, -1)
+    {preceding, last}
+  end
+
+  defp split_return_value(body), do: {[], body}
+
+  defp new_binding_name({:tuple, [{:lit, :error} | _]}), do: :error
+  defp new_binding_name(_shape), do: :result
+
+  # vars the pattern binds that nothing else references once the body returns the bound variable instead
+  defp unused_vars(returned_vars, pattern, head_counts, referenced_in_body) do
+    pinned = pinned_vars(pattern)
+    Enum.filter(returned_vars, &(head_counts[&1] == 1 and &1 not in referenced_in_body and &1 not in pinned))
+  end
+
+  # comments are sorted by line, so we only need to check the first one after the node starts
+  defp has_inner_comments?(node, comments) do
+    first_line = Style.meta(node)[:line]
+    last_line = Style.max_line(node)
+
+    with true <- first_line != nil,
+         %{line: line} <- Enum.find(comments, &(&1.line > first_line)) do
+      line <= last_line
+    else
+      _ -> false
+    end
+  end
+
+  # returns `{index, pattern, existing_binding_name | nil, shape}` for the first arg whose pattern `returned` rebuilds
+  defp find_matching_arg(args, returned) do
+    args
+    |> Enum.with_index()
+    |> Enum.find_value(fn {arg, index} ->
+      {pattern, binding} = split_binding(arg)
+
+      with {:ok, {kind, _} = shape} when kind in [:tuple, :list] <- term_shape(pattern),
+           true <- builds_shape?(returned, shape) do
+        {index, pattern, binding, shape}
+      else
+        _ -> nil
+      end
+    end)
+  end
+
+  # A meta-less description of the term a pattern matches, if it's simple enough to compare.
+  # A pattern like `{:ok, %User{} = user}` has the same shape as the expression `{:ok, user}`
+  defp term_shape({:__block__, _, [literal]}), do: term_shape(literal)
+  defp term_shape({:{}, _, elements}), do: shapes(elements, :tuple)
+  defp term_shape({left, right}), do: shapes([left, right], :tuple)
+  defp term_shape(list) when is_list(list), do: shapes(list, :list)
+
+  defp term_shape({:|, _, [head, tail]}) do
+    with {:ok, head} <- term_shape(head),
+         {:ok, tail} <- term_shape(tail) do
+      {:ok, {:cons, head, tail}}
+    end
+  end
+
+  defp term_shape({:^, _, [{name, _, ctx}]}) when is_atom(name) and is_atom(ctx), do: {:ok, {:var, name}}
+
+  defp term_shape({:=, _, _} = match) do
+    case split_binding(match) do
+      {_pattern, nil} -> :error
+      {_pattern, name} -> {:ok, {:var, name}}
+    end
+  end
+
+  defp term_shape({_, _, ctx} = var) when is_atom(ctx) do
+    if name = reusable_var(var) do
+      {:ok, {:var, name}}
+    else
+      :error
+    end
+  end
+
+  defp term_shape(literal) when is_atom(literal) or is_number(literal) or is_binary(literal), do: {:ok, {:lit, literal}}
+  defp term_shape(_), do: :error
+
+  defp shapes(asts, kind) do
+    asts
+    |> Enum.reduce_while([], fn ast, acc ->
+      case term_shape(ast) do
+        {:ok, shape} -> {:cont, [shape | acc]}
+        :error -> {:halt, :error}
+      end
+    end)
+    |> case do
+      :error -> :error
+      shapes -> {:ok, {kind, Enum.reverse(shapes)}}
+    end
+  end
+
+  # Whether the expression builds exactly the term `shape` describes.
+  # Walks the expression only as far as the (typically tiny) shape goes, so huge returned literals bail out quickly.
+  defp builds_shape?({:__block__, _, [literal]}, shape), do: builds_shape?(literal, shape)
+  defp builds_shape?({:{}, _, elements}, {:tuple, shapes}), do: all_build_shapes?(elements, shapes)
+  defp builds_shape?({left, right}, {:tuple, shapes}), do: all_build_shapes?([left, right], shapes)
+  defp builds_shape?(list, {:list, shapes}) when is_list(list), do: all_build_shapes?(list, shapes)
+  defp builds_shape?({:|, _, [head, tail]}, {:cons, h, t}), do: builds_shape?(head, h) and builds_shape?(tail, t)
+  defp builds_shape?({_, _, ctx} = var, {:var, name}) when is_atom(ctx), do: reusable_var(var) == name
+  # strict equality, since `1` and `1.0` are different terms
+  defp builds_shape?(literal, {:lit, value}), do: literal === value
+  defp builds_shape?(_, _), do: false
+
+  defp all_build_shapes?([ast | asts], [shape | shapes]),
+    do: builds_shape?(ast, shape) and all_build_shapes?(asts, shapes)
+
+  defp all_build_shapes?([], []), do: true
+  defp all_build_shapes?(_, _), do: false
+
+  defp shape_vars({:var, name}), do: [name]
+  defp shape_vars({:lit, _}), do: []
+  defp shape_vars({:cons, head, tail}), do: Enum.uniq(shape_vars(head) ++ shape_vars(tail))
+  defp shape_vars({_kind, shapes}), do: shapes |> Enum.flat_map(&shape_vars/1) |> Enum.uniq()
+
+  # the name of a variable we can reference (not `_` or `_foo`)
+  defp reusable_var({name, _, ctx}) when is_atom(name) and is_atom(ctx) do
+    if not String.starts_with?(Atom.to_string(name), "_") do
+      name
+    end
+  end
+
+  defp reusable_var(_), do: nil
+
+  # `pattern = var` or `var = pattern` => `{pattern, var_name}`; anything else => `{ast, nil}`
+  defp split_binding({:=, _, [left, right]} = ast) do
+    cond do
+      name = reusable_var(right) -> {left, name}
+      name = reusable_var(left) -> {right, name}
+      true -> {ast, nil}
+    end
+  end
+
+  defp split_binding(ast), do: {ast, nil}
+
+  defp var_counts(asts) do
+    asts
+    |> Macro.prewalk(%{}, fn
+      {name, _, ctx} = node, acc when is_atom(name) and is_atom(ctx) -> {node, Map.update(acc, name, 1, &(&1 + 1))}
+      node, acc -> {node, acc}
+    end)
+    |> elem(1)
+  end
+
+  defp pinned_vars(pattern) do
+    pattern
+    |> Macro.prewalk([], fn
+      {:^, _, [{name, _, _}]} = node, acc -> {node, [name | acc]}
+      node, acc -> {node, acc}
+    end)
+    |> elem(1)
+  end
+
+  # Walks expressions evaluated in a clause's own scope, returning `{referenced, rebound?}`:
+  # which of `names` they reference (ignoring inner scopes where a new binding shadows the name),
+  # and whether they rebind any of `names` in the clause's scope.
+  #
+  # Errs toward over-reporting both: missing a reference would underscore a variable that's still used.
+  # So, only constructs whose scoping we know (`fn`, `case`, `receive`, `try`, `for`, `with`) can shadow a name,
+  # and any other match (say, in an `if` body or a macro's arguments) counts as rebinding it.
+  defp scope_usage(asts, names), do: usage(asts, MapSet.new(names), true, {MapSet.new(), false})
+
+  defp usage(asts, visible, top?, acc) when is_list(asts), do: Enum.reduce(asts, acc, &usage(&1, visible, top?, &2))
+
+  defp usage({name, _, ctx}, visible, _top?, {refs, rebound?}) when is_atom(name) and is_atom(ctx) do
+    if name in visible, do: {MapSet.put(refs, name), rebound?}, else: {refs, rebound?}
+  end
+
+  defp usage({:fn, _, clauses}, visible, _top?, acc) when is_list(clauses), do: clauses_usage(clauses, visible, acc)
+
+  defp usage({:=, _, [pattern, expr]}, visible, top?, acc) do
+    {bound, {refs, rebound?}} = pattern_usage(pattern, visible, acc)
+    usage(expr, visible, top?, {refs, rebound? or (top? and not MapSet.disjoint?(bound, visible))})
+  end
+
+  defp usage({form, _, [_ | _] = args}, visible, top?, acc) when form in [:case, :receive, :try] do
+    Enum.reduce(args, acc, &blocks_usage(form, &1, visible, visible, top?, &2))
+  end
+
+  # each generator or match narrows what later clauses and the `do` body can see of the outer scope
+  defp usage({form, _, [_ | _] = args}, visible, top?, acc) when form in [:for, :with] do
+    {_inner, acc} =
+      Enum.reduce(args, {visible, acc}, fn
+        {op, _, [pattern, expr]}, {inner, acc} when op in [:<-, :=] ->
+          acc = usage(expr, inner, false, acc)
+          {bound, acc} = pattern_usage(pattern, inner, acc)
+          {MapSet.difference(inner, bound), acc}
+
+        [{{:__block__, _, [_]}, _} | _] = blocks, {inner, acc} ->
+          {inner, blocks_usage(form, blocks, visible, inner, top?, acc)}
+
+        filter, {inner, acc} ->
+          {inner, usage(filter, inner, false, acc)}
+      end)
+
+    acc
+  end
+
+  defp usage({head, _, args}, visible, top?, acc) when is_list(args), do: usage([head | args], visible, top?, acc)
+  defp usage({left, right}, visible, top?, acc), do: usage([left, right], visible, top?, acc)
+  defp usage(_literal, _visible, _top?, acc), do: acc
+
+  # `do` sees the bindings of a `for`/`with`'s generators; `else` and options like `reduce:` see only the outer scope
+  defp blocks_usage(form, [{{:__block__, _, [_]}, _} | _] = blocks, outer, inner, top?, acc) do
+    Enum.reduce(blocks, acc, fn
+      {{:__block__, _, [kw]}, value}, acc when {form, kw} in @pattern_clause_forms ->
+        clauses_usage(value, if(kw == :do, do: inner, else: outer), acc)
+
+      {{:__block__, _, [kw]}, value}, acc when kw in [:do, :else, :after, :rescue, :catch] ->
+        usage(value, if(kw == :do, do: inner, else: outer), false, acc)
+
+      {_option, value}, acc ->
+        usage(value, outer, top?, acc)
+    end)
+  end
+
+  defp blocks_usage(_form, ast, outer, _inner, top?, acc), do: usage(ast, outer, top?, acc)
+
+  # each clause's head shadows the names it binds for the rest of the clause
+  defp clauses_usage([{:->, _, _} | _] = clauses, visible, acc) do
+    Enum.reduce(clauses, acc, fn
+      {:->, _, [heads, body]}, acc ->
+        {bound, acc} = pattern_usage(heads, visible, acc)
+        usage(body, MapSet.difference(visible, bound), false, acc)
+
+      other, acc ->
+        usage(other, visible, false, acc)
+    end)
+  end
+
+  defp clauses_usage(body, visible, acc), do: usage(body, visible, false, acc)
+
+  # returns `{names_bound, acc}`, where `acc` includes what the pattern's pins, guards, and bitstring sizes reference
+  defp pattern_usage(pattern, visible, acc) do
+    {_, {bound, refs, guards}} =
+      Macro.prewalk(pattern, {MapSet.new(), [], []}, fn
+        {:when, _, [_ | _] = args}, {bound, refs, guards} ->
+          {patterns, [guard]} = Enum.split(args, -1)
+          {{:__block__, [], patterns}, {bound, refs, [guard | guards]}}
+
+        {op, _, _} = ref, {bound, refs, guards} when op in [:^, :@, :unquote, :unquote_splicing] ->
+          {nil, {bound, [ref | refs], guards}}
+
+        {:"::", _, [left, right]}, {bound, refs, guards} ->
+          {{:__block__, [], [left]}, {bound, [right | refs], guards}}
+
+        {name, _, ctx} = var, {bound, refs, guards} when is_atom(name) and is_atom(ctx) ->
+          {var, {MapSet.put(bound, name), refs, guards}}
+
+        node, state ->
+          {node, state}
+      end)
+
+    acc = usage(refs, visible, false, acc)
+    {bound, usage(guards, MapSet.difference(visible, bound), false, acc)}
+  end
+
+  # `{:ok, %User{} = user}` => `{:ok, %User{}}`; `{:ok, val}` => `{:ok, _val}` (or `{:ok, _}` if `_val` is taken)
+  defp underscore_vars(pattern, [], _taken?), do: pattern
+
+  defp underscore_vars(pattern, unused, taken?) do
+    unused? = &(reusable_var(&1) in unused)
+
+    Macro.prewalk(pattern, fn
+      {:=, _, [left, right]} = node ->
+        cond do
+          unused?.(right) -> left
+          unused?.(left) -> right
+          true -> node
+        end
+
+      {name, m, ctx} = var when is_atom(ctx) ->
+        cond do
+          not unused?.(var) -> var
+          # underscored variables still bind, so a second `_val` would require both values to match
+          taken?.(:"_#{name}") -> {:_, m, ctx}
+          true -> {:"_#{name}", m, ctx}
+        end
+
+      node ->
+        node
+    end)
+  end
 
   # with statements can do _a lot_, so this beast of a function likewise does a lot.
   defp style_with_statement({{:with, with_meta, children}, _} = zipper, ctx) do

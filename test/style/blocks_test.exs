@@ -718,8 +718,8 @@ defmodule Quokka.Style.BlocksTest do
           {:ok, %{name: name}} ->
             {:minor, name}
 
-          {:error, reason} ->
-            {:error, reason}
+          {:error, _reason} = error ->
+            error
         end
         """
       )
@@ -1030,6 +1030,522 @@ defmodule Quokka.Style.BlocksTest do
         end
         """
       )
+    end
+  end
+
+  describe "reusing matched terms" do
+    test "case clauses" do
+      assert_style(
+        """
+        case foo(bar) do
+          {:ok, val} -> {:ok, val}
+          {:error, reason} -> {:error, reason}
+          error -> error
+        end
+        """,
+        """
+        case foo(bar) do
+          {:ok, _val} = result -> result
+          {:error, _reason} = error -> error
+          error -> error
+        end
+        """
+      )
+    end
+
+    test "with else clauses" do
+      assert_style(
+        """
+        with :ok <- foo(bar), :ok <- baz() do
+          :yay
+        else
+          {:error, reason} -> {:error, reason}
+          :error -> :error
+        end
+        """,
+        """
+        with :ok <- foo(bar), :ok <- baz() do
+          :yay
+        else
+          {:error, _reason} = error -> error
+          :error -> :error
+        end
+        """
+      )
+    end
+
+    test "single-clause with statements rewritten to case" do
+      assert_style(
+        """
+        with {:ok, val} <- foo(bar) do
+          val
+        else
+          {:error, reason} -> {:error, reason}
+        end
+        """,
+        """
+        case foo(bar) do
+          {:ok, val} -> val
+          {:error, _reason} = error -> error
+        end
+        """
+      )
+    end
+
+    test "anonymous functions" do
+      assert_style(
+        """
+        Enum.map(enum, fn
+          {:ok, other} -> {:ok, other}
+          {:error, reason} -> {:error, reason}
+        end)
+        """,
+        """
+        Enum.map(enum, fn
+          {:ok, _other} = result -> result
+          {:error, _reason} = error -> error
+        end)
+        """
+      )
+
+      assert_style "fn acc, {k, v} -> {k, v} end", "fn acc, {_k, _v} = result -> result end"
+    end
+
+    test "function heads" do
+      assert_style "def foo({:ok, val}), do: {:ok, val}", "def foo({:ok, _val} = result), do: result"
+      assert_style "defp foo(a, {:error, r}), do: {:error, r}", "defp foo(a, {:error, _r} = error), do: error"
+
+      assert_style(
+        "def foo({:ok, %User{} = user}), do: {:ok, user}",
+        "def foo({:ok, %User{}} = result), do: result"
+      )
+
+      assert_style(
+        """
+        def foo({:ok, val}) when is_integer(val) do
+          Logger.info("hi")
+          {:ok, val}
+        end
+        """,
+        """
+        def foo({:ok, val} = result) when is_integer(val) do
+          Logger.info("hi")
+          result
+        end
+        """
+      )
+    end
+
+    test "receive, try, and for clauses" do
+      assert_style(
+        """
+        receive do
+          {:msg, data} -> {:msg, data}
+        after
+          1000 -> :timeout
+        end
+        """,
+        """
+        receive do
+          {:msg, _data} = result -> result
+        after
+          1000 -> :timeout
+        end
+        """
+      )
+
+      assert_style(
+        """
+        try do
+          foo()
+        else
+          {:ok, val} -> {:ok, val}
+        catch
+          {:thrown, val} -> {:thrown, val}
+        end
+        """,
+        """
+        try do
+          foo()
+        else
+          {:ok, _val} = result -> result
+        catch
+          {:thrown, _val} = result -> result
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defp foo(x) do
+          bar(x)
+        catch
+          {:thrown, val} -> {:thrown, val}
+        end
+        """,
+        """
+        defp foo(x) do
+          bar(x)
+        catch
+          {:thrown, _val} = result -> result
+        end
+        """
+      )
+
+      assert_style(
+        """
+        def foo(x) do
+          bar(x)
+        catch
+          {:thrown, val} -> {:thrown, val}
+        else
+          {:ok, val} -> {:ok, val}
+        end
+        """,
+        """
+        def foo(x) do
+          bar(x)
+        catch
+          {:thrown, _val} = result -> result
+        else
+          {:ok, _val} = result -> result
+        end
+        """
+      )
+
+      assert_style(
+        """
+        for x <- xs, reduce: {0, 0} do
+          {a, b} -> {a, b}
+        end
+        """,
+        """
+        for x <- xs, reduce: {0, 0} do
+          {_a, _b} = result -> result
+        end
+        """
+      )
+    end
+
+    test "multi-statement bodies" do
+      assert_style(
+        """
+        case foo() do
+          {:ok, val} ->
+            Logger.info("hi")
+            {:ok, val}
+        end
+        """,
+        """
+        case foo() do
+          {:ok, _val} = result ->
+            Logger.info("hi")
+            result
+        end
+        """
+      )
+    end
+
+    test "keeps variables used in guards or elsewhere in the body" do
+      assert_style(
+        """
+        case foo() do
+          {:ok, val} when is_integer(val) -> {:ok, val}
+          {:ok, a, b} ->
+            Logger.info(a)
+            {:ok, a, b}
+        end
+        """,
+        """
+        case foo() do
+          {:ok, val} = result when is_integer(val) ->
+            result
+
+          {:ok, a, _b} = result ->
+            Logger.info(a)
+            result
+        end
+        """
+      )
+    end
+
+    test "comments before the rebuilt term" do
+      assert_style(
+        """
+        case x do
+          {:ok, val} ->
+            # return it as-is
+            {:ok, val}
+        end
+        """,
+        """
+        case x do
+          {:ok, _val} = result ->
+            # return it as-is
+            result
+        end
+        """
+      )
+    end
+
+    test "underscores variables only shadowed by inner scopes" do
+      assert_style(
+        """
+        fn {:ok, val} ->
+          Enum.each(xs, fn val -> IO.inspect(val) end)
+          {:ok, val}
+        end
+        """,
+        """
+        fn {:ok, _val} = result ->
+          Enum.each(xs, fn val -> IO.inspect(val) end)
+          result
+        end
+        """
+      )
+
+      assert_style(
+        """
+        fn {:ok, val} ->
+          case bar() do
+            val when val > 0 -> log(val)
+          end
+
+          {:ok, val}
+        end
+        """,
+        """
+        fn {:ok, _val} = result ->
+          case bar() do
+            val when val > 0 -> log(val)
+          end
+
+          result
+        end
+        """
+      )
+
+      assert_style(
+        """
+        fn {:ok, val} ->
+          for val <- vals, do: log(val)
+          {:ok, val}
+        end
+        """,
+        """
+        fn {:ok, _val} = result ->
+          for val <- vals, do: log(val)
+          result
+        end
+        """
+      )
+
+      # our new binding's name may be shadowed too
+      assert_style(
+        """
+        fn {:ok, val} ->
+          Enum.each(xs, fn result -> log(result) end)
+          {:ok, val}
+        end
+        """,
+        """
+        fn {:ok, _val} = result ->
+          Enum.each(xs, fn result -> log(result) end)
+          result
+        end
+        """
+      )
+    end
+
+    test "keeps variables inner scopes reference" do
+      for usage <- [
+            "Enum.each(xs, fn x -> log(x, val) end)",
+            "Enum.each(xs, fn ^val -> :ok end)",
+            "Enum.each(xs, fn x when x > val -> :ok end)",
+            "case val do\n    x -> log(x)\n  end",
+            "for v <- val, do: log(v)",
+            "for x <- xs, reduce: val do\n    acc -> acc + x\n  end",
+            "with {:ok, val} <- fetch(), :ok <- check() do\n    log(val)\n  else\n    _ -> log(val)\n  end",
+            "case bin do\n    <<x::size(val)>> -> log(x)\n  end",
+            "cond do\n    is_nil(val) -> log(val)\n  end"
+          ] do
+        assert_style(
+          """
+          fn {:ok, val} ->
+            #{usage}
+
+            {:ok, val}
+          end
+          """,
+          """
+          fn {:ok, val} = result ->
+            #{usage}
+
+            result
+          end
+          """
+        )
+      end
+    end
+
+    test "uses `_` when the underscored name is already taken" do
+      # binding `_val` twice would require both values to match
+      assert_style(
+        "def foo({:ok, val}, _val), do: {:ok, val}",
+        "def foo({:ok, _} = result, _val), do: result"
+      )
+
+      assert_style(
+        "fn {:ok, val}, [_val] -> {:ok, val} end",
+        "fn {:ok, _} = result, [_val] -> result end"
+      )
+
+      assert_style(
+        "fn {:ok, val}, x when x == _val -> {:ok, val} end",
+        "fn {:ok, _} = result, x when x == _val -> result end"
+      )
+
+      assert_style(
+        "fn {:ok, a, b}, _a -> {:ok, a, b} end",
+        "fn {:ok, _, _b} = result, _a -> result end"
+      )
+
+      # the body would see our `_val` instead of the outer one
+      assert_style(
+        """
+        fn _val ->
+          case x do
+            {:ok, val} ->
+              IO.inspect(_val)
+              {:ok, val}
+          end
+        end
+        """,
+        """
+        fn _val ->
+          case x do
+            {:ok, _} = result ->
+              IO.inspect(_val)
+              result
+          end
+        end
+        """
+      )
+    end
+
+    test "keeps variables appearing more than once in the pattern" do
+      assert_style "fn {a, a} -> {a, a} end", "fn {a, a} = result -> result end"
+    end
+
+    test "reuses existing bindings" do
+      assert_style(
+        """
+        case foo() do
+          {:ok, val} = res -> {:ok, val}
+          other = {:error, reason} -> {:error, reason}
+        end
+        """,
+        """
+        case foo() do
+          {:ok, _val} = res -> res
+          {:error, _reason} = other -> other
+        end
+        """
+      )
+
+      assert_style(
+        "def foo({:ok, %User{} = user} = bar), do: {:ok, user}",
+        "def foo({:ok, %User{}} = bar), do: bar"
+      )
+    end
+
+    test "nested tuples, lists, and nested bindings" do
+      assert_style "fn {:ok, {a, b}} -> {:ok, {a, b}} end", "fn {:ok, {_a, _b}} = result -> result end"
+      assert_style "fn {:ok, a, b, c} -> {:ok, a, b, c} end", "fn {:ok, _a, _b, _c} = result -> result end"
+      assert_style "fn [a, b] -> [a, b] end", "fn [_a, _b] = result -> result end"
+      assert_style "fn [h | t] -> [h | t] end", "fn [_h | _t] = result -> result end"
+      assert_style "fn [k: v] -> [k: v] end", "fn [k: _v] = result -> result end"
+      assert_style "fn {:ok, ^x} -> {:ok, x} end", "fn {:ok, ^x} = result -> result end"
+
+      assert_style(
+        "fn {:ok, %User{} = user} -> {:ok, user} end",
+        "fn {:ok, %User{}} = result -> result end"
+      )
+
+      assert_style(
+        "fn {:ok, user = %User{}} -> {:ok, user} end",
+        "fn {:ok, %User{}} = result -> result end"
+      )
+    end
+
+    test "no-ops" do
+      # maps may have more keys than were matched
+      assert_style "fn %{a: a} -> %{a: a} end"
+      assert_style "fn {:ok, %{a: a}} -> {:ok, %{a: a}} end"
+      # all-literal tuples aren't allocated
+      assert_style "fn {:error, :not_found} -> {:error, :not_found} end"
+      # not an identical rebuild
+      assert_style "fn {:ok, a, b} -> {:ok, a} end"
+      assert_style "fn {:ok, a} -> {:error, a} end"
+      assert_style "fn {a, b} -> {b, a} end"
+      # bare variables aren't allocating anything
+      assert_style "fn x -> x end"
+      # the variable name we'd use is already taken
+      assert_style "fn {:ok, result} -> {:ok, result} end"
+      assert_style "fn {:ok, x}, result -> {:ok, x} end"
+      assert_style "fn {:error, e}, error -> {:error, e} end"
+      assert_style "fn {:ok, x}, %{result: result} when result > 0 -> {:ok, x} end"
+      assert_style "def foo({:ok, x}, result), do: {:ok, x}"
+
+      assert_style("""
+      fn {:ok, val} ->
+        log(result)
+        {:ok, val}
+      end
+      """)
+
+      # rebinding a variable before rebuilding the tuple
+      assert_style("""
+      fn {:ok, val} ->
+        val = val + 1
+        {:ok, val}
+      end
+      """)
+
+      # integers and floats are different terms
+      assert_style "fn {1, x} -> {1.0, x} end"
+      assert_style "fn {1.0, x} -> {1, x} end"
+
+      # comments inside the rebuilt term would be stranded
+      assert_style("""
+      case x do
+        {:ok, val} ->
+          {
+            :ok,
+            # keep me
+            val
+          }
+      end
+      """)
+
+      # underscored variables can't be reused
+      assert_style "fn {:ok, val} = _res -> {:ok, val} end"
+      # cond heads aren't patterns
+      assert_style("""
+      cond do
+        {a, b} -> {a, b}
+      end
+      """)
+
+      # unknown macros
+      assert_style("""
+      my_macro do
+        {a, b} -> {a, b}
+      end
+      """)
+
+      # specs
+      assert_style "@spec foo(({a, b} -> {a, b})) :: :ok"
     end
   end
 end

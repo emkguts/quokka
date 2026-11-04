@@ -241,3 +241,47 @@ end
 ```
 
 Of course, Quokka must *not* rewrite `with true <- x, do: body` (lacking a catch-all `else` clause) to `if x, do: body`, since the change is not equivalent: `with true <- x` returns `x` when the match fails (including for `false` and non-boolean truthy values), while `if` treats the head as truthy/falsey and returns `nil` when the condition is false.
+
+## Reusing Matched Terms
+
+When a clause matches a tuple or list and then returns an identical copy of it, Quokka binds the match to a variable and returns that instead, saving a memory allocation.
+This applies to clauses of `case`, `with ... else`, `fn`, `receive`, `try ... else`/`catch`, `for ... reduce:`, and `def`/`defp` heads.
+The new variable is named `error` when the term is tagged with `:error`, and `result` otherwise.
+
+```elixir
+# Given:
+case foo(bar) do
+  {:ok, val} -> {:ok, val}
+  {:error, reason} -> {:error, reason}
+end
+# Styled:
+case foo(bar) do
+  {:ok, _val} = result -> result
+  {:error, _reason} = error -> error
+end
+```
+
+Variables still used in guards or elsewhere in the clause keep their names:
+
+```elixir
+# Given:
+def foo({:ok, val}) when is_integer(val) do
+  Logger.info("hi")
+  {:ok, val}
+end
+
+def foo({:ok, %User{} = user} = bar), do: {:ok, user}
+# Styled:
+def foo({:ok, val} = result) when is_integer(val) do
+  Logger.info("hi")
+  result
+end
+
+def foo({:ok, %User{}} = bar), do: bar
+```
+
+This rewrite ignores clauses that:
+
+- rebuild maps (which may have had more keys than were matched),
+- contain only literals (which aren't allocated at runtime), or
+- rebind one of the matched variables before returning.
