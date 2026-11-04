@@ -279,10 +279,14 @@ defmodule Quokka.Style.SingleNode do
 
   # Map.new(Enum.map(enum, mapper)) => Map.new(enum, mapper)
   defp style(
-         {{:., _, [{_, _, [collectable]}, :new]} = new, m, [{{:., _, [{_, _, [enum]}, :map]}, mm, [items, mapper]}]}
+         {{:., _, [{_, _, [collectable]}, :new]} = new, m, [{{:., _, [{_, _, [enum]}, :map]}, mm, [items, mapper]}]} =
+           node
        )
-       when collectable in [:Map, :Keyword, :MapSet] and enum in [:Enum, :Stream],
-       do: {new, Keyword.put(mm, :line, m[:line]), [items, mapper]}
+       when collectable in [:Map, :Keyword, :MapSet] and enum in [:Enum, :Stream] do
+    if Quokka.Config.inefficient_function_rewrites?(),
+      do: {new, Keyword.put(mm, :line, m[:line]), [items, mapper]},
+      else: node
+  end
 
   # lhs |> Enum.into(%{}, ...) => lhs |> Map.new(...)
   defp style({:|>, meta, [lhs, {{:., _, [{_, _, [:Enum]}, :into]} = into, m, [collectable | rest]}]} = node) do

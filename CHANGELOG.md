@@ -5,6 +5,10 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- `exclude: [:inefficient_functions]` now also disables folding `Enum.map/2` or `Stream.map/2` into piped `Map.new`, `Keyword.new`, `MapSet.new`, and `Enum.into` calls, matching the new nested constructor rewrite. These piped rewrites previously ran even with this exclusion.
+
 ### Improvements
 
 - Rewrite `Enum.filter/2` piped into `length/1` or `Kernel.length/1` to `Enum.count/2`.

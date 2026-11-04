@@ -203,6 +203,8 @@ Note that all of the examples below also apply to pipes (`enum |> Enum.into(...)
 
 The `Enum.into/2` forms are fully rewritten in one formatting pass.
 
+Both the nested and piped forms respect `exclude: [:inefficient_functions]`.
+
 ### Map/Keyword.merge w/ single key literal -> X.put
 
 `Keyword.merge` and `Map.merge` called with a literal map or keyword argument with a single key are rewritten to the equivalent `put`, a cognitively simpler function.

@@ -791,6 +791,19 @@ defmodule Quokka.Style.SingleNodeTest do
   end
 
   describe "nested Enum.map in $collectable.new" do
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      for enum <- ["Enum", "Stream"] do
+        assert_style("Enum.into(#{enum}.map(items, mapper), %{})")
+
+        for collectable <- ["Map", "Keyword", "MapSet"] do
+          assert_style("#{collectable}.new(#{enum}.map(items, mapper))")
+          assert_style("Enum.into(#{enum}.map(items, mapper), #{collectable}.new())")
+        end
+      end
+    end
+
     test "folds the mapper into the collectable constructor" do
       for collectable <- ["Map", "Keyword", "MapSet"], enum <- ["Enum", "Stream"] do
         assert_style("#{collectable}.new(#{enum}.map(items, mapper))", "#{collectable}.new(items, mapper)")
