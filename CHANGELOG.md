@@ -15,6 +15,7 @@ Quokka follows [Semantic Versioning](https://semver.org) and
 - Rewrite `Enum.map/2` or `Stream.map/2` followed by `Enum.sum/1` or `Enum.product/1` to `Enum.sum_by/2` or `Enum.product_by/2` on Elixir 1.18+; fuse a preceding `Map.values/1` into the aggregate function.
 - Rewrite `~w` sigils to literal lists (e.g. `~w(foo bar)a` becomes `[:foo, :bar]`). Sigils with interpolation or escape sequences are left alone. Disable it with `exclude: [:sigils]`.
 - Rewrite `Enum.zip/2` followed by `Enum.map/2` with a 2-tuple-destructuring mapper to `Enum.zip_with/3` (e.g. `a |> Enum.zip(b) |> Enum.map(fn {x, y} -> f(x, y) end)` becomes `Enum.zip_with(a, b, &f/2)`). Disable it with `exclude: [:inefficient_functions]`.
+- Rewrite `Enum.group_by/2` followed by `Map.new/2` that only counts each group (`fn {k, v} -> {k, length(v)} end` or `Enum.count(v)`) to `Enum.frequencies_by/2`, in both pipe and nested-call forms. `Enum.group_by/3` is left alone. Disable it with `exclude: [:inefficient_functions]`.
 
 ### Fixes
 

@@ -297,4 +297,52 @@ defmodule Quokka.Style do
       true -> {match, Enum.reverse(rev_comments, [comment | acc])}
     end
   end
+
+  defguard is_length(fun)
+           when fun == :length or
+                  (elem(fun, 0) == :. and elem(hd(elem(fun, 2)), 2) == [:Kernel] and tl(elem(fun, 2)) == [:length])
+
+  def move_comments_before(comments, source, line) do
+    first = meta(source)[:line]
+    last = max_line(source)
+
+    comments
+    |> Enum.map(fn comment ->
+      if comment.line in first..last,
+        do: %{comment | line: line, previous_eol_count: 1, next_eol_count: 1},
+        else: comment
+    end)
+    |> Enum.sort_by(& &1.line)
+  end
+
+  def statement_line({node, _} = zipper) do
+    case Zipper.up(zipper) do
+      {{op, _, _}, _} = parent when op in [:|>, :=] -> statement_line(parent)
+      _ -> statement_start_line(node)
+    end
+  end
+
+  defp statement_start_line({:|>, _, [lhs, _]}), do: statement_start_line(lhs)
+  defp statement_start_line(node), do: meta(node)[:line]
+
+  def group_counting_mapper?(
+        {:fn, _,
+         [
+           {:->, _,
+            [
+              [{:__block__, _, [{{key, _, key_ctx}, {group, _, group_ctx}}]}],
+              {:__block__, _, [{{key, _, key_ctx2}, counter}]}
+            ]}
+         ]}
+      )
+      when is_atom(key) and is_atom(group) and key != group and is_atom(key_ctx) and is_atom(group_ctx) and
+             is_atom(key_ctx2) do
+    case counter do
+      {length, _, [{^group, _, ctx}]} when is_length(length) and is_atom(ctx) -> true
+      {{:., _, [{:__aliases__, _, [:Enum]}, :count]}, _, [{^group, _, ctx}]} when is_atom(ctx) -> true
+      _ -> false
+    end
+  end
+
+  def group_counting_mapper?(_), do: false
 end

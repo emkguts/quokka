@@ -1804,6 +1804,133 @@ defmodule Quokka.Style.PipesTest do
       """)
     end
 
+    test "group_by/Map.new counting groups rewrites to frequencies_by" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        seats
+        |> Enum.group_by(& &1.product_id)
+        |> Map.new(fn {product_id, seats} -> {product_id, length(seats)} end)
+        """,
+        "Enum.frequencies_by(seats, & &1.product_id)"
+      )
+
+      assert_style(
+        "seats |> Enum.group_by(& &1.product_id) |> Map.new(fn {k, v} -> {k, Enum.count(v)} end)",
+        "Enum.frequencies_by(seats, & &1.product_id)"
+      )
+
+      assert_style(
+        """
+        seats
+        |> foo()
+        |> Enum.group_by(&key/1)
+        |> Map.new(fn {k, v} -> {k, length(v)} end)
+        |> bar()
+        """,
+        """
+        seats
+        |> foo()
+        |> Enum.frequencies_by(&key/1)
+        |> bar()
+        """
+      )
+    end
+
+    test "group_by/Map.new recognizes Kernel.length" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        "seats |> Enum.group_by(& &1.product_id) |> Map.new(fn {k, v} -> {k, Kernel.length(v)} end)",
+        "Enum.frequencies_by(seats, & &1.product_id)"
+      )
+    end
+
+    test "group_by/Map.new preserves comments in a multiline mapper" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        seats
+        |> Enum.group_by(& &1.product_id)
+        |> Map.new(fn {k, v} ->
+          # note
+          {k, length(v)}
+        end)
+        """,
+        """
+        # note
+        Enum.frequencies_by(seats, & &1.product_id)
+        """
+      )
+    end
+
+    test "group_by/Map.new moves mapper comments above an assigned pipeline" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style(
+        """
+        before_call()
+
+        counts =
+          seats
+          |> Enum.group_by(& &1.product_id)
+          |> Map.new(fn {k, v} ->
+            # first note
+            # second note
+            {k, length(v)}
+          end)
+          |> finish()
+
+        after_call()
+        """,
+        """
+        before_call()
+
+        # first note
+        # second note
+        counts =
+          seats
+          |> Enum.frequencies_by(& &1.product_id)
+          |> finish()
+
+        after_call()
+        """
+      )
+    end
+
+    test "group_by/Map.new leaves collectors that do more than count alone" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> true end)
+
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} -> {k, length(v) + 1} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} -> {to_string(k), length(v)} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} -> {k, Enum.count(v, & &1.active)} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} -> {k, {length(v), v}} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} -> {v, length(v)} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, k} -> {k, length(k)} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} when k > 1 -> {k, length(v)} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, [_ | _] = v} -> {k, length(v)} end)")
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(&count_group/1)")
+      assert_style("seats |> Enum.group_by(& &1.id, & &1.name) |> Map.new(fn {k, v} -> {k, length(v)} end)")
+      assert_style("seats |> Stream.group_by(& &1.id) |> Map.new(fn {k, v} -> {k, length(v)} end)")
+
+      assert_style("""
+      seats
+      |> Enum.group_by(& &1.id)
+      |> Map.new(fn
+        {k, []} -> {k, 0}
+        {k, v} -> {k, length(v)}
+      end)
+      """)
+    end
+
+    test "group_by/Map.new respects the inefficient_functions exclusion" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      assert_style("seats |> Enum.group_by(& &1.id) |> Map.new(fn {k, v} -> {k, length(v)} end)")
+    end
+
     test "zip/map respects the inefficient_functions exclusion" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
 
