@@ -212,12 +212,14 @@ a |> Enum.frequencies_by(key_fun) |> ...
 
 # Enum.map |> X.new() => X.new(mapper)
 # where X is one of: Map, MapSet, Keyword
+# Disabled by exclude: [:inefficient_functions]; also applies to Stream.map.
 a |> Enum.map(mapper) |> Map.new() |> ...
 # Styled:
 a |> Map.new(mapper) |> ...
 
 # Enum.map |> Enum.into(empty_collectable) => X.new(mapper)
 # Where empty_collectable is one of `%{}`, `Map.new()`, `Keyword.new()`, `MapSet.new()`
+# Disabled by exclude: [:inefficient_functions]; also applies to Stream.map.
 # Given:
 a |> Enum.map(mapper) |> Enum.into(%{}) |> ...
 # Styled:

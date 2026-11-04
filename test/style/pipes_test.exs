@@ -2131,9 +2131,26 @@ defmodule Quokka.Style.PipesTest do
       end
     end
 
+    test "map/into and map/new respect the inefficient_functions exclusion" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      for enum <- ["Enum", "Stream"] do
+        assert_style("a |> #{enum}.map(b) |> Enum.into(%{})")
+        assert_style("a |> #{enum}.map(b) |> Enum.into(collectable)")
+        assert_style("a |> #{enum}.map(b) |> Enum.into(%{existing: value})")
+
+        for collectable <- ~W(Map Keyword MapSet) do
+          assert_style("a |> #{enum}.map(b) |> #{collectable}.new()")
+          assert_style("a |> #{enum}.map(b) |> Enum.into(#{collectable}.new())")
+          assert_style("a |> #{enum}.map(b) |> #{collectable}.new() |> finish()")
+          assert_style("a |> #{enum}.map(b) |> Enum.into(#{collectable}.new()) |> finish()")
+        end
+      end
+    end
+
     test "map/new" do
-      for collectable <- ~W(Map Keyword MapSet), new = "#{collectable}.new" do
-        assert_style("a |> Enum.map(b) |> #{new}()", "#{new}(a, b)")
+      for collectable <- ~W(Map Keyword MapSet), enum <- ~W(Enum Stream), new = "#{collectable}.new" do
+        assert_style("a |> #{enum}.map(b) |> #{new}()", "#{new}(a, b)")
       end
     end
 
