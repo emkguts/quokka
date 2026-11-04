@@ -273,7 +273,7 @@ defmodule Quokka.Style.SingleNode do
   # Enum.into(enum, empty_map[, ...]) => Map.new(enum[, ...])
   defp style({{:., _, [{:__aliases__, _, [:Enum]}, :into]} = into, m, [enum, collectable | rest]} = node) do
     if replacement = replace_into(into, collectable, rest),
-      do: {replacement, m, [enum | rest]},
+      do: style({replacement, m, [enum | rest]}),
       else: node
   end
 

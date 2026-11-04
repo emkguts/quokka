@@ -797,6 +797,39 @@ defmodule Quokka.Style.SingleNodeTest do
       end
     end
 
+    test "folds Enum.into and its nested mapper in one pass" do
+      for enum <- ["Enum", "Stream"] do
+        assert_style("Enum.into(#{enum}.map(items, mapper), %{})", "Map.new(items, mapper)")
+
+        for collectable <- ["Map", "Keyword", "MapSet"] do
+          assert_style(
+            "Enum.into(#{enum}.map(items, mapper), #{collectable}.new())",
+            "#{collectable}.new(items, mapper)"
+          )
+        end
+      end
+    end
+
+    test "preserves comments before the nested mapper" do
+      for collectable <- ["Map", "Keyword", "MapSet"], enum <- ["Enum", "Stream"] do
+        assert_style(
+          """
+          #{collectable}.new(
+            # index by id
+            #{enum}.map(users, &{&1.id, &1})
+          )
+          """,
+          """
+          #{collectable}.new(
+            # index by id
+            users,
+            &{&1.id, &1}
+          )
+          """
+        )
+      end
+    end
+
     test "multiline anonymous mapper" do
       assert_style(
         """

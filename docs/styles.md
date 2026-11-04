@@ -198,6 +198,10 @@ Note that all of the examples below also apply to pipes (`enum |> Enum.into(...)
 | `Map.new(Enum.map(enum, mapper))`          | `Map.new(enum, mapper)`       |
 | `Keyword.new(Enum.map(enum, mapper))`      | `Keyword.new(enum, mapper)`   |
 | `MapSet.new(Stream.map(enum, mapper))`     | `MapSet.new(enum, mapper)`    |
+| `Enum.into(Enum.map(enum, mapper), %{})`   | `Map.new(enum, mapper)`       |
+| `Enum.into(Stream.map(enum, mapper), MapSet.new())` | `MapSet.new(enum, mapper)` |
+
+The `Enum.into/2` forms are fully rewritten in one formatting pass.
 
 ### Map/Keyword.merge w/ single key literal -> X.put
 
