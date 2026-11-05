@@ -478,5 +478,144 @@ defmodule Quokka.Style.CommentDirectivesTest do
         """
       )
     end
+
+    test "a moved element's leading comment stays inside the list" do
+      assert_style(
+        """
+        # quokka:sort
+        [
+          :c,
+          :b,
+          # about a
+          :a
+        ]
+        """,
+        """
+        # quokka:sort
+        [
+          # about a
+          :a,
+          :b,
+          :c
+        ]
+        """
+      )
+    end
+
+    test "comments inside a multi-line element move with it" do
+      assert_style(
+        """
+        # quokka:sort
+        [
+          # about c
+          {:c,
+           # inner c
+           1},
+          # about a
+          {:a, 2}
+        ]
+        """,
+        """
+        # quokka:sort
+        [
+          # about a
+          {:a, 2},
+          # about c
+          {
+            :c,
+            # inner c
+            1
+          }
+        ]
+        """
+      )
+    end
+
+    test "comments stay in the do block when its nodes are reordered" do
+      assert_style(
+        """
+        # quokka:sort
+        my_macro do
+          # about c
+          c(
+            # inner c arg
+            1
+          )
+
+          # standalone note after c
+
+          # about a
+          a()
+          b()
+        end
+        """,
+        """
+        # quokka:sort
+        my_macro do
+          # about a
+          a()
+          b()
+          # about c
+          c(
+            # inner c arg
+            1
+          )
+
+          # standalone note after c
+        end
+        """
+      )
+    end
+
+    test "a standalone comment between map keys doesn't take the sort directive with it" do
+      assert_style(
+        """
+        # quokka:sort
+        %{
+          zeta: 1,
+          # standalone
+
+          # about alpha
+          alpha: 2
+        }
+        """,
+        """
+        # quokka:sort
+        %{
+          # about alpha
+          alpha: 2,
+          zeta: 1
+          # standalone
+        }
+        """
+      )
+    end
+
+    test "comments inside a multi-line map value stay inside it" do
+      assert_style(
+        """
+        # quokka:sort
+        %{
+          zeta: [
+            # inner zeta
+            1
+          ],
+          # about alpha
+          alpha: 2
+        }
+        """,
+        """
+        # quokka:sort
+        %{
+          # about alpha
+          alpha: 2,
+          zeta: [
+            # inner zeta
+            1
+          ]
+        }
+        """
+      )
+    end
   end
 end

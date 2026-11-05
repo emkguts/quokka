@@ -55,6 +55,152 @@ defmodule Quokka.Style.AutosortTest do
     end
   end
 
+  describe "comments move with their nodes" do
+    test "schema field comments stay inside the schema, with their fields" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:schema] end)
+
+      assert_style(
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          schema "users" do
+            # the owner
+            belongs_to :owner, Owner
+            # the name
+            field :name, :string
+            # the posts
+            has_many :posts, Post
+            # the age
+            field :age,
+              # inner age
+              :integer
+          end
+        end
+        """,
+        """
+        defmodule MySchema do
+          use Ecto.Schema
+
+          schema "users" do
+            # the age
+            field(
+              :age,
+              # inner age
+              :integer
+            )
+
+            # the name
+            field(:name, :string)
+
+            # the owner
+            belongs_to(:owner, Owner)
+
+            # the posts
+            has_many(:posts, Post)
+          end
+        end
+        """
+      )
+    end
+
+    test "a standalone comment between struct fields moves with the field above it" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:defstruct] end)
+
+      assert_style(
+        """
+        defmodule S do
+          defstruct [
+            # about c
+            :c,
+
+            # standalone note after c
+
+            # about a
+            :a,
+            :b
+          ]
+        end
+        """,
+        """
+        defmodule S do
+          defstruct [
+            # about a
+            :a,
+            :b,
+            # about c
+            :c
+
+            # standalone note after c
+          ]
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule S do
+          defstruct [
+            # about c
+            :c,
+
+            # standalone note after c
+
+            # about a
+            :a,
+            :d,
+            :b
+          ]
+        end
+        """,
+        """
+        defmodule S do
+          defstruct [
+            # about a
+            :a,
+            :b,
+            # about c
+            :c,
+
+            # standalone note after c
+
+            :d
+          ]
+        end
+        """
+      )
+    end
+
+    test "comments inside a multi-line map value stay inside it" do
+      Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)
+
+      assert_style(
+        """
+        %{
+          # about zeta
+          zeta: [
+            # inner zeta
+            :x
+          ],
+          # about alpha
+          alpha: 2
+        }
+        """,
+        """
+        %{
+          # about alpha
+          alpha: 2,
+          # about zeta
+          zeta: [
+            # inner zeta
+            :x
+          ]
+        }
+        """
+      )
+    end
+  end
+
   describe "comment scoping" do
     test "sorting a map does not steal comments from earlier in the module" do
       Mimic.stub(Quokka.Config, :autosort, fn -> [:map] end)

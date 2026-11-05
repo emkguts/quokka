@@ -83,10 +83,13 @@ defmodule Quokka.Style.Autosort do
     {numeric_items, non_numeric_items} = Enum.split_with(list, &numeric_key?/1)
 
     sorted_numeric = Enum.sort_by(numeric_items, &extract_key/1)
-    sorted_non_numeric = Enum.sort_by(non_numeric_items, &Macro.to_string/1)
+    sorted_non_numeric = Enum.sort_by(non_numeric_items, &sort_key/1)
 
     sorted_numeric ++ sorted_non_numeric
   end
+
+  # `:newlines` meta makes containers print across lines (`{\n  :c,\n  1\n}`), which would make the order depend on layout
+  defp sort_key(node), do: node |> Style.update_all_meta(&Keyword.delete(&1, :newlines)) |> Macro.to_string()
 
   defp numeric_key?({{:__block__, _, [key]}, _}) when is_number(key), do: true
   defp numeric_key?({key, _}) when is_number(key), do: true
@@ -99,107 +102,16 @@ defmodule Quokka.Style.Autosort do
   defp extract_key({{:.., _, [start, _stop]}, _}), do: start
   defp extract_key({key, _}), do: key
 
-  defp keyword_pairs?(list), do: Enum.all?(list, &match?({{_, _, _}, _}, &1))
-
-  defp sort_keyword_list_with_comments(pairs, comments, map_open_line) do
-    # Seed prev_last_line with the map's opening line so the first pair only
-    # claims comments physically inside the map. With a nil seed the first
-    # pair's lower bound is unbounded and it steals every comment earlier in
-    # the module (e.g. a `# credo:disable-for-next-line` in another function),
-    # then sorting rewrites those comments' lines. See emkguts/quokka#161.
-    {groups, {comments, _last_line}} =
-      Enum.map_reduce(pairs, {comments, map_open_line}, fn pair, {comments_acc, prev_last_line} ->
-        line = Style.meta(pair)[:line]
-        last_line = Style.max_line(pair)
-        {mine, rest} = pair_comments_for_keyword(comments_acc, prev_last_line, line, last_line)
-        {{pair, Enum.sort_by(mine, & &1.line)}, {rest, last_line}}
-      end)
-
-    sorted_groups = sort_keyword_groups(groups)
-
-    if groups_need_sort?(groups, sorted_groups) do
-      sort_groups_sequentially(sorted_groups, comments, map_open_line + 1)
-    else
-      pairs = Enum.map(groups, &elem(&1, 0))
-
-      comments =
-        Enum.flat_map(groups, fn {_, pair_comments} ->
-          Enum.sort_by(pair_comments, & &1.line)
-        end) ++ comments
-
-      {pairs, comments}
-    end
-  end
-
-  # Assign comments between fields using line boundaries, not `comments_for_lines/3`'s
-  # start - 1 rule (which steals a comment on the previous field's line after layout drifts).
-  defp pair_comments_for_keyword(comments, prev_last_line, _line, last_line) do
-    Enum.split_with(comments, fn %{line: comment_line} ->
-      comment_line <= last_line and (is_nil(prev_last_line) or comment_line > prev_last_line)
-    end)
-  end
-
-  defp groups_need_sort?(groups, sorted_groups) do
-    Enum.map(groups, &elem(&1, 0)) != Enum.map(sorted_groups, &elem(&1, 0))
-  end
-
-  defp sort_keyword_groups(groups) do
-    {numeric, other} = Enum.split_with(groups, fn {pair, _} -> numeric_key?(pair) end)
-
-    numeric_sorted = Enum.sort_by(numeric, fn {pair, _} -> extract_key(pair) end)
-    other_sorted = Enum.sort_by(other, fn {pair, _} -> Macro.to_string(pair) end)
-
-    numeric_sorted ++ other_sorted
-  end
-
-  defp sort_groups_sequentially(groups, orphan_comments, start_line) do
-    {pairs, comments, _} =
-      Enum.reduce(groups, {[], orphan_comments, start_line}, fn {pair, pair_comments}, {pairs, comments, line} ->
-        {placed_pair, placed_comments, next_line} =
-          place_pair_with_comments(pair, pair_comments, line)
-
-        {[placed_pair | pairs], placed_comments ++ comments, next_line}
-      end)
-
-    {Enum.reverse(pairs), comments}
-  end
-
-  defp place_pair_with_comments(pair, pair_comments, line) do
-    pair_comments = Enum.sort_by(pair_comments, & &1.line)
-
-    # Place comments at the sequential cursor (where this pair lands after
-    # sorting), not at min(cursor, comment's original line). Clamping to the
-    # comment's stale pre-sort line strands a moved key's leading comment at
-    # the map top instead of travelling with the key. In the not-moved case
-    # the cursor is already <= the comment line, so dropping the clamp is a
-    # no-op there. See emkguts/quokka#161 follow-up.
-    {placed_comments, line} =
-      Enum.map_reduce(pair_comments, line, fn comment, line ->
-        {%{comment | line: line, previous_eol_count: 1}, line + 1}
-      end)
-
-    pair = Style.set_line(pair, line)
-    last_line = Style.max_line(pair)
-
-    # Use a fixed +1 step: source `newlines` metadata reflects the old layout and must
-    # not advance the cursor past comment lines that belong to the next entry.
-    {pair, placed_comments, last_line + 1}
-  end
-
   defp do_sort({parent, meta, [list]} = node, comments) when parent in [:defstruct, :__block__] and is_list(list) do
     line = meta[:line]
 
+    sorted = numeric_aware_sort(list)
+
     {list, comments} =
-      cond do
-        line == Style.max_line(node) ->
-          {numeric_aware_sort(list), comments}
-
-        keyword_pairs?(list) ->
-          sort_keyword_list_with_comments(list, comments, line)
-
-        true ->
-          list = numeric_aware_sort(list)
-          Style.order_line_meta_and_comments(list, comments, line)
+      if line == Style.max_line(node) or sorted == list do
+        {sorted, comments}
+      else
+        Style.order_line_meta_and_comments(sorted, comments, line)
       end
 
     {{parent, meta, [list]}, comments}
@@ -253,7 +165,7 @@ defmodule Quokka.Style.Autosort do
   end
 
   defp do_sort({:embedded_schema, meta, [[{{:__block__, do_meta, [:do]}, {:__block__, block_meta, fields}}]]}, comments) do
-    {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:line])
+    {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:do][:line] || meta[:line])
     {{:embedded_schema, meta, [[{{:__block__, do_meta, [:do]}, {:__block__, block_meta, sorted_fields}}]]}, comments}
   end
 
@@ -262,7 +174,7 @@ defmodule Quokka.Style.Autosort do
          comments
        )
        when schema_type in [:schema, :typed_schema] do
-    {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:line])
+    {sorted_fields, comments} = sort_schema_fields(fields, comments, meta[:do][:line] || meta[:line])
 
     {{schema_type, meta, [table_name, [{{:__block__, do_meta, [:do]}, {:__block__, block_meta, sorted_fields}}]]},
      comments}
@@ -280,7 +192,7 @@ defmodule Quokka.Style.Autosort do
       {nodes, comments} =
         nodes
         |> numeric_aware_sort()
-        |> Style.order_line_meta_and_comments(comments, m[:line])
+        |> Style.order_line_meta_and_comments(comments, m[:do][:line] || m[:line])
 
       args = List.insert_at(args, -1, [{{:__block__, m1, [:do]}, {:__block__, m2, nodes}}])
 
@@ -292,7 +204,7 @@ defmodule Quokka.Style.Autosort do
 
   defp do_sort(x, comments), do: {x, comments}
 
-  defp sort_schema_fields(fields, comments, meta_line) do
+  defp sort_schema_fields(fields, comments, do_line) do
     field_type_order = Quokka.Config.autosort_schema_order()
 
     grouped_fields =
@@ -340,6 +252,6 @@ defmodule Quokka.Style.Autosort do
         |> Kernel.++(other_fields)
       end
 
-    Style.order_line_meta_and_comments(sorted_fields, comments, meta_line)
+    Style.order_line_meta_and_comments(sorted_fields, comments, do_line)
   end
 end

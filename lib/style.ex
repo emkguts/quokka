@@ -207,45 +207,243 @@ defmodule Quokka.Style do
     end
   end
 
-  def order_line_meta_and_comments(nodes, comments, first_line) do
-    {nodes, comments, node_comments} = fix_lines(nodes, comments, first_line, [], [])
-    {nodes, Enum.sort_by(comments ++ node_comments, & &1.line)}
+  @doc """
+  Moves comments along with `nodes`, a list of siblings that has been reordered.
+
+  `prev_last_line` is the last line before the siblings, like the line of the `[`, `%{` or `do` that
+  opens their container. See `comment_regions/3` for which comments move with which node.
+  """
+  def order_line_meta_and_comments(nodes, comments, prev_last_line) do
+    {regions, comments} =
+      nodes
+      |> Enum.sort_by(&meta(&1)[:line])
+      |> comment_regions(comments, prev_last_line)
+
+    place_nodes_and_comments(nodes, regions, comments, prev_last_line)
   end
 
-  defp fix_lines([], comments, _, node_acc, c_acc), do: {Enum.reverse(node_acc), comments, c_acc}
+  @doc """
+  Splits the block's lines into one region per statement, so the statement's comments can move with it.
 
-  defp fix_lines([node | nodes], comments, start_line, n_acc, c_acc) do
-    meta = meta(node)
-    line = meta[:line]
-    last_line = meta[:end_of_expression][:line] || max_line(node)
+  Nodes must all be siblings, passed in their original order.
 
-    {node, node_comments, comments} =
-      if start_line == line do
-        {node, [], comments}
-      else
-        {mine, comments} = comments_for_lines(comments, line, last_line)
-        line_with_comments = (List.first(mine)[:line] || line) - (List.first(mine)[:previous_eol_count] || 1) + 1
+  A region runs from the comment lines directly above its node (no blank line between them) up to the next node's
+  region. That covers comments within the node, like those in a multi-line keyword list, plus any standalone
+  comment block between it and the next node. Nodes sharing a line can't be told apart, so they share a region.
 
-        if line_with_comments == start_line do
-          {node, mine, comments}
-        else
-          shift = start_line - line_with_comments
-          # fix the node's line
-          node = shift_line(node, shift)
-          # fix the comment's line
-          mine = Enum.map(mine, &%{&1 | line: &1.line + shift})
-          {node, mine, comments}
+  Comments outside the nodes' regions (on or before `prev_last_line`, separated from the first node by a blank
+  line, or after the last node) aren't owned, and keep their lines.
+
+  Returns the regions, in order, as `{node_lines, first_line, line_count, comments}`, plus the unowned comments.
+  """
+  def comment_regions(nodes, comments, prev_last_line) do
+    {regions, comments, last_line} =
+      nodes
+      |> Enum.filter(&meta(&1)[:line])
+      |> Enum.reduce({[], comments, prev_last_line}, fn node, {regions, comments, prev_last_line} ->
+        line = meta(node)[:line]
+        last_line = max(last_line(node), prev_last_line)
+        {before, comments} = Enum.split_with(comments, &(&1.line > prev_last_line and &1.line < line))
+        {inner, comments} = Enum.split_with(comments, &(&1.line > prev_last_line and &1.line in line..last_line//1))
+
+        case regions do
+          [{node_lines, first_line, owned} | regions] when line <= prev_last_line ->
+            {[{node_lines.first..last_line//1, first_line, owned ++ inner} | regions], comments, last_line}
+
+          _ ->
+            {floating, leading} = split_leading_comments(before, line)
+
+            {regions, comments} =
+              case regions do
+                [{node_lines, first_line, owned} | regions] ->
+                  {[{node_lines, first_line, owned ++ floating} | regions], comments}
+
+                [] ->
+                  {regions, floating ++ comments}
+              end
+
+            first_line =
+              case leading do
+                [] -> line
+                [%{line: first_line} | _] -> first_line
+              end
+
+            {[{line..last_line//1, first_line, leading ++ inner} | regions], comments, last_line}
         end
+      end)
+
+    {regions, _} =
+      Enum.reduce(regions, {[], last_line + 1}, fn {node_lines, first_line, owned}, {regions, next_line} ->
+        {[{node_lines, first_line, next_line - first_line, owned} | regions], first_line}
+      end)
+
+    {regions, comments}
+  end
+
+  # `comments` are sorted by line; the leading comments are the run of consecutive lines ending just above `line`
+  defp split_leading_comments(comments, line) do
+    {leading, _} =
+      comments
+      |> Enum.reverse()
+      |> Enum.reduce_while({[], line - 1}, fn
+        %{line: expected} = comment, {leading, expected} -> {:cont, {[comment | leading], expected - 1}}
+        _comment, leading_and_expected -> {:halt, leading_and_expected}
+      end)
+
+    {Enum.drop(comments, -length(leading)), leading}
+  end
+
+  @doc """
+  Lays out the reordered `nodes` and the `regions` they came from (see `comment_regions/3`) back to back, starting
+  just after `prev_last_line`.
+
+  Shifting each region as a whole keeps the line gaps the formatter uses to place blank lines around comments, and
+  since the regions tile the original lines, the nodes still take up the same lines. Nodes outside every region
+  (new nodes, or ones moved in from elsewhere) take up no lines: they share the line of the node before them.
+  Comments of regions whose nodes were all dropped are placed after the last node.
+  """
+  def place_nodes_and_comments(nodes, regions, comments, prev_last_line) do
+    nodes = Enum.map(nodes, &{&1, find_region(regions, &1)})
+
+    first_line =
+      case regions do
+        [{_, first_line, _, _} | _] -> first_line
+        [] -> prev_last_line + 1
       end
 
-    meta = meta(node)
-    # @TODO what about comments that were free floating between blocks? i'm just ignoring them and maybe always will...
-    # kind of just want to shove them to the end though, so that they don't interrupt existing stanzas.
-    # i think that's accomplishable by doing a final call above that finds all comments in the comments list that weren't moved
-    # and which are in the range of start..finish and sets their lines to finish!
-    last_line = meta[:end_of_expression][:line] || max_line(node)
-    last_line = (meta[:end_of_expression][:newlines] || 1) + last_line
-    fix_lines(nodes, comments, last_line, [node | n_acc], node_comments ++ c_acc)
+    # Nodes that shared a line need a line each now. The regions have no lines to spare, but we can take them from
+    # any blank lines before the first region; otherwise they keep sharing a line, and lose the blank line between them.
+    shared = Enum.count(nodes, &elem(&1, 1)) - (nodes |> Enum.map(&elem(&1, 1)) |> Enum.uniq() |> Enum.count(& &1))
+
+    floor =
+      comments
+      |> Enum.filter(&(&1.line > prev_last_line and &1.line < first_line))
+      |> Enum.reduce(prev_last_line, &max(&1.line, &2))
+
+    start_line = max(first_line - shared, floor + 1)
+
+    acc = %{
+      line: start_line,
+      spare: max(first_line - start_line, 0),
+      prev_line: prev_last_line,
+      # if we took lines from before the first region, the comment now starting the block keeps the gap before it
+      prev_newlines: if(start_line < first_line, do: first_line - floor),
+      prev_moved?: start_line < first_line,
+      deltas: %{},
+      comments: comments
+    }
+
+    {nodes, acc} =
+      Enum.map_reduce(nodes, acc, fn {node, region}, acc ->
+        case region do
+          # ending on the line of the node before it, so a multi-line node can keep its lines without overlapping any
+          # comments still to be placed
+          nil ->
+            node =
+              if meta(node)[:line],
+                do: shift_line(node, acc.prev_line - last_line(node)),
+                else: set_line(node, acc.prev_line, delete_newlines: false)
+
+            {node, %{acc | prev_newlines: meta(node)[:end_of_expression][:newlines], prev_moved?: true}}
+
+          {node_lines, _, _, _} when is_map_key(acc.deltas, node_lines) and acc.spare > 0 ->
+            node = shift_line(node, acc.line - meta(node)[:line])
+            newlines = meta(node)[:end_of_expression][:newlines]
+
+            {node,
+             %{
+               acc
+               | line: acc.line + 1,
+                 spare: acc.spare - 1,
+                 prev_line: last_line(node),
+                 prev_newlines: newlines,
+                 prev_moved?: true
+             }}
+
+          {node_lines, _, _, _} when is_map_key(acc.deltas, node_lines) ->
+            node = shift_line(node, acc.deltas[node_lines])
+            {node, %{acc | prev_line: max(acc.prev_line, last_line(node))}}
+
+          {node_lines, first_line, line_count, owned} ->
+            line = meta(node)[:line]
+            delta = acc.line - first_line
+
+            node =
+              if delta == 0 do
+                node
+              else
+                shift_line(node, delta)
+              end
+
+            node_last_line = last_line(node)
+            owned = Enum.map(owned, &%{&1 | line: &1.line + delta})
+            prev_moved? = delta != 0
+
+            newline_count =
+              if prev_moved? or acc.prev_moved? do
+                acc.prev_newlines
+              else
+                0
+              end
+
+            {node,
+             %{
+               acc
+               | line: acc.line + line_count,
+                 prev_line: node_last_line,
+                 prev_newlines:
+                   if(Enum.all?(owned, &(&1.line <= node_last_line)), do: meta(node)[:end_of_expression][:newlines]),
+                 prev_moved?: prev_moved?,
+                 deltas: Map.put(acc.deltas, node_lines, delta),
+                 comments: fix_leading_newlines(owned, line + delta, newline_count) ++ acc.comments
+             }}
+        end
+      end)
+
+    acc =
+      regions
+      |> Enum.reject(fn {node_lines, _, _, _} -> is_map_key(acc.deltas, node_lines) end)
+      |> Enum.reduce(acc, fn {_, first_line, line_count, owned}, acc ->
+        owned = Enum.map(owned, &%{&1 | line: &1.line + acc.line - first_line})
+        %{acc | line: acc.line + line_count, comments: owned ++ acc.comments}
+      end)
+
+    {nodes, Enum.sort_by(acc.comments, & &1.line)}
+  end
+
+  defp find_region(regions, node) do
+    line = meta(node)[:line]
+    line && Enum.find(regions, fn {node_lines, _, _, _} -> line in node_lines end)
+  end
+
+  # When a region's leading comment directly follows the node placed before it, the formatter ignores the node's
+  # newlines (as set when regrouping the nodes) in favor of the comment's `previous_eol_count`, which is from wherever
+  # the comment used to be. Where either one moved, bumping the count keeps the blank line the node asks for.
+  defp fix_leading_newlines([%{line: comment_line} = comment | owned], line, newlines)
+       when comment_line < line and is_integer(newlines) and newlines > 0 do
+    [%{comment | previous_eol_count: max(comment.previous_eol_count, newlines)} | owned]
+  end
+
+  defp fix_leading_newlines(owned, _, _), do: owned
+
+  @doc """
+  The last line of a node, including the lines of any closing delimiters (`)`, `]`, `end`, etc) within it
+  """
+  def last_line({_, meta, _} = ast) when is_list(meta), do: meta[:end_of_expression][:line] || do_last_line(ast)
+  def last_line(ast), do: do_last_line(ast)
+
+  defp do_last_line(ast) do
+    {_, last_line} =
+      Macro.prewalk(ast, 0, fn
+        {_, meta, _} = ast, max when is_list(meta) ->
+          lines = [meta[:line], meta[:closing][:line], meta[:end][:line], meta[:end_of_expression][:line]]
+          {ast, lines |> Enum.filter(&is_integer/1) |> Enum.max(fn -> max end) |> max(max)}
+
+        ast, max ->
+          {ast, max}
+      end)
+
+    last_line
   end
 
   # typical node
