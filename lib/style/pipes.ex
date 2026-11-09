@@ -712,23 +712,27 @@ defmodule Quokka.Style.Pipes do
            lhs,
            {{:., dm, [{_, _, [mod]}, :map]}, em, [mapper]},
            {{:., _, [{_, _, [:Enum]}, :into]} = into, _, [collectable]}
-         )
+         ) = node
        )
        when mod in @enum do
-    rhs =
-      case collectable do
-        {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in @collectable ->
-          {{:., dm, [{:__aliases__, dm, [mod]}, :new]}, em, [mapper]}
+    if Quokka.Config.inefficient_function_rewrites?() do
+      rhs =
+        case collectable do
+          {{:., _, [{_, _, [mod]}, :new]}, _, []} when mod in @collectable ->
+            {{:., dm, [{:__aliases__, dm, [mod]}, :new]}, em, [mapper]}
 
-        {:%{}, _, []} ->
-          {{:., dm, [{:__aliases__, dm, [:Map]}, :new]}, em, [mapper]}
+          {:%{}, _, []} ->
+            {{:., dm, [{:__aliases__, dm, [:Map]}, :new]}, em, [mapper]}
 
-        _ ->
-          {into, m, [collectable]} = Style.set_line({into, em, [collectable]}, dm[:line])
-          {into, m, [collectable, mapper]}
-      end
+          _ ->
+            {into, m, [collectable]} = Style.set_line({into, em, [collectable]}, dm[:line])
+            {into, m, [collectable, mapper]}
+        end
 
-    {:|>, pm, [lhs, rhs]}
+      {:|>, pm, [lhs, rhs]}
+    else
+      node
+    end
   end
 
   # `lhs |> Enum.map(mapper) |> Map.new()` => `lhs |> Map.new(mapper)`
@@ -738,10 +742,12 @@ defmodule Quokka.Style.Pipes do
            lhs,
            {{:., _, [{_, _, [enum]}, :map]}, em, [mapper]},
            {{:., _, [{_, _, [mod]}, :new]} = new, _, []}
-         )
+         ) = node
        )
        when mod in @collectable and enum in @enum do
-    {:|>, pm, [lhs, {Style.set_line(new, em[:line]), em, [mapper]}]}
+    if Quokka.Config.inefficient_function_rewrites?(),
+      do: {:|>, pm, [lhs, {Style.set_line(new, em[:line]), em, [mapper]}]},
+      else: node
   end
 
   # When a `Kernel` operator is the first function in a pipe, fold it back into an inline

@@ -790,6 +790,85 @@ defmodule Quokka.Style.SingleNodeTest do
     end
   end
 
+  describe "nested Enum.map in $collectable.new" do
+    test "respects inefficient_functions config" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      for enum <- ["Enum", "Stream"] do
+        assert_style("Enum.into(#{enum}.map(items, mapper), %{})")
+
+        for collectable <- ["Map", "Keyword", "MapSet"] do
+          assert_style("#{collectable}.new(#{enum}.map(items, mapper))")
+          assert_style("Enum.into(#{enum}.map(items, mapper), #{collectable}.new())")
+        end
+      end
+    end
+
+    test "folds the mapper into the collectable constructor" do
+      for collectable <- ["Map", "Keyword", "MapSet"], enum <- ["Enum", "Stream"] do
+        assert_style("#{collectable}.new(#{enum}.map(items, mapper))", "#{collectable}.new(items, mapper)")
+      end
+    end
+
+    test "folds Enum.into and its nested mapper in one pass" do
+      for enum <- ["Enum", "Stream"] do
+        assert_style("Enum.into(#{enum}.map(items, mapper), %{})", "Map.new(items, mapper)")
+
+        for collectable <- ["Map", "Keyword", "MapSet"] do
+          assert_style(
+            "Enum.into(#{enum}.map(items, mapper), #{collectable}.new())",
+            "#{collectable}.new(items, mapper)"
+          )
+        end
+      end
+    end
+
+    test "preserves comments before the nested mapper" do
+      for collectable <- ["Map", "Keyword", "MapSet"], enum <- ["Enum", "Stream"] do
+        assert_style(
+          """
+          #{collectable}.new(
+            # index by id
+            #{enum}.map(users, &{&1.id, &1})
+          )
+          """,
+          """
+          #{collectable}.new(
+            # index by id
+            users,
+            &{&1.id, &1}
+          )
+          """
+        )
+      end
+    end
+
+    test "multiline anonymous mapper" do
+      assert_style(
+        """
+        Map.new(
+          Enum.map(owner_emails, fn job ->
+            email = decode_email(job)
+            {List.first(email.to), email}
+          end)
+        )
+        """,
+        """
+        Map.new(owner_emails, fn job ->
+          email = decode_email(job)
+          {List.first(email.to), email}
+        end)
+        """
+      )
+    end
+
+    test "leaves other shapes alone" do
+      assert_style("Map.new(Enum.map(items, mapper), other)")
+      assert_style("Map.new(Enum.filter(items, filterer))")
+      assert_style("Map.new(Foo.map(items, mapper))")
+    end
+  end
+
   describe "Enum.into and $collectable.new" do
     test "into an empty map" do
       assert_style("Enum.into(a, %{})", "Map.new(a)")
