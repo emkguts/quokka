@@ -217,6 +217,7 @@ Beyond Credo-inspired checks, Quokka provides additional style improvements:
 |---------|-------------|---------------|
 | Test Styling | Rewrites tests to be efficent and idiomatic | [Test Assertions](docs/tests.md) |
 | Unnecessary reduces | Rewrites eligible `Enum.reduce/3` calls to `Map.new/2` or appropriate function from `Enum` module. | [`Enum.reduce` rewrites](docs/styles.md#enumreduce-rewrites-to-purpose-built-functions) |
+| Chained `Map.put` | Rewrites consecutive piped `Map.put/3` calls with atom keys into a single `Map.merge/2`. Disable with `exclude: [:inefficient_functions]`. | [Chained Map.put calls](docs/pipes.md#chained-mapput-calls) |
 | Word sigils to lists | Rewrites `~w` sigils to literal lists of strings or atoms. Disable with `exclude: [:sigils]`. | [Word Sigils to Lists](docs/styles.md#word-sigils-to-lists) |
 
 ## Custom rewrites

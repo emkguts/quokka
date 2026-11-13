@@ -21,6 +21,62 @@ defmodule Quokka.Style.PipesTest do
     :ok
   end
 
+  describe "chained Map.put" do
+    test "merges consecutive puts" do
+      assert_style(
+        "details |> Map.put(:discount, discount()) |> Map.put(:invoice, invoice())",
+        "Map.merge(details, %{discount: discount(), invoice: invoice()})"
+      )
+
+      assert_style(
+        "data |> prepare() |> Map.put(:a, one()) |> Map.put(:b, two()) |> Map.put(:c, three()) |> finish()",
+        "data |> prepare() |> Map.merge(%{a: one(), b: two(), c: three()}) |> finish()"
+      )
+    end
+
+    test "leaves duplicate and dynamic keys alone" do
+      assert_style("data |> Map.put(:a, one()) |> Map.put(:a, two())")
+      assert_style("data |> Map.put(key, one()) |> Map.put(:a, two())")
+    end
+
+    test "merges only the puts before a repeated key" do
+      assert_style(
+        "data |> Map.put(:a, one()) |> Map.put(:b, two()) |> Map.put(:a, three())",
+        "data |> Map.merge(%{a: one(), b: two()}) |> Map.put(:a, three())"
+      )
+    end
+
+    test "does not combine across intervening calls" do
+      assert_style("data |> Map.put(:a, one()) |> transform() |> Map.put(:b, two())")
+    end
+
+    test "moves comments between puts above the merge" do
+      assert_style(
+        """
+        data
+        # c1
+        |> Map.put(:a, 1)
+        # c2
+        |> Map.put(:b, 2)
+        |> foo()
+        """,
+        """
+        data
+        # c1
+        # c2
+        |> Map.merge(%{a: 1, b: 2})
+        |> foo()
+        """
+      )
+    end
+
+    test "is disabled when inefficient function rewrites are excluded" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      assert_style("data |> Map.put(:a, one()) |> Map.put(:b, two())")
+    end
+  end
+
   describe "big picture" do
     test "unnests multiple steps" do
       assert_style("f(g(h(x))) |> j()", "x |> h() |> g() |> f() |> j()")

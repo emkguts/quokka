@@ -776,7 +776,30 @@ defmodule Quokka.Style.Pipes do
   defp fix_pipe({:|>, _pm, [{_, lhs_meta, _} = lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, []}]}) when op in @kernel_ops,
     do: Style.set_line({op, [line: lhs_meta[:line]], [lhs]}, lhs_meta[:line])
 
+  defp fix_pipe({:|>, meta, [_, {{:., dot_meta, [{:__aliases__, _, [:Map]} = mod, :put]}, call_meta, [_, _]}]} = node) do
+    {base, entries} = collect_map_puts(node, [])
+
+    if Quokka.Config.inefficient_function_rewrites?() and length(entries) >= 2 and
+         Enum.uniq_by(entries, fn {{:__block__, _, [key]}, _} -> key end) == entries do
+      map = {:%{}, [line: meta[:line]], entries}
+      {:|>, meta, [base, {{:., dot_meta, [mod, :merge]}, call_meta, [map]}]}
+    else
+      node
+    end
+  end
+
   defp fix_pipe(node), do: node
+
+  defp collect_map_puts(
+         {:|>, _, [lhs, {{:., _, [{:__aliases__, _, [:Map]}, :put]}, _, [{:__block__, key_meta, [key]}, value]}]},
+         entries
+       )
+       when is_atom(key) do
+    key_ast = {:__block__, Keyword.put(key_meta, :format, :keyword), [key]}
+    collect_map_puts(lhs, [{key_ast, value} | entries])
+  end
+
+  defp collect_map_puts(node, entries), do: {node, entries}
 
   defp untuple_zip_arrows(arrows) do
     arrows = Enum.map(arrows, &untuple_zip_arrow/1)
