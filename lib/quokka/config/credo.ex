@@ -70,18 +70,19 @@ defmodule Quokka.Config.Credo do
 
   defp apply_check({AliasUsage, opts}, acc) when is_list(opts) do
     acc
-    |> Map.put(:lift_alias, true)
-    |> Map.put(:lift_alias_depth, opts[:if_nested_deeper_than])
-    |> Map.put(:lift_alias_frequency, opts[:if_called_more_often_than])
-    |> Map.put(:lift_alias_excluded_namespaces, opts[:excluded_namespaces])
-    |> Map.put(:lift_alias_excluded_lastnames, opts[:excluded_lastnames])
-    |> Map.put(:lift_alias_only, opts[:only])
+    |> Map.merge(%{
+      lift_alias: true,
+      lift_alias_depth: opts[:if_nested_deeper_than],
+      lift_alias_frequency: opts[:if_called_more_often_than],
+      lift_alias_excluded_namespaces: opts[:excluded_namespaces],
+      lift_alias_excluded_lastnames: opts[:excluded_lastnames],
+      lift_alias_only: opts[:only]
+    })
   end
 
   defp apply_check({BlockPipe, opts}, acc) when is_list(opts) do
     acc
-    |> Map.put(:block_pipe_flag, true)
-    |> Map.put(:block_pipe_exclude, opts[:exclude])
+    |> Map.merge(%{block_pipe_flag: true, block_pipe_exclude: opts[:exclude]})
   end
 
   defp apply_check({LargeNumbers, opts}, acc) when is_list(opts) do
@@ -114,9 +115,11 @@ defmodule Quokka.Config.Credo do
 
   defp apply_check({PipeChainStart, opts}, acc) when is_list(opts) do
     acc
-    |> Map.put(:pipe_chain_start_flag, true)
-    |> Map.put(:pipe_chain_start_excluded_functions, opts[:excluded_functions])
-    |> Map.put(:pipe_chain_start_excluded_argument_types, opts[:excluded_argument_types])
+    |> Map.merge(%{
+      pipe_chain_start_flag: true,
+      pipe_chain_start_excluded_functions: opts[:excluded_functions],
+      pipe_chain_start_excluded_argument_types: opts[:excluded_argument_types]
+    })
   end
 
   defp apply_check({SinglePipe, opts}, acc) when is_list(opts) do
@@ -125,9 +128,11 @@ defmodule Quokka.Config.Credo do
 
   defp apply_check({StrictModuleLayout, opts}, acc) when is_list(opts) do
     acc
-    |> Map.put(:strict_module_layout_order, opts[:order])
-    |> Map.put(:strict_module_layout_ignore, opts[:ignore] || [])
-    |> Map.put(:strict_module_layout_ignored_module_attributes, opts[:ignore_module_attributes] || [])
+    |> Map.merge(%{
+      strict_module_layout_order: opts[:order],
+      strict_module_layout_ignore: opts[:ignore] || [],
+      strict_module_layout_ignored_module_attributes: opts[:ignore_module_attributes] || []
+    })
   end
 
   defp apply_check({UtcNowTruncate, opts}, acc) when is_list(opts) do

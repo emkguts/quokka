@@ -361,3 +361,21 @@ Repo.insert(changeset)
 from(f in Foo, where: f.id == ^id)
 |> Repo.all()
 ```
+
+## Chained Map.put calls
+
+Consecutive `Map.put/3` calls with distinct atom keys become one `Map.merge/2` call.
+Values retain their original order. Puts with dynamic keys are not combined, and a key is never merged past a later put of the same key.
+Disable with `exclude: [:inefficient_functions]`.
+
+```elixir
+details
+|> Map.put(:discount, prefill_discount(details.coupon_id))
+|> Map.put(:invoice, Checkout.preview_recurring_invoice(ext_id))
+
+# Styled (with the single-pipe rewrite enabled):
+Map.merge(details, %{
+  discount: prefill_discount(details.coupon_id),
+  invoice: Checkout.preview_recurring_invoice(ext_id)
+})
+```
