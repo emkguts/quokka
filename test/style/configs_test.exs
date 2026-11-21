@@ -186,6 +186,7 @@ defmodule Quokka.Style.ConfigsTest do
         config :a, 2
         config :a, 3
         config :a, 4
+
         # comment
         # b comment
         config :b, 1
@@ -449,8 +450,8 @@ defmodule Quokka.Style.ConfigsTest do
       )
     end
 
-    # Statements sharing a line can't be given separate regions of lines, so this falls back to the old,
-    # less precise comment handling (note `# b and a` ends up on `:a` only)
+    # Statements sharing a line can't be given separate regions of lines, so they share a region, and its comments go
+    # with whichever statement is placed first (note `# b and a` ends up on `:a` only)
     test "sorts statements sharing a line" do
       assert_style(
         """

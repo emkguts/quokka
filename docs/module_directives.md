@@ -85,6 +85,8 @@ Modules directives are sorted into the following order by default:
 - `require` (sorted alphabetically)
 - everything else (order unchanged)
 
+Comments move with the directives they describe, following the same rules as [autosort](autosort.md#comments).
+
 ### Before
 
 ```elixir

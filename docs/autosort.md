@@ -62,9 +62,12 @@ For each sortable entity (map, `defstruct`, or schema block), autosort **sorts**
 
 Autosort passes comments through to the formatter so they stay with the code they annotate. The general rule (shared with [`# quokka:sort`](comment_directives.md)) is:
 
-- A comment on the same lines as an entry, or on the line(s) immediately above it, belongs to that entry.
-- After sorting, comments are placed on lines above the entry they belong to.
+- A comment on the same lines as an entry (including inside a multi-line entry), or on the line(s) immediately above it, belongs to that entry and moves with it.
+- A standalone comment block (separated from the next entry by a blank line) belongs to the entry above it.
+- Comments before the first entry's comments, or after the last entry, stay where they are.
 - End-of-line comments (for example `b: 5, # note`) are moved onto their own line above the entry, matching `mix format` behavior.
+
+Module directives, `config` statements in `config/*.exs` files, and `if`/`else` branches follow the same rules when Quokka reorders them.
 
 How that applies depends on what is being autosorted:
 
@@ -72,8 +75,8 @@ How that applies depends on what is being autosorted:
 |------|------------------|------------------|
 | **`:map`** | Map keys (and map-update keyword lists) | Each key is sorted with its comments as a group; comments stay above that key after formatting. |
 | **`:defstruct`** (keyword form) | Fields like `defstruct b: 1, a: 2` | Same as maps. |
-| **`:defstruct`** (atom list) | Fields like `defstruct [:c, :b, :a]` | Fields are sorted, then line numbers and comments are adjusted together via the shared comment-ordering logic. |
-| **`:schema`** | `schema`, `typed_schema`, and `embedded_schema` fields | Fields are grouped by type (`:field`, `:has_many`, and so on), sorted within each group, then comments are re-laid-out with the sorted fields. Association macros keep blank lines between groups. |
+| **`:defstruct`** (atom list) | Fields like `defstruct [:c, :b, :a]` | Same as maps. |
+| **`:schema`** | `schema`, `typed_schema`, and `embedded_schema` fields | Fields are grouped by type (`:field`, `:has_many`, and so on) and sorted within each group, each field moving with its comments. Association macros keep blank lines between groups. |
 
 For values that autosort does not cover (plain lists, sigils, `@type` maps without autosort enabled, and so on), use [`# quokka:sort`](comment_directives.md). That directive uses the same sorting implementation and the same comment association rules.
 

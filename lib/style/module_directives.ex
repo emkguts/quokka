@@ -93,7 +93,8 @@ defmodule Quokka.Style.ModuleDirectives do
           # we want only-child literal block to be handled in the only-child catch-all. it means someone did a weird
           # (that would be a literal, so best case someone wrote a string and forgot to put `@moduledoc` before it)
           {:__block__, _, [_, _ | _]} ->
-            {:skip, organize_directives(body_zipper, moduledoc, ctx), ctx}
+            {zipper, ctx} = organize_directives(body_zipper, moduledoc, ctx)
+            {:skip, zipper, ctx}
 
           # a module whose only child is a moduledoc. nothing to do here!
           # seems weird at first blush but lots of projects/libraries do this with their root namespace module
@@ -103,7 +104,7 @@ defmodule Quokka.Style.ModuleDirectives do
           # There's only one child, and it's not a moduledoc. Conditionally add a moduledoc, then style the only_child
           only_child ->
             if moduledoc do
-              zipper =
+              {zipper, ctx} =
                 body_zipper
                 |> Zipper.replace({:__block__, [], [moduledoc, only_child]})
                 |> organize_directives(nil, ctx)
@@ -121,9 +122,13 @@ defmodule Quokka.Style.ModuleDirectives do
   def run({{directive, _, children}, _} = zipper, ctx) when directive in @directives and is_list(children) do
     # Need to be careful that we aren't getting false positives on variables or fns like `def import(foo)` or `alias = 1`
     case Style.ensure_block_parent(zipper) do
-      {:ok, zipper} -> {:skip, zipper |> Zipper.up() |> organize_directives(nil, ctx), ctx}
+      {:ok, zipper} ->
+        {zipper, ctx} = zipper |> Zipper.up() |> organize_directives(nil, ctx)
+        {:skip, zipper, ctx}
+
       # not actually a directive! carry on.
-      :error -> {:cont, zipper, ctx}
+      :error ->
+        {:cont, zipper, ctx}
     end
   end
 
@@ -169,7 +174,8 @@ defmodule Quokka.Style.ModuleDirectives do
               {:skip, body_zipper, ctx}
 
             {:__block__, _, [_, _ | _]} ->
-              {:skip, organize_directives(body_zipper, nil, ctx), ctx}
+              {zipper, ctx} = organize_directives(body_zipper, nil, ctx)
+              {:skip, zipper, ctx}
 
             _ ->
               {:skip, zipper, ctx}
@@ -256,9 +262,10 @@ defmodule Quokka.Style.ModuleDirectives do
       has_skip_directive_sorting_comment?(parent, ctx) or has_ignored_module_attribute?(parent)
 
     if skip_sorting? do
-      organize_directives_preserve_order(parent, moduledoc)
+      {organize_directives_preserve_order(parent, moduledoc), ctx}
     else
-      organize_directives_with_sorting(parent, moduledoc)
+      {parent, comments} = organize_directives_with_sorting(parent, moduledoc, ctx.comments)
+      {parent, %{ctx | comments: comments}}
     end
   end
 
@@ -445,12 +452,20 @@ defmodule Quokka.Style.ModuleDirectives do
     end
   end
 
-  defp organize_directives_with_sorting(parent, moduledoc) do
+  defp organize_directives_with_sorting(parent, moduledoc, comments) do
     {before, _after} = Enum.split_while(Quokka.Config.strict_module_layout_order(), &(&1 != :alias))
+    children = Zipper.children(parent)
+
+    # Comments move with the code they describe, including directives moved up from below other code
+    prev_last_line = opening_line(parent)
+
+    {regions, comments} =
+      children
+      |> Enum.reject(&added_moduledoc?/1)
+      |> Style.comment_regions(comments, prev_last_line)
 
     acc =
-      parent
-      |> Zipper.children()
+      children
       |> Enum.reduce(@acc, fn
         {:@, _, [{attr_directive, _, _}]} = ast, acc when attr_directive in @attr_directives ->
           # attr_directives might get hoisted above aliases, so need to dealias depending on the layout order
@@ -564,20 +579,44 @@ defmodule Quokka.Style.ModuleDirectives do
 
     directives =
       Quokka.Config.strict_module_layout_order()
-      |> Enum.map(&Map.get(acc, &1, []))
-      |> Stream.concat()
-      |> fix_line_numbers(List.first(nondirectives))
+      |> Enum.flat_map(&Map.get(acc, &1, []))
+      # An added moduledoc has a made-up line, which must not claim the comments of whatever's on that line
+      |> Enum.map(fn node ->
+        if added_moduledoc?(node) do
+          Style.set_line(node, nil)
+        else
+          node
+        end
+      end)
+
+    # Laying out the non-directives too moves them down into the lines left by any directives moved up from among them
+    {nodes, comments} = Style.place_nodes_and_comments(directives ++ nondirectives, regions, comments, prev_last_line)
+    {directives, nondirectives} = Enum.split(nodes, length(directives))
 
     # the # of aliases can be decreased during sorting - if there were any, we need to be sure to write the deletion
     if Enum.empty?(directives) do
-      Zipper.replace_children(parent, nondirectives)
+      {Zipper.replace_children(parent, nondirectives), comments}
     else
       # this ensures we continue the traversal _after_ any directives
-      parent
-      |> Zipper.replace_children(directives)
-      |> Zipper.down()
-      |> Zipper.rightmost()
-      |> Zipper.insert_siblings(nondirectives)
+      parent =
+        parent
+        |> Zipper.replace_children(directives)
+        |> Zipper.down()
+        |> Zipper.rightmost()
+        |> Zipper.insert_siblings(nondirectives)
+
+      {parent, comments}
+    end
+  end
+
+  defp added_moduledoc?(ast), do: match?({:@, _, [{:moduledoc, _, [{:__block__, _, [@module_placeholder]}]}]}, ast)
+
+  # The line of the `do` (or `->`) opening the block of directives
+  defp opening_line(block) do
+    case Zipper.up(block) do
+      {{{:__block__, meta, [:do]}, _}, _} -> meta[:line]
+      {{:->, meta, _}, _} -> meta[:line]
+      _ -> 0
     end
   end
 
@@ -991,66 +1030,4 @@ defmodule Quokka.Style.ModuleDirectives do
 
   defp node_line({_, meta, _}), do: meta[:line]
   defp node_line(_), do: nil
-
-  # TODO investigate removing this in favor of the Style.post_sort_cleanup(node, comments)
-  # "Fixes" the line numbers of nodes who have had their orders changed via sorting or other methods.
-  # This "fix" simply ensures that comments don't get wrecked as part of us moving AST nodes willy-nilly.
-  #
-  # The fix is rather naive, and simply enforces the following property on the code:
-  # A given node must have a line number less than the following node.
-  # Et voila! Comments behave much better.
-  #
-  # ## In Detail
-  #
-  # For example, given document
-  #
-  #   1: defmodule ...
-  #   2: alias B
-  #   3: # this is foo
-  #   4: def foo ...
-  #   5: alias A
-  #
-  # Sorting aliases the ast node for  would put `alias A` (line 5) before `alias B` (line 2).
-  #
-  #   1: defmodule ...
-  #   5: alias A
-  #   2: alias B
-  #   3: # this is foo
-  #   4: def foo ...
-  #
-  # Elixir's document algebra would then encounter `line: 5` and immediately dump all comments with `line <= 5`,
-  # meaning after running through the formatter we'd end up with
-  #
-  #   1: defmodule
-  #   2: # hi
-  #   3: # this is foo
-  #   4: alias A
-  #   5: alias B
-  #   6:
-  #   7: def foo ...
-  #
-  # This function fixes that by seeing that `alias A` has a higher line number than its following sibling `alias B` and so
-  # updates `alias A`'s line to be preceding `alias B`'s line.
-  #
-  # Running the results of this function through the formatter now no longer dumps the comments prematurely
-  #
-  #   1: defmodule ...
-  #   2: alias A
-  #   3: alias B
-  #   4: # this is foo
-  #   5: def foo ...
-  defp fix_line_numbers(nodes, nil), do: fix_line_numbers(nodes, 999_999)
-  defp fix_line_numbers(nodes, {_, meta, _}), do: fix_line_numbers(nodes, meta[:line])
-  defp fix_line_numbers(nodes, max), do: nodes |> Enum.reverse() |> do_fix_lines(max, [])
-
-  defp do_fix_lines([], _, acc), do: acc
-
-  defp do_fix_lines([{_, meta, _} = node | nodes], max, acc) do
-    line = meta[:line]
-
-    # the -2 is just an ugly hack to leave room for one-liner comments and not hijack them.
-    if line > max,
-      do: do_fix_lines(nodes, max, [Style.shift_line(node, max - line - 2) | acc]),
-      else: do_fix_lines(nodes, line, [node | acc])
-  end
 end
