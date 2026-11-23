@@ -106,9 +106,10 @@ defmodule Quokka.Style.SingleNode do
   #     Kernel./(total, size)  =>  total / size
   #     Kernel.-(x)            =>  -x
   #
-  # Piped `Kernel` ops (`a |> Kernel.++(b)`) are intentionally left alone.
+  # Piped `Kernel` ops (`a |> Kernel.++(b)`) and modules restricting `Kernel` imports
+  # (`import Kernel, except: ...` / `only: ...`) are intentionally left alone.
   def run({{{:., _, [{:__aliases__, _, [:Kernel]}, op]}, meta, args}, _} = zipper, ctx) when op in @kernel_ops do
-    if piped_rhs?(zipper) or not valid_kernel_arity?(op, args) do
+    if piped_rhs?(zipper) or not valid_kernel_arity?(op, args) or Style.kernel_import_restricted?(zipper) do
       {:cont, zipper, ctx}
     else
       {:cont, Zipper.replace(zipper, {op, [line: meta[:line]], args}), ctx}
@@ -924,7 +925,7 @@ defmodule Quokka.Style.SingleNode do
        when is_atom(acc) and acc != :_ do
     {stmts, last} = split_reduce_body(body)
 
-    if !references_var?(stmts, acc) do
+    if !references_var?(item, acc) and !references_var?(stmts, acc) do
       rebuild = fn new_last -> {:fn, fn_meta, [{:->, arrow_meta, [[item], join_reduce_body(stmts, new_last)]}]} end
       classify_reduce(init, item, acc, stmts, last, rebuild)
     end

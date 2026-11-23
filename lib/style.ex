@@ -345,4 +345,25 @@ defmodule Quokka.Style do
   end
 
   def group_counting_mapper?(_), do: false
+
+  @doc """
+  Returns `true` if any enclosing lexical scope before `zipper` restricts `Kernel` imports
+  via `import Kernel, except: ...` or `import Kernel, only: ...`.
+  """
+  def kernel_import_restricted?({_, %{l: left_siblings}} = z) do
+    Enum.any?(left_siblings, &kernel_import_restriction?/1) or kernel_import_restricted?(Zipper.up(z))
+  end
+
+  def kernel_import_restricted?(_), do: false
+
+  defp kernel_import_restriction?({:import, _, [{:__aliases__, _, mods}, opts]})
+       when mods in [[:Kernel], [Elixir, :Kernel]] and is_list(opts) do
+    Enum.any?(opts, fn
+      {{:__block__, _, [key]}, _} when key in [:except, :only] -> true
+      {key, _} when key in [:except, :only] -> true
+      _ -> false
+    end)
+  end
+
+  defp kernel_import_restriction?(_), do: false
 end
