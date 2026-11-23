@@ -834,8 +834,131 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         alias A.B
         alias A.B.B
         alias A.C
-        alias D.D
+        alias A.D
         alias Elixir.B.E
+        alias Elixir.D.D
+        """
+      )
+    end
+
+    test "expanding grouped import/require/use does not drop children matching an earlier alias" do
+      for {directive, before_alias?} <- [{:import, true}, {:use, true}, {:require, false}] do
+        expected =
+          if before_alias? do
+            """
+            defmodule M do
+              #{directive} Baz.Bar
+              #{directive} Baz.Qux
+
+              alias Foo.Bar
+            end
+            """
+          else
+            """
+            defmodule M do
+              alias Foo.Bar
+
+              #{directive} Baz.Bar
+              #{directive} Baz.Qux
+            end
+            """
+          end
+
+        assert_style(
+          """
+          defmodule M do
+            alias Foo.Bar
+            #{directive} Baz.{Bar, Qux}
+          end
+          """,
+          expected
+        )
+      end
+    end
+
+    test "hoisting a non-expanded grouped import above an alias does not rewrite its brace children" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style(
+        """
+        defmodule M do
+          alias Foo.Bar
+          import Baz.{Bar, Qux}
+        end
+        """,
+        """
+        defmodule M do
+          import Baz.{Bar, Qux}
+
+          alias Foo.Bar
+        end
+        """
+      )
+    end
+
+    test "does not double-expand dependent aliases when an earlier namespace is later shadowed" do
+      assert_style(
+        """
+        defmodule Example do
+          alias Alpha.Bravo
+          alias Zulu.Alpha
+          alias Bravo.Charlie
+          alias Charlie.Delta
+
+          def target(), do: Delta
+        end
+        """,
+        """
+        defmodule Example do
+          alias Alpha.Bravo
+          alias Alpha.Bravo.Charlie
+          alias Alpha.Bravo.Charlie.Delta
+          alias Zulu.Alpha
+
+          def target(), do: Delta
+        end
+        """
+      )
+    end
+
+    test "handles indirect self-referential aliases without looping" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style(
+        """
+        defmodule Example do
+          alias Foo
+          alias Foo, as: Other
+          alias Other.Bar
+
+          def target(), do: Bar
+        end
+        """,
+        """
+        defmodule Example do
+          alias Foo
+          alias Foo, as: Other
+          alias Foo.Bar
+
+          def target(), do: Bar
+        end
+        """
+      )
+    end
+
+    test "disambiguates alias B.B when sorted below alias A.B" do
+      assert_style(
+        """
+        defmodule M do
+          alias B.B
+          alias A.B
+        end
+        """,
+        """
+        defmodule M do
+          alias A.B
+          alias Elixir.B.B
+        end
         """
       )
     end

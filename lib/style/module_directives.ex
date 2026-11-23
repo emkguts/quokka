@@ -469,7 +469,7 @@ defmodule Quokka.Style.ModuleDirectives do
 
           ast =
             if Quokka.Config.rewrite_multi_alias?() do
-              expand(ast, acc.dealiases)
+              expand(ast)
             else
               [sort_multi_children(ast)]
             end
@@ -489,7 +489,7 @@ defmodule Quokka.Style.ModuleDirectives do
             end
 
           dealiases =
-            if directive == :alias, do: AliasEnv.define(acc.dealiases, ast), else: acc.dealiases
+            if directive == :alias, do: AliasEnv.define_resolved(acc.dealiases, ast), else: acc.dealiases
 
           # the reverse accounts for `expand` putting things in reading order, whereas we're accumulating in reverse
           %{acc | directive => Enum.reverse(ast, acc[directive]), dealiases: dealiases}
@@ -774,32 +774,23 @@ defmodule Quokka.Style.ModuleDirectives do
   end
 
   # Deletes root level aliases ala (`alias Foo` -> ``)
-  defp expand(ast, env \\ %{})
-
-  defp expand({:alias, _, [{:__aliases__, _, [_]}]}, _env), do: []
+  defp expand({:alias, _, [{:__aliases__, _, [_]}]}), do: []
 
   # import Foo.{Bar, Baz}
   # =>
   # import Foo.Bar
   # import Foo.Baz
-  defp expand({directive, meta, [{{:., _, [{:__aliases__, _, module}, :{}]}, _, right}]}, env) do
+  defp expand({directive, meta, [{{:., _, [{:__aliases__, _, module}, :{}]}, _, right}]}) do
     expanded =
-      Enum.flat_map(right, fn {_, child_meta, segments} ->
-        modules = module ++ segments
-        as = List.last(modules)
-
-        if alias_as_taken?(env, as, modules) do
-          []
-        else
-          [{directive, child_meta, [{:__aliases__, [line: child_meta[:line]], modules}]}]
-        end
+      Enum.map(right, fn {_, child_meta, segments} ->
+        {directive, child_meta, [{:__aliases__, [line: child_meta[:line]], module ++ segments}]}
       end)
 
     preserve_end_of_expression(expanded, meta)
   end
 
   # alias __MODULE__.{Bar, Baz}
-  defp expand({directive, meta, [{{:., _, [{:__MODULE__, _, _} = module, :{}]}, _, right}]}, _env) do
+  defp expand({directive, meta, [{{:., _, [{:__MODULE__, _, _} = module, :{}]}, _, right}]}) do
     expanded =
       Enum.map(right, fn {_, child_meta, segments} ->
         {directive, child_meta, [{:__aliases__, [line: child_meta[:line]], [module | segments]}]}
@@ -808,15 +799,7 @@ defmodule Quokka.Style.ModuleDirectives do
     preserve_end_of_expression(expanded, meta)
   end
 
-  defp expand(other, _env), do: [other]
-
-  defp alias_as_taken?(env, as, modules) do
-    case env[as] do
-      nil -> false
-      ^modules -> false
-      _ -> true
-    end
-  end
+  defp expand(other), do: [other]
 
   # Preserves the end_of_expression metadata from the original node on the last expanded node
   defp preserve_end_of_expression(expanded, meta) do

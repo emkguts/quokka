@@ -27,17 +27,49 @@ defmodule Quokka.AliasEnv do
     end
   end
 
+  @doc """
+  Records alias bindings whose paths have already been resolved against `env`, without expanding
+  their leading segments a second time.
+  """
+  def define_resolved(env, asts) when is_list(asts), do: Enum.reduce(asts, env, &define_resolved(&2, &1))
+
+  def define_resolved(env, {:alias, _, aliases}) do
+    case aliases do
+      [{:__aliases__, _, modules}] -> put_resolved(env, modules, List.last(modules))
+      [{:__aliases__, _, modules}, [{_as, {:__aliases__, _, [as]}}]] -> put_resolved(env, modules, as)
+      _ -> env
+    end
+  end
+
+  def define_resolved(env, _ast), do: env
+
+  defp define(env, [:"Elixir" | canonical], as) when canonical != [], do: Map.put(env, as, canonical)
   defp define(env, modules, as), do: Map.put(env, as, do_expand(env, modules))
+
+  defp put_resolved(env, [:"Elixir" | canonical], as) when canonical != [], do: Map.put(env, as, canonical)
+  defp put_resolved(env, modules, as), do: Map.put(env, as, modules)
 
   # no need to traverse ast if there are no aliases
   def expand(env, ast) when map_size(env) == 0, do: ast
+  def expand(env, ast), do: expand_ast(env, ast)
 
-  def expand(env, ast) do
-    Macro.prewalk(ast, fn
-      {:__aliases__, meta, modules} -> {:__aliases__, meta, do_expand(env, modules)}
-      ast -> ast
-    end)
+  # Only expand the namespace to the left of `.{}` — child segments are relative to it,
+  # not top-level aliases (e.g. `import Baz.{Bar, Qux}` must not expand `Bar` against `alias Foo.Bar`).
+  defp expand_ast(env, {{:., dm, [{:__aliases__, nm, namespace}, :{}]}, cm, children}) do
+    {{:., dm, [{:__aliases__, nm, do_expand(env, namespace)}, :{}]}, cm, children}
   end
+
+  defp expand_ast(env, {:__aliases__, meta, modules}) do
+    {:__aliases__, meta, do_expand(env, modules)}
+  end
+
+  defp expand_ast(env, {form, meta, args}) when is_list(args) do
+    {expand_ast(env, form), meta, Enum.map(args, &expand_ast(env, &1))}
+  end
+
+  defp expand_ast(env, {a, b}), do: {expand_ast(env, a), expand_ast(env, b)}
+  defp expand_ast(env, list) when is_list(list), do: Enum.map(list, &expand_ast(env, &1))
+  defp expand_ast(_env, other), do: other
 
   @doc """
   Resolve just the leading module path of an `alias` directive against `env`.
@@ -76,44 +108,38 @@ defmodule Quokka.AliasEnv do
     end
   end
 
-  defp disambiguate_or_keep([first | rest] = modules) when rest != [] and rest != [first], do: [:"Elixir" | modules]
+  defp disambiguate_or_keep([_first | rest] = modules) when rest != [], do: [:"Elixir" | modules]
   defp disambiguate_or_keep(modules), do: modules
 
+  # Single-step O(1) resolution against `env`.
+  # Every entry in `env` is already canonical (resolved at the time it was defined), so we never
+  # re-expand the resolved target. This matches Elixir's alias semantics, avoids O(N^2) Macro.Env
+  # construction, and avoids Elixir 1.15.x's recursive lookup hang on indirect self-aliases.
+  defp do_expand(_env, [:"Elixir" | _] = modules), do: modules
+
   defp do_expand(env, [first | rest] = modules) do
-    cond do
-      # A bare alias resolving to itself (e.g. `alias Foo` giving env[Foo] == [Foo]) is already a
-      # no-op lookup. Short-circuit instead of calling Macro.expand_literals, which infinite-loops
-      # on this exact self-referential alias on Elixir 1.15.x.
-      env[first] == modules ->
+    case Map.get(env, first) do
+      nil ->
         modules
 
-      # Non-atom segments (e.g. `__MODULE__`) can't be fed to Module.concat / Macro.Env.
-      not Enum.all?(modules, &is_atom/1) ->
+      ^modules ->
         modules
 
       # A self-referential alias (e.g. `alias Foo.Foo`, `alias A.A.A`) resolves its own leading segment
       # back to a path that still begins with that segment. Appending a remainder would deepen the path
-      # (`Foo.Bar` → `Foo.Foo.Bar`, then again on later passes). Leave the path alone in that case.
-      # Resolving the bare alias name (no remainder) is still fine and goes through Macro.expand_literals.
-      rest != [] and match?([^first | _], env[first]) ->
+      # (`Foo.Bar` -> `Foo.Foo.Bar`, then again on later passes). Leave the path alone in that case.
+      [^first | _] when rest != [] ->
         modules
 
-      true ->
-        expand_with_macro(env, modules)
+      resolved when is_list(resolved) ->
+        if Enum.all?(modules, &is_atom/1) and Enum.all?(resolved, &is_atom/1) do
+          resolved ++ rest
+        else
+          modules
+        end
+
+      _ ->
+        modules
     end
-  end
-
-  # Uses Macro.expand_literals to apply the compiler's alias resolution rules, then convert the module atom back to segments.
-  defp expand_with_macro(env, modules) do
-    aliases =
-      env
-      |> Enum.filter(fn {_as, path} -> is_list(path) and Enum.all?(path, &is_atom/1) end)
-      |> Enum.map(fn {as, path} -> {Module.concat([as]), Module.concat(path)} end)
-
-    macro_env = %{__ENV__ | aliases: aliases, macro_aliases: []}
-
-    Macro.expand_literals({:__aliases__, [], modules}, macro_env)
-    |> Module.split()
-    |> Enum.map(&String.to_atom/1)
   end
 end
