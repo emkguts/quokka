@@ -139,7 +139,7 @@ if foo |> MyModule.transform() |> Enum.count(enum) > 0, do: "not empty"
 `String.starts_with?/2`, `String.ends_with?/2`, and `String.contains?/2` all accept a list of
 patterns as their second argument, returning `true` if any of them match. When multiple checks
 against the *same* subject are combined with `or`/`||`, Quokka collapses them into a single call with a
-list. When the input string is large, this is a significant performance improvement for `String.contains/2`
+list. When the input string is large, this is a significant performance improvement for `String.contains?/2`
 because internally, it will use `:binary.match/2` to only scan the input string once. In the other cases,
 it's more or less a wash—just a nice readability improvement.
 
