@@ -806,12 +806,12 @@ defmodule Quokka.Style.ModuleDirectivesTest do
     end
 
     test "sorts, dedupes & expands aliases while respecting groups and dependencies" do
-      # `alias A.{B}` aliases `B` to `A.B`, so the later `alias B.B` resolves to `A.B.B`.
+      # `alias A.{B}` aliases `B` to `A.B`, so the later `alias B.B` resolves to `A.B.B` (and shadows `A.B`).
       # Expanding it keeps the meaning stable regardless of alias ordering (#179).
-      # Having aliased `A.B`, though, if we later aliased `B.E`, it would resolve to `A.B.E`.
-      # The only way to unambiguously resolve `B.E` at that point is to alias it as `Elixir.B.E`.
-      #
-      # Along similar lines, the original aliasing `A.B`, then `B.B` is actually an alias to `A.B.B`.
+      # Having aliased `A.B.B` (binding `B`), `alias B.E` sorted below it would resolve to `A.B.B.E`,
+      # so it gets disambiguated as `Elixir.B.E`.
+      # Shadowed earlier bindings (`D.D` shadowed by `A.D`, `A.A.A` by `A.A`, `A.B` by `A.B.B`) are dropped
+      # so sorting cannot flip which alias wins.
       assert_style(
         """
         alias D.D
@@ -830,12 +830,269 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """,
         """
         alias A.A
-        alias A.A.A
-        alias A.B
         alias A.B.B
         alias A.C
-        alias D.D
+        alias A.D
         alias Elixir.B.E
+        """
+      )
+    end
+
+    test "expanding grouped import/require/use does not drop children matching an earlier alias" do
+      for {directive, before_alias?} <- [{:import, true}, {:use, true}, {:require, false}] do
+        expected =
+          if before_alias? do
+            """
+            defmodule M do
+              #{directive} Baz.Bar
+              #{directive} Baz.Qux
+
+              alias Foo.Bar
+            end
+            """
+          else
+            """
+            defmodule M do
+              alias Foo.Bar
+
+              #{directive} Baz.Bar
+              #{directive} Baz.Qux
+            end
+            """
+          end
+
+        assert_style(
+          """
+          defmodule M do
+            alias Foo.Bar
+            #{directive} Baz.{Bar, Qux}
+          end
+          """,
+          expected
+        )
+      end
+    end
+
+    test "hoisting a non-expanded grouped import above an alias does not rewrite its brace children" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style(
+        """
+        defmodule M do
+          alias Foo.Bar
+          import Baz.{Bar, Qux}
+        end
+        """,
+        """
+        defmodule M do
+          import Baz.{Bar, Qux}
+
+          alias Foo.Bar
+        end
+        """
+      )
+    end
+
+    test "does not double-expand dependent aliases when an earlier namespace is later shadowed" do
+      assert_style(
+        """
+        defmodule Example do
+          alias Alpha.Bravo
+          alias Zulu.Alpha
+          alias Bravo.Charlie
+          alias Charlie.Delta
+
+          def target(), do: Delta
+        end
+        """,
+        """
+        defmodule Example do
+          alias Alpha.Bravo
+          alias Alpha.Bravo.Charlie
+          alias Alpha.Bravo.Charlie.Delta
+          alias Zulu.Alpha
+
+          def target(), do: Delta
+        end
+        """
+      )
+    end
+
+    test "handles indirect self-referential aliases without looping" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style(
+        """
+        defmodule Example do
+          alias Foo
+          alias Foo, as: Other
+          alias Other.Bar
+
+          def target(), do: Bar
+        end
+        """,
+        """
+        defmodule Example do
+          alias Foo
+          alias Foo, as: Other
+          alias Foo.Bar
+
+          def target(), do: Bar
+        end
+        """
+      )
+    end
+
+    test "drops shadowed earlier aliases so sorting preserves last-write-wins semantics" do
+      assert_style(
+        """
+        defmodule M do
+          alias B.B
+          alias A.B
+        end
+        """,
+        """
+        defmodule M do
+          alias A.B
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias D.D
+          alias A.{D}
+        end
+        """,
+        """
+        defmodule M do
+          alias A.D
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias Z.Foo
+          alias Foo.Bar
+          alias A.Foo
+        end
+        """,
+        """
+        defmodule M do
+          alias A.Foo
+          alias Z.Foo.Bar
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias Foo.Bar, as: B
+          alias Other.B
+        end
+        """,
+        """
+        defmodule M do
+          alias Other.B
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias A.B
+          alias B.B
+        end
+        """,
+        """
+        defmodule M do
+          alias A.B.B
+        end
+        """
+      )
+    end
+
+    test "prunes shadowed multi-alias children when rewrite_multi_alias is false" do
+      stub(Quokka.Config, :rewrite_multi_alias?, fn -> false end)
+
+      assert_style(
+        """
+        defmodule M do
+          alias Z.{Bar, Baz}
+          alias A.Bar
+        end
+        """,
+        """
+        defmodule M do
+          alias A.Bar
+          alias Z.Baz
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias A.A
+          alias __MODULE__.{A, B}
+        end
+        """,
+        """
+        defmodule M do
+          alias __MODULE__.{A, B}
+        end
+        """
+      )
+    end
+
+    test "disambiguates aliases when as: or warn: false shadows a leading segment after sorting" do
+      assert_style(
+        """
+        defmodule M do
+          alias D.F.E
+          alias A.B, as: D
+        end
+        """,
+        """
+        defmodule M do
+          alias A.B, as: D
+          alias Elixir.D.F.E
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias B, as: Other
+          alias A.B
+        end
+        """,
+        """
+        defmodule M do
+          alias A.B
+          alias Elixir.B, as: Other
+        end
+        """
+      )
+
+      assert_style(
+        """
+        defmodule M do
+          alias B.E
+          alias A.B, warn: false
+        end
+        """,
+        """
+        defmodule M do
+          alias A.B, warn: false
+          alias Elixir.B.E
+        end
         """
       )
     end
@@ -916,7 +1173,6 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         """,
         """
         alias A.A
-        alias A.B
         alias A.B.B
         alias D.D
 
@@ -977,12 +1233,12 @@ defmodule Quokka.Style.ModuleDirectivesTest do
 
       assert_style(
         """
-        alias A.A
+        alias Z.Z
         alias __MODULE__.{C, B.D, B.A, A}
         """,
         """
         alias __MODULE__.{A, B.A, B.D, C}
-        alias A.A
+        alias Z.Z
         """
       )
     end
@@ -1118,8 +1374,6 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         import D
       end
       """,
-      # `A.B.C` is aliased as `D`, so `alias D.F.C` would mean `alias A.B.C.F.C`.
-      # Expanding it to `Elixir.D.F.C` is the only way to unambiguously resolve it at that point (#179).
       """
       defmodule MyModule do
         @moduledoc "Implements \#{A.B.C.foo()}!"
@@ -1131,9 +1385,6 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         import D.F.C
 
         alias A.B, as: D
-        alias A.B.C
-        alias Elixir.D.F.C
-        alias G.H.C
         alias Z.X.C
       end
       """
@@ -1261,7 +1512,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
       assert_style(
         """
         defmodule Foo do
-          alias MyApp.B.{A, C}
+          alias MyApp.B.{A, D}
           alias MyApp.A.B.C
         end
         """,
@@ -1269,7 +1520,7 @@ defmodule Quokka.Style.ModuleDirectivesTest do
         defmodule Foo do
           alias MyApp.A.B.C
           alias MyApp.B.A
-          alias MyApp.B.C
+          alias MyApp.B.D
         end
         """
       )
