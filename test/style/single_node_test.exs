@@ -2155,13 +2155,29 @@ defmodule Quokka.Style.SingleNodeTest do
       )
 
       assert_style(
-        ~s|(x \|\| y) or String.starts_with?(s, "a") or String.starts_with?(s, "b")|,
-        ~s|(x \|\| y) or String.starts_with?(s, ["a", "b"])|
+        ~s|flag or String.starts_with?(s, "a") \|\| String.starts_with?(s, "b")|,
+        ~s|flag or String.starts_with?(s, ["a", "b"])|
       )
+
+      # Elixir 1.19+ adds clarifying parens around mixed `||`/`or` on the left; match the host formatter.
+      expected_or =
+        ~s|(x \|\| y) or String.starts_with?(s, ["a", "b"])|
+        |> Code.format_string!()
+        |> IO.iodata_to_binary()
+
+      assert_style(
+        ~s|(x \|\| y) or String.starts_with?(s, "a") or String.starts_with?(s, "b")|,
+        expected_or
+      )
+
+      expected_bar =
+        ~s|(a or b) \|\| String.starts_with?(s, ["a", "b"])|
+        |> Code.format_string!()
+        |> IO.iodata_to_binary()
 
       assert_style(
         ~s|(a or b) \|\| String.starts_with?(s, "a") \|\| String.starts_with?(s, "b")|,
-        ~s|(a or b) \|\| String.starts_with?(s, ["a", "b"])|
+        expected_bar
       )
 
       assert_style(
