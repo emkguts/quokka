@@ -62,6 +62,7 @@ defmodule Quokka.Style.Pipes do
     :===,
     :<>
   ]
+  @kernel_unary_ops [:-, :+, :!, :not]
   @kernel_ops @kernel_infix_ops ++ [:!, :not]
   @special_ops [:|||, :&&&, :<<<, :>>>, :<<~, :~>>, :<~, :~>, :<~>]
   @special_ops @literal ++ @value_constructors ++ @kernel_ops ++ @special_ops
@@ -70,14 +71,17 @@ defmodule Quokka.Style.Pipes do
     case fix_pipe_start(zipper) do
       {{:|>, _, _}, _} = zipper ->
         statement_line = Style.statement_line(zipper)
+        kernel_restricted? = Style.kernel_import_restricted?(zipper)
 
         {zipper, ctx} =
           Zipper.traverse(zipper, ctx, fn {node, meta}, ctx ->
-            {node, ctx} = fix_pipe(node, ctx, statement_line)
+            {node, ctx} = fix_pipe(node, ctx, statement_line, kernel_restricted?)
             {{maybe_break_one_pipe_per_line(node), meta}, ctx}
           end)
 
-        case maybe_fold_two_step_infix(zipper) do
+        zipper = if kernel_restricted?, do: zipper, else: maybe_fold_leading_kernel_ops(zipper, ctx.comments)
+
+        case maybe_fold_two_step_infix(zipper, kernel_restricted?, ctx.comments) do
           {{:|>, _, [{:|>, _, _}, _]}, _} = chain_zipper ->
             {:cont, find_pipe_start(chain_zipper), ctx}
 
@@ -257,24 +261,88 @@ defmodule Quokka.Style.Pipes do
 
   defp alias_function_usage_to_existing_atom(_), do: nil
 
+  defp maybe_fold_leading_kernel_ops({node, _} = zipper, comments) do
+    case fold_leading_kernel_ops(node, comments) do
+      ^node -> zipper
+      folded -> Zipper.replace(zipper, folded)
+    end
+  end
+
+  defp fold_leading_kernel_ops({:|>, pm, [lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, args} = rhs]} = pipe, comments)
+       when op in @kernel_ops do
+    case fold_leading_kernel_ops(lhs, comments) do
+      {:|>, _, _} -> pipe
+      folded_lhs -> fold_kernel_op({:|>, pm, [folded_lhs, rhs]}, folded_lhs, op, args, comments)
+    end
+  end
+
+  defp fold_leading_kernel_ops(node, _comments), do: node
+
+  # binary op: `lhs |> Kernel.op(rhs)` => `lhs op rhs`
+  # Skip folding when `lhs` contains comments: wrapping a multiline commented expression in
+  # parenthesized `(lhs op rhs) |> ...` causes Elixir's formatter to eject the comment on re-format.
+  defp fold_kernel_op(pipe, {_, lhs_meta, _} = lhs, op, [rhs], comments) when op in @kernel_infix_ops do
+    if has_comments_in_range?(comments, lhs_meta[:line], Style.max_line(lhs)) do
+      pipe
+    else
+      maybe_set_line({op, [line: lhs_meta[:line]], [lhs, rhs]}, lhs_meta[:line], comments)
+    end
+  end
+
+  # unary op: `lhs |> Kernel.op()` => `op lhs` (e.g. `a |> Kernel.-()` => `-a`)
+  defp fold_kernel_op(pipe, {_, lhs_meta, _} = lhs, op, [], comments) when op in @kernel_unary_ops do
+    if has_comments_in_range?(comments, lhs_meta[:line], Style.max_line(lhs)) do
+      pipe
+    else
+      maybe_set_line({op, [line: lhs_meta[:line]], [lhs]}, lhs_meta[:line], comments)
+    end
+  end
+
+  defp fold_kernel_op(pipe, _lhs, _op, _args, _comments), do: pipe
+
   defp maybe_fold_two_step_infix(
          {{:|>, _,
            [
              {:|>, _, [{lhs_fun, lhs_meta, _} = lhs, {fun, fun_meta, args}]},
              {{:., _, [{_, _, [:Kernel]}, op]}, _, [rhs]}
-           ]}, _} = zipper
+           ]}, _} = zipper,
+         false,
+         comments
        )
        when op in @kernel_infix_ops and lhs_fun != :|> do
     if terminal_pipe_chain?(zipper) and piped_functions_rewritable?(lhs_fun, fun) do
-      function_call = {fun, fun_meta, [lhs | args || []]}
       line = lhs_meta[:line]
-      Zipper.replace(zipper, Style.set_line({op, [line: line], [function_call, rhs]}, line))
+      fun_line = fun_meta[:line]
+
+      lhs_for_call =
+        if is_integer(fun_line) and line == Style.max_line(lhs),
+          do: Style.set_line(lhs, fun_line),
+          else: lhs
+
+      function_call = {fun, fun_meta, [lhs_for_call | args || []]}
+      Zipper.replace(zipper, maybe_set_line({op, [line: line], [function_call, rhs]}, line, comments))
     else
       zipper
     end
   end
 
-  defp maybe_fold_two_step_infix(zipper), do: zipper
+  defp maybe_fold_two_step_infix(zipper, _kernel_restricted?, _comments), do: zipper
+
+  # Only flatten line metadata when the folded expression contains no internal comments;
+  # otherwise `Style.set_line` collapses multiline bodies and ejects their comments.
+  defp maybe_set_line(node, line, comments) do
+    if has_comments_in_range?(comments, line, Style.max_line(node)) do
+      node
+    else
+      Style.set_line(node, line)
+    end
+  end
+
+  defp has_comments_in_range?(comments, first_line, last_line) when is_integer(first_line) and is_integer(last_line) do
+    Enum.any?(comments, &(&1.line >= first_line and &1.line <= last_line))
+  end
+
+  defp has_comments_in_range?(_comments, _first_line, _last_line), do: false
 
   defp terminal_pipe_chain?({pipe, _} = zipper) do
     case Zipper.up(zipper) do
@@ -392,7 +460,8 @@ defmodule Quokka.Style.Pipes do
            {{:., _, [{_, _, [:Map]}, :new]}, _, [mapper]}
          ) = node,
          ctx,
-         statement_line
+         statement_line,
+         _kernel_restricted?
        ) do
     if Quokka.Config.inefficient_function_rewrites?() and Style.group_counting_mapper?(mapper) do
       comments = Style.move_comments_before(ctx.comments, mapper, statement_line)
@@ -402,7 +471,35 @@ defmodule Quokka.Style.Pipes do
     end
   end
 
-  defp fix_pipe(node, ctx, _statement_line), do: {fix_pipe(node), ctx}
+  # Don't rewrite bare `length/1` when `Kernel` imports are restricted (could be a local `length/1`)
+  defp fix_pipe(
+         pipe_chain(pm, lhs, {{:., _, [{_, _, [:Enum]}, :filter]}, _, [_]} = filter, {:length, lm, nil}),
+         ctx,
+         _statement_line,
+         true
+       ), do: {{:|>, pm, [{:|>, pm, [lhs, filter]}, {:length, lm, []}]}, ctx}
+
+  defp fix_pipe(
+         pipe_chain(_pm, _lhs, {{:., _, [{_, _, [:Enum]}, :filter]}, _, [_]}, {:length, _, []}) = node,
+         ctx,
+         _statement_line,
+         true
+       ), do: {node, ctx}
+
+  defp fix_pipe(node, ctx, _statement_line, kernel_restricted?) do
+    {fix_pipe(node, ctx.comments, kernel_restricted?), ctx}
+  end
+
+  defp fix_pipe(node, comments, kernel_restricted?) do
+    case fix_pipe(node) do
+      {:|>, _pm, [_lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, _args}]} = pipe
+      when op in @kernel_ops and not kernel_restricted? ->
+        fold_leading_kernel_ops(pipe, comments)
+
+      rewritten ->
+        rewritten
+    end
+  end
 
   # a |> fun => a |> fun()
   # recurses so that other rewrites see the parenthesized call in a single pass
@@ -631,7 +728,7 @@ defmodule Quokka.Style.Pipes do
              lhs,
              {{:., dm, [{_, _, [unquote(m)]}, :delete]}, meta, [key1]},
              {{:., _, [{_, _, [unquote(m)]}, :delete]}, _, [key2]}
-           )
+           ) = node
          ) do
       if Quokka.Config.inefficient_function_rewrites?() do
         keys = {:__block__, meta, [[key1, key2]]}
@@ -639,7 +736,7 @@ defmodule Quokka.Style.Pipes do
         # recurse to handle the case of Map/Keyword.delete followed by Map/Keyword.drop
         fix_pipe({:|>, pm, [lhs, drop_call]})
       else
-        {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :delete]}, meta, [key1]}]}
+        node
       end
     end
 
@@ -650,7 +747,7 @@ defmodule Quokka.Style.Pipes do
              lhs,
              {{:., dm, [{_, _, [unquote(m)]}, :delete]}, meta, [key1]},
              {{:., _, [{_, _, [unquote(m)]}, :drop]}, _, [{:__block__, _, [existing_keys]}]}
-           )
+           ) = node
          ) do
       if Quokka.Config.inefficient_function_rewrites?() do
         keys = {:__block__, meta, [[key1 | existing_keys]]}
@@ -658,7 +755,7 @@ defmodule Quokka.Style.Pipes do
         # recursively continue simplifying Map/Keyword.delete or Map/Keyword.drop chains
         fix_pipe({:|>, pm, [lhs, drop_call]})
       else
-        {:|>, pm, [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :delete]}, meta, [key1]}]}
+        node
       end
     end
 
@@ -669,7 +766,7 @@ defmodule Quokka.Style.Pipes do
              lhs,
              {{:., dm, [{_, _, [unquote(m)]}, :drop]}, meta, [{:__block__, _, [existing_keys]}]},
              {{:., _, [{_, _, [unquote(m)]}, :delete]}, _, [key3]}
-           )
+           ) = node
          ) do
       if Quokka.Config.inefficient_function_rewrites?() do
         keys = {:__block__, meta, [existing_keys ++ [key3]]}
@@ -677,8 +774,7 @@ defmodule Quokka.Style.Pipes do
         # recursively continue simplifying Map/Keyword.delete or Map/Keyword.drop chains
         fix_pipe({:|>, pm, [lhs, drop_call]})
       else
-        {:|>, pm,
-         [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [{:__block__, meta, [existing_keys]}]}]}
+        node
       end
     end
 
@@ -689,7 +785,7 @@ defmodule Quokka.Style.Pipes do
              lhs,
              {{:., dm, [{_, _, [unquote(m)]}, :drop]}, meta, [{:__block__, _, [existing_keys1]}]},
              {{:., _, [{_, _, [unquote(m)]}, :drop]}, _, [{:__block__, _, [existing_keys2]}]}
-           )
+           ) = node
          ) do
       if Quokka.Config.inefficient_function_rewrites?() do
         keys = {:__block__, meta, [existing_keys1 ++ existing_keys2]}
@@ -697,8 +793,7 @@ defmodule Quokka.Style.Pipes do
         # recursively continue simplifying Map/Keyword.delete or Map/Keyword.drop chains
         fix_pipe({:|>, pm, [lhs, drop_call]})
       else
-        {:|>, pm,
-         [lhs, {{:., dm, [{:__aliases__, dm, [unquote(m)]}, :drop]}, meta, [{:__block__, meta, [existing_keys1]}]}]}
+        node
       end
     end
   end
@@ -762,20 +857,6 @@ defmodule Quokka.Style.Pipes do
   #     (foo || bar)
   #     |> Enum.map(...)
   #
-  # We only fold when the left-hand side isn't itself a pipe (the operator really is the
-  # very first step). Folding a later step (`a |> b() |> Kernel.++(c)`) would change semantics,
-  # since operators like `++` bind tighter than `|>`, so those are left as-is.
-  defp fix_pipe({:|>, _pm, [{:|>, _, _}, {{:., _, [{_, _, [:Kernel]}, op]}, _, _}]} = pipe) when op in @kernel_ops,
-    do: pipe
-
-  # binary op: `lhs |> Kernel.op(rhs)` => `lhs op rhs`
-  defp fix_pipe({:|>, _pm, [{_, lhs_meta, _} = lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, [rhs]}]})
-       when op in @kernel_ops, do: Style.set_line({op, [line: lhs_meta[:line]], [lhs, rhs]}, lhs_meta[:line])
-
-  # unary op: `lhs |> Kernel.op()` => `op lhs` (e.g. `a |> Kernel.-()` => `-a`)
-  defp fix_pipe({:|>, _pm, [{_, lhs_meta, _} = lhs, {{:., _, [{_, _, [:Kernel]}, op]}, _, []}]}) when op in @kernel_ops,
-    do: Style.set_line({op, [line: lhs_meta[:line]], [lhs]}, lhs_meta[:line])
-
   defp fix_pipe({:|>, meta, [_, {{:., dot_meta, [{:__aliases__, _, [:Map]} = mod, :put]}, call_meta, [_, _]}]} = node) do
     {base, entries} = collect_map_puts(node, [])
 

@@ -97,6 +97,17 @@ defmodule Quokka.Style.SingleNodeTest do
       # A non-terminal operator in a longer chain is still left alone.
       assert_style "a |> b() |> Kernel.++(c) |> d()"
     end
+
+    test "does not fold Kernel operators in modules restricting Kernel imports" do
+      assert_style("""
+      defmodule Vec do
+        import Kernel, except: [+: 2]
+
+        def {a, b} + {c, d}, do: {Kernel.+(a, c), Kernel.+(b, d)}
+        def a + b when is_number(a) and is_number(b), do: Kernel.+(a, b)
+      end
+      """)
+    end
   end
 
   describe "{Keyword/Map}.merge/2 of a single key => *.put/3" do
@@ -2041,6 +2052,11 @@ defmodule Quokka.Style.SingleNodeTest do
 
     test "reducer with an accumulator pattern instead of a plain variable" do
       assert_style("Enum.reduce(items, {[], []}, fn item, {a, b} -> {[item | a], b} end)")
+    end
+
+    test "reducer where item pattern also binds the accumulator variable" do
+      stub(Quokka.Config, :elixir_version, fn -> "1.18.0" end)
+      assert_style("Enum.reduce([{1, 9}], 0, fn {x, acc}, acc -> x * x + acc end)")
     end
 
     test "respects inefficient_functions config" do

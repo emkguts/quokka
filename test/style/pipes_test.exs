@@ -2566,6 +2566,74 @@ defmodule Quokka.Style.PipesTest do
         "foo |> Keyword.drop([key1, key2, key3, key4, key5, key6]) |> bar()"
       )
     end
+
+    test "Map/Keyword delete/drop chains stay intact when inefficient_functions is excluded" do
+      stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
+
+      for mod <- ["Map", "Keyword"] do
+        assert_style("foo |> #{mod}.delete(:a) |> #{mod}.delete(:b)")
+        assert_style("foo |> #{mod}.delete(:a) |> #{mod}.drop([:b, :c])")
+        assert_style("foo |> #{mod}.drop([:a, :b]) |> #{mod}.delete(:c)")
+        assert_style("foo |> #{mod}.drop([:a, :b]) |> #{mod}.drop([:c, :d])")
+      end
+    end
+  end
+
+  describe "Kernel operator folding edge cases" do
+    test "chained leading Kernel operators fold in a single pass and validate arity" do
+      assert_style("1 |> Kernel.+(2) |> Kernel.*(3)", "(1 + 2) * 3")
+      assert_style("1 |> then(&(&1 + 2)) |> Kernel.*(3)", "(1 + 2) * 3")
+      assert_style("a |> Kernel.++()", "Kernel.++(a)")
+    end
+
+    test "Kernel operator folding preserves comments in multiline expressions" do
+      assert_style(
+        """
+        list
+        |> Enum.map(fn x ->
+          # important comment
+          y = x * 2
+          y + 1
+        end)
+        |> Kernel.++(other)
+        """,
+        """
+        Enum.map(list, fn x ->
+          # important comment
+          y = x * 2
+          y + 1
+        end) ++ other
+        """
+      )
+
+      assert_style("""
+      [
+        # comment in lhs
+        1,
+        2
+      ]
+      |> Kernel.++([3])
+      |> bar()
+      |> baz()
+      """)
+    end
+
+    test "does not fold Kernel ops or bare length/1 when Kernel imports are restricted" do
+      assert_style("""
+      defmodule CustomOps do
+        import Kernel, except: [+: 2, length: 1]
+
+        def a + b, do: {a, b}
+        def length(_), do: 42
+
+        def run(xs) do
+          a = 1 |> Kernel.+(2) |> Kernel.*(3)
+          b = xs |> Enum.filter(&is_integer/1) |> length()
+          {a, b}
+        end
+      end
+      """)
+    end
   end
 
   describe "UtcNowTruncate" do
