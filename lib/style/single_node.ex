@@ -131,7 +131,29 @@ defmodule Quokka.Style.SingleNode do
     {:cont, {styled, meta}, %{ctx | comments: comments}}
   end
 
+  # `String.starts_with?(s, "a") or String.starts_with?(s, "b")` => `String.starts_with?(s, ["a", "b"])`
+  # Same for `String.ends_with?/2` and `String.contains?/2`, and for `||` chains.
+  # Handled in `run/2` so we skip nodes already traversed as part of an enclosing `or`/`||` chain,
+  # keeping traversal O(N) on long boolean chains.
+  def run({{op, _, [_, _]} = node, meta} = zipper, ctx) when op in [:or, :||] do
+    if Quokka.Config.inefficient_function_rewrites?() and not parent_in_or_chain?(zipper) do
+      {:cont, {merge_string_affix_checks(node), meta}, ctx}
+    else
+      {:cont, zipper, ctx}
+    end
+  end
+
   def run({node, meta}, ctx), do: {:cont, {style(node), meta}, ctx}
+
+  # True when `zipper`'s focused `or`/`||` node was already flattened into an enclosing `or`/`||`
+  # chain (either as any left child of an `or`/`||`, or as the right child of the same operator).
+  defp parent_in_or_chain?({{op, _, _} = node, _} = zipper) do
+    case Zipper.up(zipper) do
+      {{parent_op, _, [^node, _rhs]}, _} when parent_op in [:or, :||] -> true
+      {{^op, _, [_lhs, ^node]}, _} -> true
+      _ -> false
+    end
+  end
 
   # True when the focused node is the right-hand side of a pipe (`lhs |> focused`).
   defp piped_rhs?(zipper) do
@@ -742,46 +764,82 @@ defmodule Quokka.Style.SingleNode do
     end
   end
 
-  # `String.starts_with?(s, "a") or String.starts_with?(s, "b")` => `String.starts_with?(s, ["a", "b"])`
-  # Same for `String.ends_with?/2` and `String.contains?/2`, and for `||` chains. All three accept a
-  # list of patterns, so collapsing an `or`-chain of checks against the same subject into a single
-  # call is more efficient and more readable. Only literal search arguments are combined; a variable
-  # might be a string or a list, so we leave it.
-  defp style({op, _, [_, _]} = node) when op in [:or, :||] do
-    if Quokka.Config.inefficient_function_rewrites?(),
-      do: merge_string_affix_checks(node),
-      else: node
-  end
-
   defp style(node), do: node
 
-  defp merge_string_affix_checks({op, m, _} = node) when op in [:or, :||] do
-    operands = flatten_or(node)
+  # Collapses adjacent `String.{starts_with?,ends_with?,contains?}` checks in `or`/`||` chains while
+  # preserving exact operator boundaries (`or` vs `||`) between non-merged operands so mixed chains
+  # like `(x || y) or String.starts_with?(s, "a") or String.starts_with?(s, "b")` never change `||` to `or`.
+  defp merge_string_affix_checks({op, _, [_, _]} = node) when op in [:or, :||] do
+    {first, edges} = flatten_or(node, [])
 
-    merged =
-      operands
-      |> Enum.reduce([], fn operand, acc ->
-        with [prev | rest] <- acc,
-             {fun, subject, searches} <- string_affix_check(operand),
+    {merged_rev, changed?} =
+      Enum.reduce(edges, {[{nil, nil, first}], false}, fn {edge_op, edge_meta, operand}, {acc, changed?} ->
+        [{prev_op, prev_meta, prev} | rest] = acc
+
+        with {fun, subject, searches} <- string_affix_check(operand),
              {^fun, prev_subject, prev_searches} <- string_affix_check(prev),
              true <- Style.without_meta(subject) == Style.without_meta(prev_subject) do
-          [combine_affix_check(prev, prev_searches ++ searches) | rest]
+          {[{prev_op, prev_meta, combine_affix_check(prev, prev_searches ++ searches)} | rest], true}
         else
-          _ -> [operand | acc]
+          _ -> {[{edge_op, edge_meta, operand} | acc], changed?}
         end
       end)
-      |> Enum.reverse()
 
-    if length(merged) == length(operands) do
-      node
+    if changed? do
+      [{nil, nil, head} | tail] = Enum.reverse(merged_rev)
+      Enum.reduce(tail, head, fn {edge_op, edge_meta, operand}, acc -> {edge_op, edge_meta, [acc, operand]} end)
     else
-      [first | rest] = merged
-      Enum.reduce(rest, first, fn operand, acc -> {op, m, [acc, operand]} end)
+      node
     end
   end
 
-  defp flatten_or({op, _, [lhs, rhs]}) when op in [:or, :||], do: flatten_or(lhs) ++ flatten_or(rhs)
-  defp flatten_or(node), do: [node]
+  # Flattens the left spine of `or`/`||` in O(N) using an accumulator, preserving each edge's `{op, meta}`.
+  # Same-operator right children (`a or (b or c)`) are associative and flattened; mixed-operator right
+  # children (`a || (b or c)`) are only collapsed if the entire right subtree simplifies to a single
+  # affix check (guaranteed boolean, safe to attach to the outer chain).
+  defp flatten_or({op, m, [lhs, rhs]}, acc) when op in [:or, :||] do
+    acc =
+      case rhs do
+        {^op, _, [_, _]} ->
+          flatten_or_same(rhs, op, m, acc)
+
+        {other_op, _, [_, _]} when other_op in [:or, :||] ->
+          case collapse_affix_chain(rhs) do
+            {:ok, single_check} -> [{op, m, single_check} | acc]
+            :error -> [{op, m, rhs} | acc]
+          end
+
+        _ ->
+          [{op, m, rhs} | acc]
+      end
+
+    flatten_or(lhs, acc)
+  end
+
+  defp flatten_or(first, acc), do: {first, acc}
+
+  defp flatten_or_same({op, m, [lhs, rhs]}, op, outer_m, acc) do
+    acc = flatten_or_same(rhs, op, m, acc)
+    flatten_or_same(lhs, op, outer_m, acc)
+  end
+
+  defp flatten_or_same(node, op, m, acc), do: [{op, m, node} | acc]
+
+  defp collapse_affix_chain(node) do
+    if all_affix_checks?(node) do
+      case merge_string_affix_checks(node) do
+        {op, _, [_, _]} when op in [:or, :||] -> :error
+        single -> {:ok, single}
+      end
+    else
+      :error
+    end
+  end
+
+  defp all_affix_checks?({op, _, [lhs, rhs]}) when op in [:or, :||],
+    do: all_affix_checks?(lhs) and all_affix_checks?(rhs)
+
+  defp all_affix_checks?(node), do: not is_nil(string_affix_check(node))
 
   # Returns `{fun, subject, search_nodes}` for a `String.starts_with?/2`, `String.ends_with?/2`, or
   # `String.contains?/2` call whose second argument is a string literal or a list of string
