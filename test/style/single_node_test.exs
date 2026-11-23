@@ -2148,6 +2148,33 @@ defmodule Quokka.Style.SingleNodeTest do
       )
     end
 
+    test "preserves || vs or operators between non-merged operands" do
+      assert_style(
+        ~s|opts[:force] \|\| String.ends_with?(path, ".ex") or String.ends_with?(path, ".exs")|,
+        ~s|opts[:force] \|\| String.ends_with?(path, [".ex", ".exs"])|
+      )
+
+      assert_style(
+        ~s|(x \|\| y) or String.starts_with?(s, "a") or String.starts_with?(s, "b")|,
+        ~s|(x \|\| y) or String.starts_with?(s, ["a", "b"])|
+      )
+
+      assert_style(
+        ~s|(a or b) \|\| String.starts_with?(s, "a") \|\| String.starts_with?(s, "b")|,
+        ~s|(a or b) \|\| String.starts_with?(s, ["a", "b"])|
+      )
+
+      assert_style(
+        ~s|x \|\| (String.ends_with?(s, "a") or String.starts_with?(s, "b") or String.starts_with?(s, "c"))|,
+        ~s|x \|\| (String.ends_with?(s, "a") or String.starts_with?(s, ["b", "c"]))|
+      )
+
+      assert_style(
+        ~s|String.starts_with?(s, "a") \|\| (String.starts_with?(s, "b") or String.starts_with?(s, "c"))|,
+        ~s|String.starts_with?(s, ["a", "b", "c"])|
+      )
+    end
+
     test "respects inefficient_functions config" do
       stub(Quokka.Config, :inefficient_function_rewrites?, fn -> false end)
       assert_style(~s|String.starts_with?(foo, "bar") or String.starts_with?(foo, "baz")|)
