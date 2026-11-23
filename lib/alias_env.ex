@@ -18,14 +18,24 @@ defmodule Quokka.AliasEnv do
 
   def define(env, asts) when is_list(asts), do: Enum.reduce(asts, env, &define(&2, &1))
 
-  def define(env, {:alias, _, aliases}) do
-    case aliases do
-      [{:__aliases__, _, aliases}] -> define(env, aliases, List.last(aliases))
-      [{:__aliases__, _, aliases}, [{_as, {:__aliases__, _, [as]}}]] -> define(env, aliases, as)
-      # `alias __MODULE__` or other oddities i'm not bothering to get right
-      _ -> env
+  def define(env, {:alias, _, [{{:., _, [{:__aliases__, _, ns}, :{}]}, _, children}]}) do
+    base =
+      case ns do
+        [:"Elixir" | canonical] when canonical != [] -> canonical
+        _ -> do_expand(env, ns)
+      end
+
+    put_multi(env, base, children)
+  end
+
+  def define(env, {:alias, _, [{:__aliases__, _, aliases} | opts]}) do
+    case bound_as(aliases, opts) do
+      {:ok, as} -> define(env, aliases, as)
+      :dynamic -> env
     end
   end
+
+  def define(env, _ast), do: env
 
   @doc """
   Records alias bindings whose paths have already been resolved against `env`, without expanding
@@ -33,15 +43,66 @@ defmodule Quokka.AliasEnv do
   """
   def define_resolved(env, asts) when is_list(asts), do: Enum.reduce(asts, env, &define_resolved(&2, &1))
 
-  def define_resolved(env, {:alias, _, aliases}) do
-    case aliases do
-      [{:__aliases__, _, modules}] -> put_resolved(env, modules, List.last(modules))
-      [{:__aliases__, _, modules}, [{_as, {:__aliases__, _, [as]}}]] -> put_resolved(env, modules, as)
-      _ -> env
+  def define_resolved(env, {:alias, _, [{{:., _, [{:__aliases__, _, ns}, :{}]}, _, children}]}) do
+    base =
+      case ns do
+        [:"Elixir" | canonical] when canonical != [] -> canonical
+        _ -> ns
+      end
+
+    put_multi(env, base, children)
+  end
+
+  def define_resolved(env, {:alias, _, [{:__aliases__, _, modules} | opts]}) do
+    case bound_as(modules, opts) do
+      {:ok, as} -> put_resolved(env, modules, as)
+      :dynamic -> env
     end
   end
 
   def define_resolved(env, _ast), do: env
+
+  defp put_multi(env, base, children) do
+    Enum.reduce(children, env, fn
+      {:__aliases__, _, segs}, acc ->
+        case List.last(segs) do
+          as when is_atom(as) -> Map.put(acc, as, base ++ segs)
+          _ -> acc
+        end
+
+      _, acc ->
+        acc
+    end)
+  end
+
+  @doc false
+  def alias_as_opt([opts]) when is_list(opts) do
+    Enum.find_value(opts, :none, fn
+      {{:__block__, _, [:as]}, {:__aliases__, _, [as]}} when is_atom(as) -> {:ok, as}
+      {:as, {:__aliases__, _, [as]}} when is_atom(as) -> {:ok, as}
+      {{:__block__, _, [:as]}, _} -> :dynamic
+      {:as, _} -> :dynamic
+      _ -> nil
+    end)
+  end
+
+  def alias_as_opt(_), do: :none
+
+  defp bound_as(modules, opts) do
+    case alias_as_opt(opts) do
+      {:ok, as} ->
+        {:ok, as}
+
+      :dynamic ->
+        :dynamic
+
+      :none ->
+        case List.last(modules) do
+          as when is_atom(as) -> {:ok, as}
+          _ -> :dynamic
+        end
+    end
+  end
 
   defp define(env, [:"Elixir" | canonical], as) when canonical != [], do: Map.put(env, as, canonical)
   defp define(env, modules, as), do: Map.put(env, as, do_expand(env, modules))
@@ -80,7 +141,7 @@ defmodule Quokka.AliasEnv do
   """
   def dealias_directive(env, ast, opts \\ [])
   def dealias_directive(env, ast, _opts) when map_size(env) == 0, do: ast
-  def dealias_directive(_env, {:alias, m, [{:__aliases__, _, [Elixir | _]} = aliases]}, _), do: {:alias, m, [aliases]}
+  def dealias_directive(_env, {:alias, _, [{:__aliases__, _, [:"Elixir" | _]} | _]} = ast, _), do: ast
 
   def dealias_directive(env, {:alias, m, [{:__aliases__, am, modules} | rest]}, opts) do
     {:alias, m, [{:__aliases__, am, expand_alias_path(env, modules, opts)} | rest]}
@@ -99,17 +160,14 @@ defmodule Quokka.AliasEnv do
 
       expanded ->
         if Access.get(opts, :disambiguate, false) do
-          # After sorting, an alias like `B.E` can end up below `alias A.B` even though it was
-          # written first and meant top-level `B.E`. Prefix with `Elixir.` to preserve that meaning.
-          disambiguate_or_keep(modules)
+          # After sorting, an alias like `B.E` (or `B, as: Other`) can end up below `alias A.B`
+          # even though it was written first and meant top-level `B`. Prefix with `Elixir.` to preserve that meaning.
+          [:"Elixir" | modules]
         else
           expanded
         end
     end
   end
-
-  defp disambiguate_or_keep([_first | rest] = modules) when rest != [], do: [:"Elixir" | modules]
-  defp disambiguate_or_keep(modules), do: modules
 
   # Single-step O(1) resolution against `env`.
   # Every entry in `env` is already canonical (resolved at the time it was defined), so we never

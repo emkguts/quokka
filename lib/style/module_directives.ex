@@ -509,7 +509,7 @@ defmodule Quokka.Style.ModuleDirectives do
           {:use, uses |> Enum.reverse() |> Style.reset_newlines()}
 
         {:alias, to_sort} ->
-          {:alias, to_sort |> disambiguate_aliases() |> Style.reset_newlines()}
+          {:alias, to_sort |> drop_shadowed_aliases() |> disambiguate_aliases() |> Style.reset_newlines()}
 
         {directive, to_sort} when directive in [:behaviour, :import, :require] ->
           {directive, sort(to_sort, false)}
@@ -826,6 +826,140 @@ defmodule Quokka.Style.ModuleDirectives do
 
   defp sort_multi_children(other), do: other
 
+  # When two aliases bind the same short name (e.g. `alias D.D` followed by `alias A.D`,
+  # or `alias A.B` followed by `alias B.B`), Elixir's last-write-wins semantics mean only
+  # the later alias remains in effect after the directive block (all earlier dependent
+  # directives and aliases have already been expanded in source order). Dropping shadowed
+  # earlier aliases prevents sorting from reversing which binding wins.
+  #
+  # `reversed_aliases` is already in reverse source order (latest alias first).
+  defp drop_shadowed_aliases(reversed_aliases) do
+    {kept, _seen} =
+      Enum.reduce(reversed_aliases, {[], %{}}, fn ast, {kept, seen} ->
+        case prune_shadowed_alias(ast, seen) do
+          {:drop, seen} -> {kept, seen}
+          {:keep, pruned, seen} -> {[pruned | kept], seen}
+        end
+      end)
+
+    kept
+  end
+
+  defp prune_shadowed_alias({:alias, _, [{:__aliases__, _, modules} | opts]} = ast, seen) do
+    bound =
+      case AliasEnv.alias_as_opt(opts) do
+        {:ok, as} ->
+          {:ok, as}
+
+        :dynamic ->
+          :dynamic
+
+        :none ->
+          case List.last(modules) do
+            as when is_atom(as) -> {:ok, as}
+            _ -> :dynamic
+          end
+      end
+
+    case bound do
+      {:ok, name} ->
+        target = canonical_target(modules)
+
+        if shadowed?(seen, name, target),
+          do: {:drop, seen},
+          else: {:keep, ast, Map.put_new(seen, name, target)}
+
+      :dynamic ->
+        {:keep, ast, seen}
+    end
+  end
+
+  defp prune_shadowed_alias({:alias, _, [{:__MODULE__, _, _} | opts]} = ast, seen) do
+    case AliasEnv.alias_as_opt(opts) do
+      {:ok, name} ->
+        if shadowed?(seen, name, [:__MODULE__]),
+          do: {:drop, seen},
+          else: {:keep, ast, Map.put_new(seen, name, [:__MODULE__])}
+
+      _ ->
+        {:keep, ast, seen}
+    end
+  end
+
+  defp prune_shadowed_alias({:alias, meta, [{{:., dm, [left, :{}]}, cm, children}]} = ast, seen) do
+    prefix = multi_prefix(left)
+
+    remaining =
+      Enum.reject(children, fn
+        {:__aliases__, _, segs} ->
+          last = List.last(segs)
+          target = if prefix, do: prefix ++ segs, else: :dynamic
+          is_atom(last) and shadowed?(seen, last, target)
+
+        _ ->
+          false
+      end)
+
+    new_seen =
+      Enum.reduce(remaining, seen, fn
+        {:__aliases__, _, segs}, acc ->
+          case List.last(segs) do
+            last when is_atom(last) ->
+              target = if prefix, do: prefix ++ segs, else: :dynamic
+              Map.put_new(acc, last, target)
+
+            _ ->
+              acc
+          end
+
+        _, acc ->
+          acc
+      end)
+
+    case remaining do
+      [] ->
+        {:drop, new_seen}
+
+      ^children ->
+        {:keep, ast, new_seen}
+
+      [{:__aliases__, child_meta, segs}] ->
+        single = collapse_multi_alias(left, segs, meta, child_meta)
+        {:keep, single, new_seen}
+
+      _ ->
+        {:keep, {:alias, meta, [{{:., dm, [left, :{}]}, cm, remaining}]}, new_seen}
+    end
+  end
+
+  defp prune_shadowed_alias(ast, seen), do: {:keep, ast, seen}
+
+  defp shadowed?(_seen, _name, :dynamic), do: false
+
+  defp shadowed?(seen, name, target) do
+    case Map.fetch(seen, name) do
+      {:ok, :dynamic} -> false
+      {:ok, existing} -> existing != target
+      :error -> false
+    end
+  end
+
+  defp canonical_target([:"Elixir" | rest]) when rest != [], do: canonical_target(rest)
+  defp canonical_target([{:__MODULE__, _, _} | rest]), do: [:__MODULE__ | rest]
+  defp canonical_target(modules), do: modules
+
+  defp multi_prefix({:__aliases__, _, ns}), do: canonical_target(ns)
+  defp multi_prefix({:__MODULE__, _, _}), do: [:__MODULE__]
+  defp multi_prefix(_), do: nil
+
+  defp collapse_multi_alias({:__aliases__, _, ns}, segs, meta, child_meta) do
+    {:alias, meta, [{:__aliases__, [line: child_meta[:line]], ns ++ segs}]}
+  end
+
+  defp collapse_multi_alias({:__MODULE__, _, _} = mod, segs, meta, child_meta) do
+    {:alias, meta, [{:__aliases__, [line: child_meta[:line]], [mod | segs]}]}
+  end
+
   # By the time we get here each alias has already been expanded to its full path against the aliases that
   # preceded it in source order (e.g. `alias Foo.Bar` then `alias Bar.Baz` becomes `alias Foo.Bar.Baz`).
   # However, sorting can still reorder an alias ahead of another alias it depends on, silently changing its meaning:
@@ -841,7 +975,7 @@ defmodule Quokka.Style.ModuleDirectives do
     {disambiguated, _env} =
       Enum.map_reduce(sorted, %{}, fn ast, env ->
         ast = AliasEnv.dealias_directive(env, ast, disambiguate: true)
-        {ast, AliasEnv.define(env, ast)}
+        {ast, AliasEnv.define_resolved(env, ast)}
       end)
 
     if disambiguated == sorted do
